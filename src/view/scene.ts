@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { BIN_HZ, CLIP_SECONDS, N_BINS, SR } from '../dsp/stft';
 import type { Session } from '../game/session';
 import type { Mapping } from '../game/tools';
@@ -9,8 +8,10 @@ import { U, withFog, withMirror, withMirrorLines, withWater } from './shaders';
 import { LEVEL_THEME, applyPaint, applyUiTheme, themeById, type Theme } from './themes';
 import { CLASSES } from '../game/catalog';
 import { Walker } from './walk';
+import { pillarGeometry, withPillar } from './pillar';
 import { DiscMode } from './disc';
-import { FogSheets } from './fogsheets';
+import { FogVolume } from './fogvolume';
+import { DISC } from './disc';
 import type { ModeCtx, ModeView } from './modetypes';
 
 export const WORLD_W = 16; // time axis (x)
@@ -208,8 +209,8 @@ export class SpectroView {
   private container: HTMLElement;
   private clock = new THREE.Clock();
   private hfogDensity = 0.5;
-  /** soft drifting fog layers that fill the whole environment */
-  private fogSheets = new FogSheets();
+  /** soft drifting fog puffs that fill the space around the model */
+  private fogVolume = new FogVolume();
 
   // playground state
   mode: VizMode = 'surface';
@@ -234,7 +235,7 @@ export class SpectroView {
     g: UniGrid; nx: number; nz: number; G: Float32Array; GC: Float32Array;
     geo: THREE.BufferGeometry; mesh: THREE.Mesh; matte: THREE.Material; water: THREE.Material; nTop: number; skirt: Int32Array;
   } | null = null;
-  private vox: { g: UniGrid; body: THREE.InstancedMesh; cap: THREE.InstancedMesh; top: Float32Array } | null = null;
+  private vox: { g: UniGrid; body: THREE.InstancedMesh; top: Float32Array } | null = null;
   private sky: { g: UniGrid; mesh: THREE.InstancedMesh; top: Float32Array } | null = null;
   private disc: ModeView | null = null;
   private drops: { g: BinGrid; lines: THREE.LineSegments; points: THREE.Points } | null = null;
@@ -375,7 +376,7 @@ export class SpectroView {
     );
     this.sweep.visible = false;
     this.scene.add(this.sweep);
-    this.scene.add(this.fogSheets.group);
+    this.scene.add(this.fogVolume.object);
 
     this.theme = themeById('lagoon');
     this.walker = new Walker(this);
@@ -769,10 +770,7 @@ export class SpectroView {
     }
     if (this.rnd) this.disposeObj(this.rnd.mesh);
     this.rnd = null;
-    if (this.vox) {
-      this.disposeObj(this.vox.body);
-      this.disposeObj(this.vox.cap);
-    }
+    if (this.vox) this.disposeObj(this.vox.body);
     this.vox = null;
     if (this.drops) {
       this.disposeObj(this.drops.lines);
@@ -882,7 +880,7 @@ export class SpectroView {
     if (this.surf) this.surf.mesh.visible = m === 'surface' || m === 'symmetry';
     if (this.surf) this.surf.mirror.visible = m === 'symmetry';
     if (this.rnd) this.rnd.mesh.visible = m === 'rounded';
-    if (this.vox) this.vox.body.visible = this.vox.cap.visible = m === 'voxel';
+    if (this.vox) this.vox.body.visible = m === 'voxel';
     if (this.drops) this.drops.lines.visible = this.drops.points.visible = m === 'drops' || morphFrom === 'drops';
     if (this.symLines) this.symLines.lines.visible = m === 'symmetry' && VIZ.symmetry.lines;
     if (this.spiral) this.spiral.obj.visible = m === 'spiral';
@@ -1186,57 +1184,42 @@ export class SpectroView {
     if (!this.vox) {
       const g = this.uniGrid(0.05 / VIZ.res.voxel);
       const n = g.NX * g.NZ;
-      const mat = withFog(new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05 }));
-      const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), mat, n);
-      const cap = new THREE.InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 2, 0.45), mat, n);
-      for (const m of [body, cap]) {
-        m.setColorAt(0, new THREE.Color());
-        m.frustumCulled = false;
-        this.world.add(m);
-      }
-      this.vox = { g, body, cap, top: new Float32Array(n) };
+      // one mesh per column: the rounded top is part of the column, not a second piece
+      const mat = withPillar(withFog(new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide })));
+      const body = new THREE.InstancedMesh(pillarGeometry(VIZ.voxel.round), mat, n);
+      body.setColorAt(0, new THREE.Color());
+      body.frustumCulled = false;
+      this.world.add(body);
+      this.vox = { g, body, top: new Float32Array(n) };
       geom = true;
     }
     const v = this.vox;
     const g = v.g;
     this.poolUni(g, geom);
-    const { step, gap, round } = VIZ.voxel;
+    const { step, gap } = VIZ.voxel;
     const BC = v.body.instanceColor!.array as Float32Array;
-    const CC = v.cap.instanceColor!.array as Float32Array;
     const w = g.cw * (1 - gap);
     const d = g.cd * (1 - gap);
-    const capFull = Math.min(w, d) * round;
     for (let i = 0; i < g.NX; i++) {
       const cx = -WORLD_W / 2 + (i + 0.5) * g.cw;
       for (let j = 0; j < g.NZ; j++) {
         const cz = WORLD_D / 2 - (j + 0.5) * g.cd;
         const o = i * g.NZ + j;
-        const r = g.col[o * 3], gg = g.col[o * 3 + 1], b = g.col[o * 3 + 2];
         if (geom) {
           const hq = Math.max(0.03, step > 0 ? Math.round(g.h[o] / step) * step : g.h[o]);
           v.top[o] = hq;
-          if (round > 0) {
-            const capH = Math.min(capFull, hq);
-            const bodyH = Math.max(0.0001, hq - capH / 2);
-            tmpM.makeScale(w, bodyH, d).setPosition(cx, 0, cz);
-            v.body.setMatrixAt(o, tmpM);
-            tmpM.makeScale(w, capH, d).setPosition(cx, hq - capH / 2, cz);
-            v.cap.setMatrixAt(o, tmpM);
-          } else {
-            tmpM.makeScale(w, hq, d).setPosition(cx, 0, cz);
-            v.body.setMatrixAt(o, tmpM);
-          }
+          tmpM.makeScale(w, hq, d).setPosition(cx, 0, cz);
+          v.body.setMatrixAt(o, tmpM);
         }
-        BC[o * 3] = CC[o * 3] = r;
-        BC[o * 3 + 1] = CC[o * 3 + 1] = gg;
-        BC[o * 3 + 2] = CC[o * 3 + 2] = b;
+        BC[o * 3] = g.col[o * 3];
+        BC[o * 3 + 1] = g.col[o * 3 + 1];
+        BC[o * 3 + 2] = g.col[o * 3 + 2];
       }
     }
     v.body.count = g.NX * g.NZ;
-    v.cap.count = round > 0 ? g.NX * g.NZ : 0;
-    if (geom) v.body.instanceMatrix.needsUpdate = v.cap.instanceMatrix.needsUpdate = true;
-    v.body.instanceColor!.needsUpdate = v.cap.instanceColor!.needsUpdate = true;
-    v.body.visible = v.cap.visible = true;
+    if (geom) v.body.instanceMatrix.needsUpdate = true;
+    v.body.instanceColor!.needsUpdate = true;
+    v.body.visible = true;
   }
 
   private voxelH(x: number, z: number) {
@@ -2052,12 +2035,31 @@ export class SpectroView {
     }
     const sy = this.axis.a;
     const A = VIZ.atmosphere;
-    this.fogSheets.update({
+    // the fog box wraps whatever the current mode draws, with room around it
+    const fogBox = new THREE.Vector3();
+    let bottom = -0.3;
+    if (this.mode === 'spiral') {
+      const r = VIZ.spiral.offset * this.axis.f + VIZ.spiral.span * 0.8 * sy + 3;
+      fogBox.set(r + 4, VIZ.spiral.height * this.axis.t * 0.5 + 1, r + 4);
+      bottom = -0.5;
+    } else if (this.mode === 'disc') {
+      const r = DISC.radius * this.axis.t + DISC.inner + 4;
+      fogBox.set(r, 1.2 + DISC.bowl * DISC.radius * 0.5, r);
+    } else {
+      fogBox.set((WORLD_W * this.axis.t) / 2 + 5, Math.max(0.8, A.height * WORLD_H * sy * 1.5), (WORLD_D * this.axis.f) / 2 + 5);
+      if (this.mode === 'symmetry') bottom = -WORLD_H * sy * 1.2;
+      if (this.mode === 'skyline') bottom = -VIZ.skyline.depth * WORLD_H * sy;
+      fogBox.y += -bottom / 2;
+    }
+    this.fogVolume.update({
       color: this.theme.fog,
-      bottom: this.mode === 'symmetry' ? -WORLD_H * sy * 1.2 : this.mode === 'skyline' ? -VIZ.skyline.depth * WORLD_H * sy : -0.3,
-      top: Math.max(0.4, A.height * WORLD_H * sy * 1.6),
-      density: this.walker.active ? A.fog * 0.35 : A.fog,
+      center: new THREE.Vector3(),
+      half: fogBox,
+      bottom,
+      density: this.walker.active ? A.fog * 0.3 : A.fog,
       time: U.time.value,
+      viewportHeight: this.renderer.domElement.height,
+      fovDeg: this.camera.fov,
     });
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
