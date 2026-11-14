@@ -15,6 +15,7 @@ import { openLab, renderLabIfOpen, setLabHooks } from './ui/lab';
 import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
 import { showIntro } from './ui/intro';
+import { mountVizPanel } from './ui/vizpanel';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const fmt = (v: number, d = 1) => {
@@ -26,6 +27,7 @@ const fmt = (v: number, d = 1) => {
 const view = new SpectroView($('#canvas-wrap'));
 const player = new Player();
 player.onTime = (t) => view.setPlayhead(t);
+mountVizPanel(view, $('#stage'));
 player.onStop = () => document.querySelectorAll('.btn.play').forEach((b) => b.classList.remove('on'));
 
 type Tool = 'view' | 'brush' | 'fork' | 'knife' | 'echo';
