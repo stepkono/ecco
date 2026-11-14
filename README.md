@@ -9,7 +9,9 @@ BioSpectra turns each 5-second clip into a 3D sound sculpture (time × frequency
 The repository has two parts:
 
 * **Web game prototype** (TypeScript, Vite, Three.js) in `src/`, described first below.
-* **Python pipeline** for the Arduino UNO Q listening post in `core/`, `bench/` and `tools/`. Phase 0 (model test bench) is done. See [Python pipeline](#python-pipeline-uno-q-listening-post).
+* **Python pipeline** for the Arduino UNO Q listening post in `core/`, `device/`, `bench/` and `tools/`. Phases 0 and 1 and the developer console are done. See [Python pipeline](#python-pipeline-uno-q-listening-post).
+
+**How the whole system works, and how to run it: [docs/SYSTEM.md](docs/SYSTEM.md).**
 
 ## Run it
 
