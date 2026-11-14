@@ -51,8 +51,25 @@ def probe_sample_rate(path: str | Path) -> int:
         raise ValueError(f"No audio stream found in {path}") from e
 
 
+SOUNDFILE_EXTENSIONS = {".wav", ".flac", ".ogg", ".oga", ".aiff", ".aif"}
+
+
+def _load_soundfile(path: str | Path, sr: int | None) -> tuple[np.ndarray, int]:
+    x, native = sf.read(str(path), dtype="float32", always_2d=True)
+    x = x.mean(axis=1)
+    if sr and sr != native:
+        x = resample(x, native, sr)
+    return np.clip(x, -1.0, 1.0), sr or native
+
+
 def load_audio(path: str | Path, sr: int | None = None) -> tuple[np.ndarray, int]:
-    """Decode any supported file to mono float32. Resamples with ffmpeg if `sr` is given."""
+    """Decode any supported file to mono float32. Resamples if `sr` is given.
+
+    Uses ffmpeg (all formats, also video). Without ffmpeg, as on a fresh UNO Q,
+    WAV/FLAC/OGG/AIFF still load through soundfile.
+    """
+    if not shutil.which("ffmpeg") and Path(path).suffix.lower() in SOUNDFILE_EXTENSIONS:
+        return _load_soundfile(path, sr)
     ffmpeg = check_ffmpeg()
     target = sr or probe_sample_rate(path)
     cmd = [ffmpeg, "-v", "error", "-i", str(path), "-vn", "-ac", "1", "-ar", str(target),

@@ -45,8 +45,8 @@ def main() -> None:
             sys.exit("--path is required for file and playlist sources")
         try:
             check_ffmpeg()
-        except RuntimeError as e:
-            sys.exit(str(e))
+        except RuntimeError:
+            logging.getLogger("biospectra.device").warning("ffmpeg missing: only wav/flac/ogg/aiff files can be played")
 
     sr = int(audio["sample_rate"])
     if a.source == "mic":

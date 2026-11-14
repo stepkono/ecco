@@ -54,7 +54,7 @@ head:
   t_known: 0.75                  # min cosine similarity to call a sound recognized (fallback)
   t_known_by_model:              # calibrated per model (python -m tools.calibrate_threshold)
     yamnet-tflite: 0.80          # tools.calibrate_threshold on ESC-50, 5-shot: 65 % known recognized, 88 % new sounds sent to players
-    birdnet-2.4-int8: 0.75
+    birdnet-2.4-int8: 0.40       # calibrated, but only 38 % known recognized: BirdNET embeddings suit birds, not this mix
   knob_range: [0.4, 0.95]        # trust knob 0..1 maps onto this T_known range
   t_noise: 0.65                  # lower bar to call something weather/noise: a missed gust costs nothing,
                                  # a false alarm costs player time. Animals keep the stricter T_known
