@@ -35,6 +35,8 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
   let active = 0;
   let label = '';
   const log: string[] = [];
+  /** events skipped or answered here, so Skip moves on to a different one */
+  const seen = new Set<string>();
 
   const note = (msg: string) => {
     log.unshift(msg);
@@ -74,7 +76,11 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
     const next = q('pz-next');
     if (next) next.onclick = () => void load();
     const skip = q('pz-skip');
-    if (skip) skip.onclick = () => void load();
+    if (skip)
+      skip.onclick = () => {
+        if (puzzle) seen.add(puzzle.clip_id);
+        void load();
+      };
     const send = q('pz-send');
     if (send) send.onclick = () => void submit();
     const sel = q<HTMLSelectElement>('pz-label');
@@ -95,10 +101,16 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
     busy = true;
     render();
     try {
-      const p = await be.nextPuzzle();
+      const p = await be.nextPuzzleExcept(seen);
       if (!p) {
+        const skipped = puzzle !== null || seen.size > 0;
         puzzle = null;
-        note('No open puzzles right now. Let the post listen a bit longer.');
+        wins = [];
+        if (skipped && seen.size) {
+          // nothing else is open: start over with the skipped ones
+          seen.clear();
+          note('No other open puzzles. Press the button again to go back to the skipped ones.');
+        } else note('No open puzzles right now. Let the post listen a bit longer.');
         return;
       }
       const [x, g] = await Promise.all([be.audio(p), be.grid(p)]);
@@ -187,6 +199,7 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
     try {
       const mask = buildGrid();
       const r = await be.submit(puzzle.clip_id, label, mask);
+      seen.add(puzzle.clip_id);
       if (r.gold) {
         note(r.correct ? `Gold check passed: it was <b>${r.true_label}</b>.` : `Gold check: this one was <b>${r.true_label}</b>.`);
       } else if (r.accepted) {

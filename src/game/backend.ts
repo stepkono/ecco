@@ -94,6 +94,27 @@ export class Backend {
     return json<Puzzle>(r);
   }
 
+  /**
+   * The next open puzzle that is not in `avoid`. The backend always serves the
+   * most-heard open event first, so after a skip it would hand out the same one
+   * again. Then this falls back to the other open events, newest first.
+   */
+  async nextPuzzleExcept(avoid: Set<string>): Promise<Puzzle | null> {
+    const first = await this.nextPuzzle();
+    if (!first || !avoid.has(first.clip_id)) return first;
+    const events = await json<{ type: string; clip_id?: string }[]>(await fetch(`${this.base}/events?limit=500`));
+    const ids = [...new Set(events.filter((e) => e.type === 'clip_received' && e.clip_id).map((e) => e.clip_id!).reverse())];
+    for (const id of ids) {
+      if (avoid.has(id)) continue;
+      const r = await fetch(`${this.base}/clips/${encodeURIComponent(id)}`);
+      if (!r.ok) continue;
+      const c = (await r.json()) as { status: string; duration_s: number };
+      if (c.status !== 'open') continue;
+      return { clip_id: id, duration_s: c.duration_s, labels: first.labels, audio_url: `/clips/${id}/audio`, spectrogram_url: `/clips/${id}/spectrogram` };
+    }
+    return null;
+  }
+
   /** Clip audio, resampled to the game's 16 kHz mono. */
   async audio(p: Puzzle): Promise<Float32Array> {
     const buf = await (await fetch(this.base + p.audio_url)).arrayBuffer();
