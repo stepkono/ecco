@@ -4,10 +4,15 @@ For every model: embed each file once (mean of its window embeddings), then
 simulate few-shot learning with 1, 3 and 5 examples per class over several
 random splits. Also hold out one class completely and count how often its
 clips are flagged as unknown.
+
+By default, training and test clips never come from the same source recording
+(see `recording_id`). Otherwise, chunks of one recording would make every model
+look perfect.
 """
 
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,6 +63,45 @@ def _embed_all(model, files: dict[str, list[Path]], energy_dbfs: float, progress
     return emb, lat
 
 
+def recording_id(p: Path) -> str:
+    """Which source recording a clip was cut from, so splits never share a recording.
+
+    * ESC-50: `{fold}-{freesound id}-{take}-{class}.wav` -> freesound id
+    * tools.make_test_set: `{stem}_{start}s.wav` -> stem
+    * anything else: the file itself
+    """
+    m = re.match(r"^\d+-(\w+)-[A-Z]+-\d+$", p.stem)
+    if m:
+        return "esc50:" + m.group(1)
+    m = re.match(r"^(.*)_\d+(?:\.\d+)?s$", p.stem)
+    if m:
+        return m.group(1)
+    return p.stem
+
+
+def _split(paths: list[Path], n: int, rng: np.random.Generator, by_recording: bool) -> tuple[list[Path], list[Path]]:
+    if not by_recording:
+        idx = rng.permutation(len(paths))
+        return [paths[i] for i in idx[:n]], [paths[i] for i in idx[n:]]
+    groups: dict[str, list[Path]] = {}
+    for p in paths:
+        groups.setdefault(recording_id(p), []).append(p)
+    for _ in range(10):  # retry until at least one recording is left for testing
+        keys = list(groups)
+        rng.shuffle(keys)
+        train: list[Path] = []
+        used = 0
+        while used < len(keys) and len(train) < n:
+            g = list(groups[keys[used]])
+            rng.shuffle(g)
+            train += g[: n - len(train)]
+            used += 1
+        test = [p for k in keys[used:] for p in groups[k]]
+        if test:
+            return train, test
+    return train, test
+
+
 def _fit(kind: str, model, train: list[tuple[str, np.ndarray]], k: int):
     head = make_head(kind, model.model_id, model.model_version, model.embedding_dim, k)
     for label, e in train:
@@ -67,7 +111,7 @@ def _fit(kind: str, model, train: list[tuple[str, np.ndarray]], k: int):
 
 def evaluate(registry: ModelRegistry, model_ids: list[str], folder: str | Path, *, shots=(1, 3, 5), splits: int = 5,
              t_known: float = 0.75, margin: float = 0.05, head_kind: str = "prototype", knn_k: int = 3,
-             energy_dbfs: float = -55.0, seed: int = 0,
+             energy_dbfs: float = -55.0, seed: int = 0, by_recording: bool = True,
              progress: Callable[[float, str], None] = lambda p, m: None) -> BatchResult:
     files = scan_folder(folder)
     classes = list(files)
@@ -83,20 +127,22 @@ def evaluate(registry: ModelRegistry, model_ids: list[str], folder: str | Path, 
         embed_s = time.perf_counter() - t0
         rng = np.random.default_rng(seed)
         for n in shots:
-            usable = [c for c in classes if len(files[c]) > n]
+            usable = [c for c in classes if len(files[c]) > n and (not by_recording or len({recording_id(p) for p in files[c]}) >= 2)]
             if len(usable) < 2:
-                notes.append(f"{mid}: {n}-shot skipped, fewer than 2 classes have more than {n} files")
+                notes.append(f"{mid}: {n}-shot skipped, fewer than 2 classes have enough files"
+                             + (" from at least 2 recordings" if by_recording else ""))
                 continue
             if len(usable) < len(classes):
-                notes.append(f"{mid}: {n}-shot uses {len(usable)}/{len(classes)} classes (others too small)")
+                notes.append(f"{mid}: {n}-shot uses {len(usable)}/{len(classes)} classes "
+                             + ("(others have too few files or only one recording)" if by_recording else "(others too small)"))
             accs, unk_rates, false_unk = [], [], []
             cm = np.zeros((len(usable), len(usable)), dtype=int)
             for _ in range(splits):
                 train, test = [], []
                 for c in usable:
-                    idx = rng.permutation(len(files[c]))
-                    train += [(c, emb[files[c][i]]) for i in idx[:n]]
-                    test += [(c, emb[files[c][i]]) for i in idx[n:]]
+                    tr, te = _split(files[c], n, rng, by_recording)
+                    train += [(c, emb[p]) for p in tr]
+                    test += [(c, emb[p]) for p in te]
                 head = _fit(head_kind, model, train, knn_k)
                 correct = 0
                 for c, e in test:
@@ -116,6 +162,7 @@ def evaluate(registry: ModelRegistry, model_ids: list[str], folder: str | Path, 
             rows.append({
                 "model": mid,
                 "shots": n,
+                "split": "by recording" if by_recording else "by file",
                 "classes": len(usable),
                 "accuracy": round(float(np.mean(accs)), 3),
                 "accuracy_std": round(float(np.std(accs)), 3),

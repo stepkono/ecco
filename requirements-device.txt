@@ -1,0 +1,8 @@
+# Arduino UNO Q (Debian 13, Python 3.13, ARM64). LiteRT models only, no TensorFlow.
+birdnet==1.4.0          # BirdNET 2.4 via LiteRT (pulls ai-edge-litert and onnxruntime)
+kagglehub==1.0.3        # downloads yamnet-tflite
+numpy
+scipy
+soundfile
+pyyaml
+psutil
