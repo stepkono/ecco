@@ -4,6 +4,20 @@ device:
   id: post-01
   location: Nuuksio wetland edge
   model_id: yamnet-tflite        # best few-shot accuracy on the board (ESC-50, see README). Must match the backend
+  privacy_model_id: yamnet-tflite  # speech filter on the device (no TensorFlow). Same as model_id = one inference
+  backend_url: ""                # Phase 2 backend, e.g. http://10.0.41.129:8000. Empty = offline
+  sync_interval_s: 5             # upload clips / check prototypes this often
+  hardware: auto                 # auto | mock | led | mock,led | none
+  web_port: 8765                 # mock light page: http://<device>:8765
+  decision_hop_s: 5.0            # one decision per this many seconds of audio
+  queue_cooldown_s: 10           # at most one queued clip per this many seconds
+
+audio:
+  sample_rate: 48000             # capture rate, resampled per model
+  device: plughw:CARD=Camera,DEV=0  # ALSA name of the Arduino USB camera mic (arecord -L)
+  mixer_card: Camera             # amixer card for the gain below
+  mixer_control: Mic
+  mic_gain_percent: 60           # 100 % clipped on loud sounds
 
 runtime:
   threads: 4                     # CPU threads per model (UNO Q has 4 Cortex-A53 cores)
@@ -37,7 +51,13 @@ gates:
 head:
   type: prototype                # prototype | knn
   knn_k: 3
-  t_known: 0.75                  # min cosine similarity to call a sound recognized
+  t_known: 0.75                  # min cosine similarity to call a sound recognized (fallback)
+  t_known_by_model:              # calibrated per model (python -m tools.calibrate_threshold)
+    yamnet-tflite: 0.80          # tools.calibrate_threshold on ESC-50, 5-shot: 65 % known recognized, 88 % new sounds sent to players
+    birdnet-2.4-int8: 0.75
+  knob_range: [0.4, 0.95]        # trust knob 0..1 maps onto this T_known range
+  t_noise: 0.65                  # lower bar to call something weather/noise: a missed gust costs nothing,
+                                 # a false alarm costs player time. Animals keep the stricter T_known
   margin: 0.05                   # min gap between best and second-best class
   noise_label: noise             # label used by "Add as noise"
 

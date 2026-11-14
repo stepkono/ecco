@@ -36,18 +36,23 @@ class State:
 QUIET = State(StateKind.QUIET)
 
 
+def is_noise(label: str | None, noise_label: str = "noise") -> bool:
+    """`noise` and its sub-classes (`noise:rain`, `noise:wind`) never raise an alarm."""
+    return bool(label) and (label == noise_label or label.startswith(noise_label + ":"))
+
+
 def state_for(energy_ok: bool, speech: bool, decision: Decision | None, noise_label: str = "noise") -> State:
     """Map gate results and a head decision to a device state.
 
     * silence or speech: QUIET (speech clips are dropped, never shown as needing help)
-    * a recognized noise class (rain, wind): QUIET, which is how false alarms get fixed
+    * a recognized noise class (`noise`, `noise:rain`, ...): QUIET, which is how false alarms get fixed
     * recognized animal: RECOGNIZED
     * real sound the head does not know: NEEDS_HELP
     """
     if not energy_ok or speech or decision is None:
         return QUIET
     if decision.recognized:
-        if decision.label == noise_label:
+        if is_noise(decision.label, noise_label):
             return QUIET
         return State(StateKind.RECOGNIZED, decision.label, decision.best)
     return State(StateKind.NEEDS_HELP, decision.best_label, decision.best)

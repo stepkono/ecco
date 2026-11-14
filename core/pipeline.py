@@ -27,6 +27,7 @@ class ClipAnalysis:
     level_dbfs: np.ndarray  # (n,)
     latency_s: list[float] = field(default_factory=list)  # per window, one inference for both outputs
     total_s: float = 0.0
+    scores: np.ndarray | None = None  # (n, classes) raw class scores, reused by the privacy gate
 
     def clip_embedding(self) -> np.ndarray:
         """Mean of the normalised embeddings of non-silent windows (all windows if every one is silent)."""
@@ -56,4 +57,5 @@ def analyze(model: BaseAudioModel, audio: np.ndarray, sr: int, *, top_k: int = 5
         level_dbfs=np.array([g.level_dbfs for g in gates]),
         latency_s=list(model.last_latency_s),
         total_s=time.perf_counter() - t0,
+        scores=scores,
     )

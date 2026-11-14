@@ -53,7 +53,11 @@ class PrivacyGate:
     def check(self, audio: np.ndarray, sr: int) -> PrivacyResult:
         x = resample(audio, sr, self.model.sample_rate)
         w = make_windows(x, self.model.sample_rate, self.model.window_seconds)
-        scores = self.model.scores(w.data)[:, self.indices]  # (n, k)
+        return self.check_scores(self.model.scores(w.data))
+
+    def check_scores(self, all_scores: np.ndarray) -> PrivacyResult:
+        """Decide from a (windows, classes) score matrix of the gate's own model (no extra inference)."""
+        scores = np.atleast_2d(all_scores)[:, self.indices]  # (n, k)
         combined = scores.sum(1) if self.combine == "sum" else scores.max(1)
         best = float(combined.max()) if len(combined) else 0.0
         sustained = int((combined >= self.threshold).sum()) >= self.min_windows

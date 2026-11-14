@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BioSpectra listening post</title>
+<style>
+  :root { --bg: #0d1117; --panel: #161b22; --line: #2a3340; --text: #e6edf3; --muted: #8b98a5; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .light { display: flex; align-items: center; gap: 24px; margin: 24px 0; }
+  .lamp { width: 132px; height: 132px; border-radius: 50%; background: #8a8f98; border: 4px solid #222;
+          box-shadow: 0 0 46px #8a8f98; transition: background .25s, box-shadow .25s; flex: none; }
+  .state { font-size: 26px; font-weight: 600; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 14px 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .grid div b { display: block; font-size: 18px; }
+  input[type=range] { width: 100%; }
+  ul { list-style: none; padding: 0; margin: 0; font: 13px/1.6 ui-monospace, Menlo, monospace; }
+  li { border-top: 1px solid var(--line); padding: 3px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+  #conn { float: right; }
+</style>
+</head>
+<body>
+<main>
+  <span id="conn" class="muted">connecting…</span>
+  <h1>BioSpectra listening post</h1>
+  <div class="muted" id="where">device</div>
+
+  <div class="light" role="status" aria-live="polite">
+    <div class="lamp" id="lamp" aria-hidden="true"></div>
+    <div>
+      <div class="state" id="state">Quiet</div>
+      <div id="detail" class="muted">waiting for the first clip</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <label for="knob"><b>Trust knob</b> <span class="muted">higher = more cautious</span></label>
+    <input id="knob" type="range" min="0" max="1" step="0.01" value="0.5">
+    <div class="muted">T_known <b id="tk">–</b></div>
+  </div>
+
+  <div class="panel grid">
+    <div><span class="muted">Prototypes</span><b id="proto">–</b></div>
+    <div><span class="muted">Queued clips</span><b id="queue">–</b></div>
+    <div><span class="muted">Backend</span><b id="sync">–</b></div>
+    <div><span class="muted">Latency per clip</span><b id="lat">–</b></div>
+  </div>
+
+  <div class="panel">
+    <b>Recent decisions</b>
+    <ul id="log"></ul>
+  </div>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  const log = [];
+  let ws, sending = false;
+
+  function connect() {
+    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws.onopen = () => { $("conn").textContent = "live"; };
+    ws.onclose = () => { $("conn").textContent = "reconnecting…"; setTimeout(connect, 1500); };
+    ws.onmessage = (e) => render(JSON.parse(e.data));
+  }
+
+  function render(m) {
+    if (m.color) {
+      $("lamp").style.background = m.color;
+      $("lamp").style.boxShadow = `0 0 46px ${m.color}`;
+    }
+    if (m.text) $("state").textContent = m.text;
+    if (m.detail !== undefined) $("detail").textContent = m.detail;
+    if (m.device) $("where").textContent = `${m.device} · ${m.location || ""} · model ${m.model_id || ""}`;
+    if (m.t_known !== undefined) $("tk").textContent = Number(m.t_known).toFixed(2);
+    if (m.knob !== undefined && !sending) $("knob").value = m.knob;
+    if (m.proto_version !== undefined) $("proto").textContent = `v${m.proto_version} · ${m.proto_classes ?? 0} classes`;
+    if (m.queue !== undefined) $("queue").textContent = m.queue;
+    if (m.sync) $("sync").textContent = m.sync;
+    if (m.latency_ms !== undefined) $("lat").textContent = `${Math.round(m.latency_ms)} ms`;
+    if (m.event) {
+      log.unshift(m);
+      log.length = Math.min(log.length, 12);
+      $("log").innerHTML = log.map((x) =>
+        `<li><span class="dot" style="background:${x.color}"></span>${x.time} ${x.event}</li>`).join("");
+    }
+  }
+
+  $("knob").addEventListener("input", () => {
+    sending = true;
+    if (ws && ws.readyState === 1) ws.send(JSON.stringify({ knob: Number($("knob").value) }));
+    clearTimeout(window._k); window._k = setTimeout(() => (sending = false), 800);
+  });
+  connect();
+</script>
+</body>
+</html>

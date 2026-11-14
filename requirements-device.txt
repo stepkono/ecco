@@ -6,3 +6,4 @@ scipy
 soundfile
 pyyaml
 psutil
+websockets==17.4       # mock light page (WebSocket)
