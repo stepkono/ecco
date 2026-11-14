@@ -119,7 +119,9 @@ class SyncClient:
                     self.uploaded += 1
 
     def _fetch(self) -> None:
-        url = f"{self.backend}/prototypes/latest?" + urllib.parse.urlencode({"model_id": self.model_id})
+        # device_id + installed version let the backend confirm when a post has learned a new version
+        url = f"{self.backend}/prototypes/latest?" + urllib.parse.urlencode(
+            {"model_id": self.model_id, "device_id": self.device_id, "have": self.current_version()})
         try:
             with urllib.request.urlopen(url, timeout=self.timeout) as r:
                 if r.status != 200:

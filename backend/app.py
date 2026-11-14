@@ -10,7 +10,7 @@ Endpoints (see docs/SYSTEM.md):
   GET  /clips/{id}/spectrogram         dB grid with time and frequency axes
   POST /clips/{id}/preview             {"mask"} -> masked audio (WAV)
   POST /clips/{id}/labels              {"player_id", "label", "mask"?}
-  GET  /prototypes/latest?model_id=    prototype JSON, 204 when there is none
+  GET  /prototypes/latest?model_id=    prototype JSON, 204 when there is none (devices add device_id, have)
   GET  /events/stream                  Server-Sent Events for the demo screen
   GET  /events                         recent events
   GET  /stats
@@ -122,8 +122,8 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
             raise HTTPException(400, str(e))
 
     @app.get("/prototypes/latest")
-    def prototypes_latest(model_id: str):
-        text = be.latest_prototypes(model_id)
+    def prototypes_latest(model_id: str, device_id: str | None = None, have: int | None = None):
+        text = be.latest_prototypes(model_id, device_id, have)
         if text is None:
             return Response(status_code=204)
         return Response(text, media_type="application/json")

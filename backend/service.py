@@ -265,7 +265,17 @@ class Backend:
         self.emit("prototype_published", {"version": version, "model_id": self.model_id, "classes": self.head.classes})
         return {"learned": True, "prototype_version": version}
 
-    def latest_prototypes(self, model_id: str) -> str | None:
+    def latest_prototypes(self, model_id: str, device_id: str | None = None, have: int | None = None) -> str | None:
+        """Newest prototypes. A device sends its installed version: when that reaches a newer
+        version than it reported before, the device has learned it (event `device_updated`)."""
+        if device_id and have is not None:
+            self.store.touch_device(device_id)
+            row = self.store.one("SELECT proto_version FROM devices WHERE id=?", (device_id,))
+            if row["proto_version"] is None or have > row["proto_version"]:
+                first = row["proto_version"] is None
+                self.store.run("UPDATE devices SET proto_version=? WHERE id=?", (have, device_id))
+                if not first:
+                    self.emit("device_updated", {"device_id": device_id, "version": have})
         row = self.store.latest_prototypes(model_id)
         return row["json"] if row else None
 

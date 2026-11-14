@@ -203,7 +203,9 @@ es.onmessage = (m) => {
   else if (e.type === "prototype_published") {
     $("b-proto").textContent = `prototypes v${e.version}`;
     feed(`prototypes v${e.version} published`);
-    if (puzzle) $("result").insertAdjacentHTML("beforeend", `<div class="result learned">The forest device learned this sound.</div>`);
+  } else if (e.type === "device_updated") {
+    feed(`${e.device_id} installed prototypes v${e.version}`);
+    $("result").insertAdjacentHTML("beforeend", `<div class="result learned">The forest device learned this sound (${e.device_id}, v${e.version}).</div>`);
   } else if (e.type === "gold_answered") feed(`test sound answered: ${e.correct ? "correct" : "wrong"}`);
 };
 ensurePlayer();

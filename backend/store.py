@@ -13,7 +13,7 @@ import numpy as np
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS devices (
-  id TEXT PRIMARY KEY, name TEXT, location TEXT, last_seen REAL
+  id TEXT PRIMARY KEY, name TEXT, location TEXT, last_seen REAL, proto_version INTEGER
 );
 CREATE TABLE IF NOT EXISTS clips (
   id TEXT PRIMARY KEY, device_id TEXT, created_at REAL, received_at REAL NOT NULL,
@@ -50,6 +50,8 @@ class Store:
         self.db = sqlite3.connect(self.folder / "backend.db", check_same_thread=False)
         self.db.row_factory = sqlite3.Row
         self.db.executescript(SCHEMA)
+        if "proto_version" not in {r["name"] for r in self.db.execute("PRAGMA table_info(devices)")}:
+            self.db.execute("ALTER TABLE devices ADD COLUMN proto_version INTEGER")
         self.db.commit()
 
     def q(self, sql: str, args: tuple = ()) -> list[sqlite3.Row]:
