@@ -246,7 +246,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 
 /* ---------- visualization playground ---------- */
 .viz-panel {
-  position: absolute; left: 14px; bottom: 72px; width: 250px; z-index: 5;
+  position: absolute; left: 14px; bottom: 72px; width: 260px; z-index: 5; max-height: calc(100% - 190px); overflow-y: auto;
   background: rgba(8, 18, 24, 0.86); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 8px 10px; font-size: 12px; backdrop-filter: blur(6px); display: flex; flex-direction: column; gap: 8px;
 }
@@ -257,7 +257,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
   flex: 1 1 auto; border: 1px solid var(--line-2); background: transparent; color: var(--muted);
   border-radius: 6px; padding: 3px 6px; font-size: 11px; cursor: pointer; font-family: inherit;
 }
-.viz-panel .seg button.on { border-color: var(--accent-2); color: var(--accent-2); background: rgba(86, 200, 255, 0.08); }
+.viz-panel .seg button.on { border-color: var(--accent-2); color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 10%, transparent); }
 .viz-group { display: flex; flex-direction: column; gap: 4px; border-top: 1px dashed var(--line); padding-top: 6px; }
 .viz-group label { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .viz-group .lbl { width: 66px; }
@@ -265,3 +265,22 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .viz-group .val { font-family: var(--mono); color: var(--text); min-width: 34px; text-align: right; }
 .viz-group .chk { gap: 6px; }
 .viz-note { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+
+.viz-panel .theme-row { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.viz-panel .theme-row .lbl { width: 66px; }
+.viz-panel select {
+  flex: 1; background: var(--panel-2); color: var(--text); border: 1px solid var(--line-2);
+  border-radius: 6px; padding: 3px 6px; font: inherit; font-size: 12px;
+}
+.viz-panel .row-btns { display: flex; gap: 6px; }
+.viz-panel .row-btns .btn { flex: 1; }
+.viz-panel .seg.small button { font-size: 11px; padding: 2px 5px; }
+.viz-panel #v-walk { width: 100%; }
+.walk-cross {
+  position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; pointer-events: none;
+  border: 2px solid var(--accent-2); border-radius: 50%; box-shadow: 0 0 8px var(--accent-2); z-index: 4;
+}
+/* theme-aware tints for the active states that used fixed greens */
+.node-chip.active { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.tool.active { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
+.pipe-step.on { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) inset; }

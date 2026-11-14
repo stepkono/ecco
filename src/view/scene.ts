@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { CSS2DObject, CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
+import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { BIN_HZ, CLIP_SECONDS, N_BINS, SR } from '../dsp/stft';
 import type { Session } from '../game/session';
 import type { Mapping } from '../game/tools';
+import { U, withFog, withMirror, withMirrorLines, withWater } from './shaders';
+import { LEVEL_THEME, applyUiTheme, themeById, type Theme } from './themes';
+import { Walker } from './walk';
 
 export const WORLD_W = 16; // time axis (x)
 export const WORLD_D = 9; // frequency axis (z)
@@ -15,13 +19,17 @@ const MEL_MAX = hzToMel(SR / 2);
 /** Perceptual (mel) warp so low-frequency animal calls get room on the surface. */
 export const zOfHz = (hz: number) => WORLD_D / 2 - (WORLD_D * hzToMel(hz)) / MEL_MAX;
 
-const RAMP = [
-  [0.0, [0.02, 0.05, 0.07]],
-  [0.22, [0.04, 0.18, 0.24]],
-  [0.45, [0.07, 0.42, 0.44]],
-  [0.7, [0.45, 0.76, 0.62]],
-  [1.0, [0.96, 0.97, 0.84]],
-] as const;
+// ---------------- colour ramp (set by the theme) ----------------
+
+const RAMP_POS = [0, 0.22, 0.45, 0.7, 1];
+let RAMP: [number, [number, number, number]][] = [];
+
+function setRamp(t: Theme) {
+  RAMP = t.ramp.map((hex, i) => {
+    const c = new THREE.Color(hex);
+    return [RAMP_POS[i], [c.r, c.g, c.b]];
+  });
+}
 
 function ramp(v: number, out: number[]) {
   for (let i = 1; i < RAMP.length; i++) {
@@ -47,44 +55,58 @@ export interface Pick {
 
 // ---------------- visualization playground ----------------
 
-export type VizMode = 'surface' | 'voxel' | 'drops' | 'spiral' | 'symmetry';
+export type VizMode = 'surface' | 'rounded' | 'voxel' | 'drops' | 'spiral' | 'symmetry';
 
-export const VIZ_MODES: { id: VizMode; label: string; note: string }[] = [
-  { id: 'surface', label: 'Surface', note: 'All tools work here.' },
-  { id: 'voxel', label: 'Voxels', note: 'All tools work. Picks use the fine height field under the voxels.' },
-  { id: 'drops', label: 'Drop lines', note: 'All tools work. Picks hit the tops of the lines.' },
-  { id: 'spiral', label: 'Spiral', note: 'All tools work. Picks snap to the nearest sphere.' },
-  { id: 'symmetry', label: 'Symmetry', note: 'All tools work on both halves. The mirror is a copy, so paint shows on both.' },
+export const VIZ_MODES: { id: VizMode; label: string; note: string; walk: boolean }[] = [
+  { id: 'surface', label: 'Surface', note: 'All tools work here.', walk: true },
+  { id: 'rounded', label: 'Rounded', note: 'All tools work. Picks follow the smooth hills.', walk: true },
+  { id: 'voxel', label: 'Voxels', note: 'All tools work. Picks hit the column tops.', walk: true },
+  { id: 'drops', label: 'Drop lines', note: 'All tools work. Picks hit the tops of the lines.', walk: false },
+  { id: 'spiral', label: 'Spiral', note: 'All tools work. Picks snap to the nearest point.', walk: false },
+  { id: 'symmetry', label: 'Symmetry', note: 'All tools work on both halves. The reflection is a copy, so paint shows on both.', walk: false },
 ];
 
 /**
- * Look parameters per mode. Everything here is safe to tweak: the panel edits
- * these values and calls view.rebuildViz() to apply them.
+ * Look parameters. Everything here is safe to tweak: the panel edits these
+ * values and calls view.rebuildViz() to apply them.
  */
 export const VIZ = {
+  /** 1 = full data resolution, 0.1 = a tenth of it. One value per mode. */
+  res: { surface: 1, rounded: 0.5, voxel: 0.36, drops: 0.5, spiral: 0.35, symmetry: 1 } as Record<VizMode, number>,
+  /** surface material for Surface, Rounded and the top of Symmetry */
+  material: 'matte' as 'matte' | 'water',
+  atmosphere: {
+    fog: 0.5, // density of the ground fog (0 = off)
+    height: 0.35, // fog top as a fraction of the amplitude axis
+  },
+  rounded: {
+    softness: 1, // blur passes on the coarse grid before the curves
+    base: 0.35, // depth of the solid below zero
+    sub: 3, // curve samples per coarse cell
+  },
   voxel: {
-    cell: 0.14, // canonical cell size in world units (x and z)
-    step: 0.12, // height quantisation (0 = smooth columns)
-    gap: 0.14, // fraction of the cell left empty between columns
-    stack: false, // true = column of separate cubes, false = one box per column
+    step: 0, // height terraces (0 = smooth heights)
+    gap: 0.08, // empty space between columns, as a fraction of the cell (0 = touching)
+    round: 0.6, // roundness of the column tops (0 = flat)
   },
   drops: {
-    stride: 2, // take every n-th frame and bin
     points: true, // dot on top of each line
-    glow: true, // additive blending
-    fade: 0.0, // brightness at the base of each line
+    glow: false, // additive blending
+    fade: 0.08, // brightness at the foot of each line
   },
   spiral: {
+    layout: 'wrap' as 'wrap' | 'ribbon', // wrap = amplitude is the distance from the axis, ribbon = round 1 layout
+    style: 'rays' as 'dots' | 'rays' | 'surface',
     height: 12, // world height of the time axis at time scale 1
     span: 5, // equal grid length of frequency and amplitude
-    turns: 1.25, // full rotations over the clip
-    offset: 1.2, // distance of the ribbon centre from the time axis
-    radius: 0.022, // sphere radius, equal for all points
-    tStride: 4, // every n-th frame
-    kStride: 3, // every n-th bin
+    turns: 0.6, // full rotations over the clip
+    offset: 1.4, // wrap: inner radius, ribbon: distance of the ribbon centre from the axis
+    arc: 0.92, // wrap: fraction of the circle used by the frequency axis
+    radius: 0.022, // dot radius, equal for all points
   },
   symmetry: {
-    variant: 'amp' as 'amp' | 'time', // amp = mirror below the zero plane, time = palindrome around the time midpoint
+    fade: 0.7, // depth (in amplitude axis lengths) where the reflection is gone
+    lines: true, // thin lines that take over where the reflection fades
   },
 };
 
@@ -96,8 +118,46 @@ interface Copy {
   az: number;
 }
 
+/** Strided grid over frames and bins. Each cell max-pools a block of sT x sK spectrogram cells. */
+interface BinGrid {
+  sT: number;
+  sK: number;
+  nT: number;
+  nK: number;
+  tc: Float32Array; // centre frame per column
+  kc: Float32Array; // centre bin per row
+  h: Float32Array;
+  col: Float32Array;
+}
+
+/** Uniform grid in canonical world space (square-ish cells). */
+interface UniGrid {
+  NX: number;
+  NZ: number;
+  cw: number;
+  cd: number;
+  tLo: Int32Array;
+  tHi: Int32Array;
+  kLo: Int32Array;
+  kHi: Int32Array;
+  h: Float32Array; // max
+  m: Float32Array; // mean
+  col: Float32Array;
+}
+
+const stride = (res: number) => Math.max(1, Math.round(1 / res));
 const tmpM = new THREE.Matrix4();
 const tmpV = new THREE.Vector3();
+
+/** Catmull-Rom weights for the 4 neighbours at fraction f. */
+function crw(f: number, out: Float32Array) {
+  const f2 = f * f;
+  const f3 = f2 * f;
+  out[0] = 0.5 * (-f3 + 2 * f2 - f);
+  out[1] = 0.5 * (3 * f3 - 5 * f2 + 2);
+  out[2] = 0.5 * (-3 * f3 + 4 * f2 + f);
+  out[3] = 0.5 * (f3 - f2);
+}
 
 export class SpectroView {
   readonly renderer: THREE.WebGLRenderer;
@@ -105,9 +165,6 @@ export class SpectroView {
   readonly scene = new THREE.Scene();
   readonly camera: THREE.PerspectiveCamera;
   readonly controls: OrbitControls;
-  private mesh: THREE.Mesh | null = null;
-  private mirrorMesh: THREE.Mesh | null = null;
-  private geo: THREE.BufferGeometry | null = null;
   private heights = new Float32Array(0);
   private colors = new Float32Array(0);
   private session: Session | null = null;
@@ -122,39 +179,53 @@ export class SpectroView {
   private axisGroup = new THREE.Group();
   private grid: THREE.GridHelper;
   private underLight = new THREE.DirectionalLight(0xffffff, 0);
+  private hemi = new THREE.HemisphereLight(0xcfe9ff, 0x0a1a14, 1.6);
+  private sun = new THREE.DirectionalLight(0xffffff, 1.6);
   whiten = false;
   unfold = 0;
   private dirtyHeights = true;
-  private surfaceStale = true;
   private container: HTMLElement;
+  private clock = new THREE.Clock();
+  private hfogDensity = 0.5;
 
   // playground state
   mode: VizMode = 'surface';
   readonly axis = { t: 1, f: 1, a: 1 };
+  theme: Theme;
+  themeChoice = 'auto';
+  onThemeChange: () => void = () => {};
+  readonly walker: Walker;
   /** canonical layout, scaled by the axis sliders (copy 0) */
   private world = new THREE.Group();
-  /** second copy for the symmetry mode */
+  /** reflection for the symmetry mode */
   private mirror = new THREE.Group();
   private mirrorOverlays: THREE.Object3D[] = [];
   private mirrorPlayhead: THREE.Group;
   private symPlane: THREE.Mesh;
-  private vox: {
-    NX: number; NZ: number; cw: number; cd: number;
-    tLo: Int32Array; tHi: Int32Array; kLo: Int32Array; kHi: Int32Array;
-    mesh: THREE.InstancedMesh; cap: number;
+  private surf: { s: number; g: BinGrid; geo: THREE.BufferGeometry; mesh: THREE.Mesh; mirror: THREE.Mesh; matte: THREE.Material; water: THREE.Material } | null = null;
+  private rnd: {
+    g: UniGrid; nx: number; nz: number; G: Float32Array; GC: Float32Array;
+    geo: THREE.BufferGeometry; mesh: THREE.Mesh; matte: THREE.Material; water: THREE.Material; nTop: number; skirt: Int32Array;
   } | null = null;
-  private drops: { lines: THREE.LineSegments; points: THREE.Points; t: Int32Array; k: Int32Array } | null = null;
-  private spiral: { mesh: THREE.InstancedMesh; t: Int32Array; k: Int32Array; pos: Float32Array } | null = null;
+  private vox: { g: UniGrid; body: THREE.InstancedMesh; cap: THREE.InstancedMesh; top: Float32Array } | null = null;
+  private drops: { g: BinGrid; lines: THREE.LineSegments; points: THREE.Points } | null = null;
+  private symLines: { g: BinGrid; lines: THREE.LineSegments } | null = null;
+  private spiral: { g: BinGrid; pos: Float32Array; obj: THREE.Object3D } | null = null;
   private spiralDeco = new THREE.Group();
   private spiralRing: THREE.Group;
   private spiralLabels: CSS2DObject[] = [];
   private spiralAxis: THREE.Line;
+  private morph: { from: VizMode; to: VizMode; t0: number; dur: number } | null = null;
+  private clipTarget = new THREE.Plane(new THREE.Vector3(-1, 0, 0), 0);
+  private clipSource = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+  private sweep: THREE.Mesh;
 
   constructor(container: HTMLElement) {
     this.container = container;
     this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     this.renderer.setClearColor(0x050b10, 1);
+    this.renderer.localClippingEnabled = true;
     container.appendChild(this.renderer.domElement);
     this.labels = new CSS2DRenderer();
     this.labels.domElement.className = 'labels-layer';
@@ -170,14 +241,14 @@ export class SpectroView {
     this.controls.maxDistance = 60;
 
     this.scene.fog = new THREE.Fog(0x050b10, 22, 60);
-    this.scene.add(new THREE.HemisphereLight(0xcfe9ff, 0x0a1a14, 1.6));
-    const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+    this.scene.add(this.hemi);
+    const sun = this.sun;
     sun.position.set(-6, 10, 6);
     this.scene.add(sun);
     const rim = new THREE.DirectionalLight(0x66ccff, 0.6);
     rim.position.set(8, 4, -10);
     this.scene.add(rim);
-    // lights the underside of the mirror copy in the symmetry mode
+    // lights the underside of the reflection in the symmetry mode
     this.underLight.position.set(-6, -10, 6);
     this.scene.add(this.underLight);
 
@@ -238,9 +309,9 @@ export class SpectroView {
 
     this.symPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({ color: 0x56c8ff, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }),
+      new THREE.MeshBasicMaterial({ color: 0x56c8ff, transparent: true, opacity: 0.05, side: THREE.DoubleSide, depthWrite: false }),
     );
-    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1)), new THREE.LineBasicMaterial({ color: 0x56c8ff, transparent: true, opacity: 0.5 }));
+    const edge = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(1, 1)), new THREE.LineBasicMaterial({ color: 0x56c8ff, transparent: true, opacity: 0.35 }));
     this.symPlane.add(edge);
     this.scene.add(this.symPlane);
 
@@ -268,10 +339,22 @@ export class SpectroView {
     }
     this.scene.add(this.spiralDeco);
 
+    // the build sweep: a soft glowing wall that turns drop lines into a solid
+    this.sweep = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1).rotateY(Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }),
+    );
+    this.sweep.visible = false;
+    this.scene.add(this.sweep);
+
+    this.theme = themeById('lagoon');
+    this.walker = new Walker(this);
+
     const ro = new ResizeObserver(() => this.resize());
     ro.observe(container);
     this.resize();
     this.buildAxes();
+    this.setTheme('auto');
     this.applyLayout();
     this.renderer.setAnimationLoop(() => this.frame());
   }
@@ -282,6 +365,10 @@ export class SpectroView {
 
   private frames() {
     return this.session?.frames ?? 626;
+  }
+
+  get currentSession() {
+    return this.session;
   }
 
   resize() {
@@ -321,49 +408,55 @@ export class SpectroView {
     this.label('frequency', new THREE.Vector3(-WORLD_W / 2 - 2.2, 0, 0), 'axis-title');
   }
 
+  // ---------------- theme ----------------
+
+  /** 'auto' follows the level. */
+  setTheme(choice: string) {
+    this.themeChoice = choice;
+    const id = choice === 'auto' ? LEVEL_THEME[this.session?.level?.id ?? ''] ?? 'lagoon' : choice;
+    const t = themeById(id);
+    this.theme = t;
+    setRamp(t);
+    applyUiTheme(t);
+    // sky: a subtle tint at the top that melts into the fog colour at the horizon
+    const cv = document.createElement('canvas');
+    cv.width = 2;
+    cv.height = 256;
+    const ctx = cv.getContext('2d')!;
+    const grad = ctx.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, t.bg);
+    grad.addColorStop(0.55, t.bg);
+    grad.addColorStop(1, t.fog);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 2, 256);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    (this.scene.background as THREE.Texture | null)?.dispose?.();
+    this.scene.background = tex;
+    (this.scene.fog as THREE.Fog).color.set(t.fog);
+    U.waterTint.value.set(t.accent2);
+    // light tinted by the theme: a soft coloured sky above, the fog colour bouncing from below
+    this.hemi.color.set(0xffffff).lerp(new THREE.Color(t.accent2), 0.25);
+    this.hemi.groundColor.set(t.fog);
+    this.sun.color.set(0xffffff).lerp(new THREE.Color(t.accent), 0.15);
+    const gm = this.grid.material as THREE.LineBasicMaterial;
+    gm.vertexColors = false;
+    gm.color.set(t.fog).multiplyScalar(1.4);
+    gm.transparent = true;
+    gm.opacity = 0.35;
+    (this.symPlane.material as THREE.MeshBasicMaterial).color.set(t.accent2);
+    (this.symPlane.children[0] as THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>).material.color.set(t.accent2);
+    if (this.session) this.refresh();
+    this.onThemeChange();
+  }
+
   setSession(s: Session) {
     this.session = s;
-    const T = s.frames;
-    const n = T * N_BINS;
-    if (this.mesh) {
-      this.world.remove(this.mesh);
-      if (this.mirrorMesh) this.mirror.remove(this.mirrorMesh);
-      this.geo?.dispose();
-    }
+    this.heights = new Float32Array(s.frames * N_BINS);
+    this.colors = new Float32Array(s.frames * N_BINS * 3);
     this.disposeModes();
-    const geo = new THREE.BufferGeometry();
-    const pos = new Float32Array(n * 3);
-    for (let t = 0; t < T; t++) {
-      const x = this.map.xOfFrame(t);
-      for (let k = 0; k < N_BINS; k++) {
-        const i = t * N_BINS + k;
-        pos[i * 3] = x;
-        pos[i * 3 + 2] = this.map.zOfBin[k];
-      }
-    }
-    const idx = new Uint32Array((T - 1) * (N_BINS - 1) * 6);
-    let p = 0;
-    for (let t = 0; t < T - 1; t++) {
-      for (let k = 0; k < N_BINS - 1; k++) {
-        const a = t * N_BINS + k;
-        const b = (t + 1) * N_BINS + k;
-        idx[p++] = a; idx[p++] = b; idx[p++] = a + 1;
-        idx[p++] = b; idx[p++] = b + 1; idx[p++] = a + 1;
-      }
-    }
-    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    this.colors = new Float32Array(n * 3);
-    geo.setAttribute('color', new THREE.BufferAttribute(this.colors, 3));
-    geo.setIndex(new THREE.BufferAttribute(idx, 1));
-    this.geo = geo;
-    this.heights = new Float32Array(n);
-    const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide });
-    this.mesh = new THREE.Mesh(geo, mat);
-    this.mirrorMesh = new THREE.Mesh(geo, mat);
-    this.world.add(this.mesh);
-    this.mirror.add(this.mirrorMesh);
     this.dirtyHeights = true;
-    this.surfaceStale = true;
+    if (this.themeChoice === 'auto') this.setTheme('auto');
     this.applyLayout();
     this.refresh();
     this.clearOverlays();
@@ -403,6 +496,18 @@ export class SpectroView {
         this.shade[i] = v;
         this.base[i] = v ** 1.6;
       }
+    // colour contrast: stretch the shade between two percentiles, so the theme
+    // gradient runs from the valleys to the peaks instead of sitting in the middle
+    const sample = new Float32Array(Math.min(n, 20000));
+    for (let i = 0; i < sample.length; i++) sample[i] = this.shade[Math.floor((i * n) / sample.length)];
+    sample.sort();
+    const lo = sample[Math.floor(sample.length * 0.15)];
+    const hi = sample[Math.floor(sample.length * 0.997)];
+    const span = Math.max(0.05, hi - lo);
+    for (let i = 0; i < n; i++) {
+      const v = (this.shade[i] - lo) / span;
+      this.shade[i] = v < 0 ? 0 : v > 1 ? 1 : v;
+    }
   }
 
   markHeightsDirty() {
@@ -412,7 +517,7 @@ export class SpectroView {
   /** Recompute colours (and heights if needed) from the layer masks, then update the active mode. */
   refresh() {
     const s = this.session;
-    if (!s || !this.geo) return;
+    if (!s) return;
     const C = this.colors;
     const layers = s.layers.filter((l) => l.visible);
     const lc = layers.map((l) => new THREE.Color(l.color));
@@ -455,161 +560,74 @@ export class SpectroView {
         if (heightsChanged) this.heights[i] = y;
       }
     }
-    if (heightsChanged) {
-      this.dirtyHeights = false;
-      this.surfaceStale = true;
-    }
+    if (heightsChanged) this.dirtyHeights = false;
     this.updateMode(heightsChanged);
   }
 
-  // ---------------- modes ----------------
+  // ---------------- grids ----------------
 
-  setMode(m: VizMode) {
-    if (m === this.mode) return;
-    this.mode = m;
-    this.applyLayout();
-    this.updateMode(true);
-    this.resetCamera('perspective');
+  private binGrid(sT: number, sK: number): BinGrid {
+    const T = this.frames();
+    const nT = Math.ceil(T / sT);
+    const nK = Math.ceil(N_BINS / sK);
+    const tc = new Float32Array(nT);
+    const kc = new Float32Array(nK);
+    for (let i = 0; i < nT; i++) tc[i] = Math.min(T - 1, i * sT + (sT - 1) / 2);
+    for (let j = 0; j < nK; j++) kc[j] = Math.min(N_BINS - 1, j * sK + (sK - 1) / 2);
+    return { sT, sK, nT, nK, tc, kc, h: new Float32Array(nT * nK), col: new Float32Array(nT * nK * 3) };
   }
 
-  setAxis(t: number, f: number, a: number) {
-    this.axis.t = t;
-    this.axis.f = f;
-    this.axis.a = a;
-    this.applyLayout();
-    if (this.mode === 'spiral') this.updateMode(true);
-  }
-
-  /** Throw away the per-mode objects so they are rebuilt with the current VIZ parameters. */
-  rebuildViz() {
-    this.disposeModes();
-    this.applyLayout();
-    this.updateMode(true);
-  }
-
-  private disposeModes() {
-    if (this.vox) {
-      this.world.remove(this.vox.mesh);
-      this.vox.mesh.geometry.dispose();
-      this.vox.mesh.dispose();
-      this.vox = null;
-    }
-    if (this.drops) {
-      this.world.remove(this.drops.lines, this.drops.points);
-      this.drops.lines.geometry.dispose();
-      this.drops.points.geometry.dispose();
-      this.drops = null;
-    }
-    if (this.spiral) {
-      this.world.remove(this.spiral.mesh);
-      this.spiral.mesh.geometry.dispose();
-      this.spiral.mesh.dispose();
-      this.spiral = null;
-    }
-  }
-
-  private copies(): Copy[] {
-    const { t: sx, a: sy, f: sz } = this.axis;
-    if (this.mode === 'spiral') return [{ ox: 0, ax: 1, ay: 1, az: 1 }];
-    if (this.mode === 'symmetry') {
-      if (VIZ.symmetry.variant === 'amp')
-        return [
-          { ox: 0, ax: sx, ay: sy, az: sz },
-          { ox: 0, ax: sx, ay: -sy, az: sz },
-        ];
-      return [
-        { ox: (-WORLD_W / 4) * sx, ax: sx / 2, ay: sy, az: sz },
-        { ox: (WORLD_W / 4) * sx, ax: -sx / 2, ay: sy, az: sz },
-      ];
-    }
-    return [{ ox: 0, ax: sx, ay: sy, az: sz }];
-  }
-
-  /** Group transforms, visibility and helper geometry for the current mode and axis scales. */
-  private applyLayout() {
-    const m = this.mode;
-    const cs = this.copies();
-    const set = (g: THREE.Object3D, c: Copy) => {
-      g.position.set(c.ox, 0, 0);
-      g.scale.set(c.ax, c.ay, c.az);
-    };
-    set(this.world, cs[0]);
-    this.mirror.visible = cs.length > 1;
-    if (cs.length > 1) set(this.mirror, cs[1]);
-
-    const surf = m === 'surface' || m === 'symmetry';
-    if (this.mesh) this.mesh.visible = surf;
-    if (this.mirrorMesh) this.mirrorMesh.visible = m === 'symmetry';
-    this.axisGroup.visible = m !== 'spiral';
-    this.spiralDeco.visible = m === 'spiral';
-    this.playhead.visible = m !== 'spiral' && this.playSec !== null;
-
-    // symmetry plane and floor
-    const { t: sx, a: sy, f: sz } = this.axis;
-    this.symPlane.visible = m === 'symmetry';
-    this.grid.position.y = -0.02;
-    this.controls.maxPolarAngle = Math.PI * 0.49;
-    this.underLight.intensity = 0;
-    if (m === 'symmetry') {
-      if (VIZ.symmetry.variant === 'amp') {
-        this.symPlane.rotation.set(-Math.PI / 2, 0, 0);
-        this.symPlane.scale.set(WORLD_W * sx + 0.6, WORLD_D * sz + 0.6, 1);
-        this.symPlane.position.set(0, 0, 0);
-        this.grid.position.y = -(WORLD_H + this.unfold * 3) * sy - 0.8;
-        this.controls.maxPolarAngle = Math.PI * 0.95;
-        this.underLight.intensity = 1.6;
-      } else {
-        this.symPlane.rotation.set(0, Math.PI / 2, 0);
-        this.symPlane.scale.set(WORLD_D * sz + 0.6, (WORLD_H + 0.6) * sy, 1);
-        this.symPlane.position.set(0, ((WORLD_H + 0.6) * sy) / 2, 0);
+  private poolBin(g: BinGrid, geom: boolean) {
+    const T = this.frames();
+    const H = this.heights;
+    const C = this.colors;
+    for (let i = 0; i < g.nT; i++) {
+      const t0 = i * g.sT;
+      const t1 = Math.min(T, t0 + g.sT);
+      for (let j = 0; j < g.nK; j++) {
+        const k0 = j * g.sK;
+        const k1 = Math.min(N_BINS, k0 + g.sK);
+        const o = i * g.nK + j;
+        let hMax = 0;
+        let wr = 0, wg = 0, wb = 0, ws = 0;
+        for (let t = t0; t < t1; t++)
+          for (let k = k0; k < k1; k++) {
+            const idx = t * N_BINS + k;
+            const h = H[idx];
+            if (h > hMax) hMax = h;
+            const w = h + 0.05;
+            wr += C[idx * 3] * w;
+            wg += C[idx * 3 + 1] * w;
+            wb += C[idx * 3 + 2] * w;
+            ws += w;
+          }
+        if (geom) g.h[o] = hMax;
+        g.col[o * 3] = wr / ws;
+        g.col[o * 3 + 1] = wg / ws;
+        g.col[o * 3 + 2] = wb / ws;
       }
     }
-
-    // spiral time axis, labels and playhead ring
-    if (m === 'spiral') {
-      const S = VIZ.spiral;
-      const H = S.height * sx;
-      this.spiralAxis.geometry.dispose();
-      this.spiralAxis.geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, H, 0)]);
-      this.spiralLabels.forEach((o, s) => o.position.set(0.25, (H * s) / CLIP_SECONDS, 0));
-      const r = S.offset + (S.span / 2) * Math.max(sz, sy) + 0.3;
-      this.spiralRing.scale.set(r, 1, r);
-      this.spiralRing.visible = this.playSec !== null;
-      if (this.playSec !== null) this.spiralRing.position.y = (H * this.playSec) / CLIP_SECONDS;
-    }
   }
 
-  private updateMode(geom: boolean) {
-    if (!this.session || !this.geo) return;
-    const m = this.mode;
-    if (m === 'surface' || m === 'symmetry') this.updateSurface();
-    if (this.vox) this.vox.mesh.visible = m === 'voxel';
-    if (this.drops) this.drops.lines.visible = this.drops.points.visible = m === 'drops';
-    if (this.spiral) this.spiral.mesh.visible = m === 'spiral';
-    if (m === 'voxel') this.updateVoxel();
-    else if (m === 'drops') this.updateDrops(geom);
-    else if (m === 'spiral') this.updateSpiral(geom);
+  private binX(g: BinGrid, i: number) {
+    return this.map.xOfFrame(g.tc[i]);
   }
 
-  private updateSurface() {
-    const geo = this.geo!;
-    (geo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
-    if (!this.surfaceStale) return;
-    const pos = geo.getAttribute('position') as THREE.BufferAttribute;
-    const P = pos.array as Float32Array;
-    for (let i = 0; i < this.heights.length; i++) P[i * 3 + 1] = this.heights[i];
-    pos.needsUpdate = true;
-    geo.computeVertexNormals();
-    geo.computeBoundingSphere();
-    this.surfaceStale = false;
+  private binZ(g: BinGrid, j: number) {
+    return zOfHz(g.kc[j] * BIN_HZ);
   }
 
-  // ---- voxel landscape ----
+  /** Nearest pooled height of a bin grid at canonical (x, z). */
+  private binH(g: BinGrid, x: number, z: number) {
+    const i = Math.round((this.frameOfX(x) - (g.sT - 1) / 2) / g.sT);
+    const j = Math.round((this.binOfZ(z) - (g.sK - 1) / 2) / g.sK);
+    if (i < 0 || i >= g.nT || j < 0 || j >= g.nK) return 0;
+    return g.h[i * g.nK + j];
+  }
 
-  private buildVoxel() {
-    const c = VIZ.voxel.cell;
-    const NX = Math.max(8, Math.round(WORLD_W / c));
-    const NZ = Math.max(4, Math.round(WORLD_D / c));
+  private uniGrid(cell: number): UniGrid {
+    const NX = Math.max(8, Math.round(WORLD_W / cell));
+    const NZ = Math.max(4, Math.round(WORLD_D / cell));
     const cw = WORLD_W / NX;
     const cd = WORLD_D / NZ;
     const T = this.frames();
@@ -629,219 +647,775 @@ export class SpectroView {
       kLo[j] = clampK(Math.round(this.binOfZ(z0)));
       kHi[j] = Math.max(kLo[j], clampK(Math.round(this.binOfZ(z0 - cd)) - 1));
     }
-    const cap = NX * NZ * (VIZ.voxel.stack ? 4 : 1);
-    const mesh = this.voxelMesh(cap);
-    this.vox = { NX, NZ, cw, cd, tLo, tHi, kLo, kHi, mesh, cap };
+    const n = NX * NZ;
+    return { NX, NZ, cw, cd, tLo, tHi, kLo, kHi, h: new Float32Array(n), m: new Float32Array(n), col: new Float32Array(n * 3) };
   }
 
-  private voxelMesh(cap: number) {
-    const geo = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0);
-    const mat = new THREE.MeshStandardMaterial({ roughness: 0.6, metalness: 0.05 });
-    const mesh = new THREE.InstancedMesh(geo, mat, cap);
-    mesh.setColorAt(0, new THREE.Color());
-    mesh.frustumCulled = false;
-    this.world.add(mesh);
-    return mesh;
-  }
-
-  private updateVoxel() {
-    if (!this.vox) this.buildVoxel();
-    const v = this.vox!;
-    const { NX, NZ, cw, cd } = v;
-    const { step, gap, stack } = VIZ.voxel;
+  private poolUni(g: UniGrid, geom: boolean) {
     const H = this.heights;
     const C = this.colors;
-    const cells = new Float32Array(NX * NZ * 4); // h, r, g, b
-    let need = 0;
-    for (let i = 0; i < NX; i++)
-      for (let j = 0; j < NZ; j++) {
+    for (let i = 0; i < g.NX; i++)
+      for (let j = 0; j < g.NZ; j++) {
         let hMax = 0;
-        let wr = 0, wg = 0, wb = 0, ws = 0;
-        for (let t = v.tLo[i]; t <= v.tHi[i]; t++)
-          for (let k = v.kLo[j]; k <= v.kHi[j]; k++) {
+        let hSum = 0;
+        let wr = 0, wg = 0, wb = 0, ws = 0, n = 0;
+        for (let t = g.tLo[i]; t <= g.tHi[i]; t++)
+          for (let k = g.kLo[j]; k <= g.kHi[j]; k++) {
             const idx = t * N_BINS + k;
             const h = H[idx];
             if (h > hMax) hMax = h;
+            hSum += h;
+            n++;
             const w = h + 0.05;
             wr += C[idx * 3] * w;
             wg += C[idx * 3 + 1] * w;
             wb += C[idx * 3 + 2] * w;
             ws += w;
           }
-        const o = (i * NZ + j) * 4;
-        cells[o] = hMax;
-        cells[o + 1] = wr / ws;
-        cells[o + 2] = wg / ws;
-        cells[o + 3] = wb / ws;
-        need += stack && step > 0 ? Math.max(1, Math.round(hMax / step)) : 1;
-      }
-    if (need > v.cap) {
-      this.world.remove(v.mesh);
-      v.mesh.geometry.dispose();
-      v.mesh.dispose();
-      v.cap = Math.ceil(need * 1.3);
-      v.mesh = this.voxelMesh(v.cap);
-    }
-    const mesh = v.mesh;
-    const IC = mesh.instanceColor!.array as Float32Array;
-    const sxz = 1 - gap;
-    let n = 0;
-    for (let i = 0; i < NX; i++) {
-      const cx = -WORLD_W / 2 + (i + 0.5) * cw;
-      for (let j = 0; j < NZ; j++) {
-        const cz = WORLD_D / 2 - (j + 0.5) * cd;
-        const o = (i * NZ + j) * 4;
-        const h = cells[o];
-        if (stack && step > 0) {
-          const levels = Math.max(1, Math.round(h / step));
-          for (let l = 0; l < levels; l++) {
-            const top = h < step * 0.5;
-            tmpM.makeScale(cw * sxz, top ? 0.02 : step * (1 - gap), cd * sxz);
-            tmpM.setPosition(cx, l * step, cz);
-            mesh.setMatrixAt(n, tmpM);
-            const f = top ? 1 : 0.4 + (0.6 * (l + 1)) / levels;
-            IC[n * 3] = cells[o + 1] * f;
-            IC[n * 3 + 1] = cells[o + 2] * f;
-            IC[n * 3 + 2] = cells[o + 3] * f;
-            n++;
-          }
-        } else {
-          const hq = Math.max(0.02, step > 0 ? Math.round(h / step) * step : h);
-          tmpM.makeScale(cw * sxz, hq, cd * sxz);
-          tmpM.setPosition(cx, 0, cz);
-          mesh.setMatrixAt(n, tmpM);
-          IC[n * 3] = cells[o + 1];
-          IC[n * 3 + 1] = cells[o + 2];
-          IC[n * 3 + 2] = cells[o + 3];
-          n++;
+        const o = i * g.NZ + j;
+        if (geom) {
+          g.h[o] = hMax;
+          g.m[o] = hSum / n;
         }
+        g.col[o * 3] = wr / ws;
+        g.col[o * 3 + 1] = wg / ws;
+        g.col[o * 3 + 2] = wb / ws;
+      }
+  }
+
+  // ---------------- modes ----------------
+
+  setMode(m: VizMode, keepCamera = false) {
+    if (this.walker.active && !VIZ_MODES.find((x) => x.id === m)!.walk) this.walker.exit();
+    this.endMorph();
+    if (m === this.mode) return;
+    this.mode = m;
+    this.applyLayout();
+    this.updateMode(true);
+    if (!keepCamera && !this.walker.active) this.resetCamera('perspective');
+  }
+
+  setAxis(t: number, f: number, a: number) {
+    this.axis.t = t;
+    this.axis.f = f;
+    this.axis.a = a;
+    this.applyLayout();
+    if (this.mode === 'spiral') this.updateMode(true);
+  }
+
+  /** Throw away the per-mode objects so they are rebuilt with the current VIZ parameters. */
+  rebuildViz() {
+    this.disposeModes();
+    this.applyLayout();
+    this.updateMode(true);
+  }
+
+  private disposeObj(o: THREE.Object3D | null | undefined) {
+    if (!o) return;
+    o.parent?.remove(o);
+    o.traverse((c) => {
+      const m = c as THREE.Mesh;
+      if (m.geometry) m.geometry.dispose();
+      if ((c as THREE.InstancedMesh).isInstancedMesh) (c as THREE.InstancedMesh).dispose();
+    });
+  }
+
+  private disposeModes() {
+    this.endMorph();
+    if (this.surf) {
+      this.disposeObj(this.surf.mesh);
+      this.mirror.remove(this.surf.mirror);
+      this.surf = null;
+    }
+    if (this.rnd) this.disposeObj(this.rnd.mesh);
+    this.rnd = null;
+    if (this.vox) {
+      this.disposeObj(this.vox.body);
+      this.disposeObj(this.vox.cap);
+    }
+    this.vox = null;
+    if (this.drops) {
+      this.disposeObj(this.drops.lines);
+      this.disposeObj(this.drops.points);
+    }
+    this.drops = null;
+    if (this.symLines) this.disposeObj(this.symLines.lines);
+    this.symLines = null;
+    if (this.spiral) this.disposeObj(this.spiral.obj);
+    this.spiral = null;
+  }
+
+  copies(): Copy[] {
+    const { t: sx, a: sy, f: sz } = this.axis;
+    if (this.mode === 'spiral') return [{ ox: 0, ax: 1, ay: 1, az: 1 }];
+    if (this.mode === 'symmetry')
+      return [
+        { ox: 0, ax: sx, ay: sy, az: sz },
+        { ox: 0, ax: sx, ay: -sy, az: sz },
+      ];
+    return [{ ox: 0, ax: sx, ay: sy, az: sz }];
+  }
+
+  /** Canonical -> display (copy 0). */
+  toDisplay(x: number, y: number, z: number) {
+    const c = this.copies()[0];
+    return new THREE.Vector3(c.ox + x * c.ax, y * c.ay, z * c.az);
+  }
+
+  /** Display (x, z) -> canonical (copy 0). */
+  toCanonical(x: number, z: number) {
+    const c = this.copies()[0];
+    return { x: (x - c.ox) / c.ax, z: z / c.az };
+  }
+
+  /** Group transforms, visibility, fog and helper geometry for the current mode and axis scales. */
+  private applyLayout() {
+    const m = this.mode;
+    const cs = this.copies();
+    const set = (g: THREE.Object3D, c: Copy) => {
+      g.position.set(c.ox, 0, 0);
+      g.scale.set(c.ax, c.ay, c.az);
+    };
+    set(this.world, cs[0]);
+    this.mirror.visible = cs.length > 1;
+    if (cs.length > 1) set(this.mirror, cs[1]);
+    this.axisGroup.visible = m !== 'spiral';
+    this.spiralDeco.visible = m === 'spiral';
+    this.playhead.visible = m !== 'spiral' && this.playSec !== null;
+
+    const { t: sx, a: sy, f: sz } = this.axis;
+    this.symPlane.visible = m === 'symmetry';
+    this.grid.position.y = -0.02;
+    this.grid.visible = m !== 'rounded';
+    this.controls.maxPolarAngle = Math.PI * 0.49;
+    this.underLight.intensity = 0;
+    // ground fog: the terrain rises out of it
+    const A = VIZ.atmosphere;
+    U.hfog.value.set(-0.05, Math.max(0.05, A.height * WORLD_H * sy), A.fog, 0);
+    if (m === 'spiral') U.hfog.value.z = 0;
+    if (m === 'rounded') U.hfog.value.x = -VIZ.rounded.base * sy;
+    if (m === 'symmetry') {
+      const fade = VIZ.symmetry.fade * WORLD_H * sy;
+      U.mirror.value.set(fade, fade * 2.2, 6 / sx);
+      U.hfog.value.set(-fade * 2, 0.05 * WORLD_H * sy, Math.max(A.fog, 0.6), 0);
+      this.symPlane.rotation.set(-Math.PI / 2, 0, 0);
+      this.symPlane.scale.set(WORLD_W * sx + 0.6, WORLD_D * sz + 0.6, 1);
+      this.symPlane.position.set(0, 0, 0);
+      this.grid.position.y = -(WORLD_H + this.unfold * 3) * sy * 2 - 0.8;
+      this.controls.maxPolarAngle = Math.PI * 0.95;
+      this.underLight.intensity = 1.2;
+    }
+
+    this.hfogDensity = U.hfog.value.z;
+
+    // spiral time axis, labels and playhead ring
+    if (m === 'spiral') {
+      const S = VIZ.spiral;
+      const H = S.height * sx;
+      this.spiralAxis.geometry.dispose();
+      this.spiralAxis.geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, H, 0)]);
+      this.spiralLabels.forEach((o, s) => o.position.set(0.25, (H * s) / CLIP_SECONDS, 0));
+      const r = S.layout === 'wrap' ? S.offset * sz + S.span * 0.8 * sy + 0.3 : S.offset + (S.span / 2) * Math.max(sz, sy) + 0.3;
+      this.spiralRing.scale.set(r, 1, r);
+      this.spiralRing.visible = this.playSec !== null;
+      if (this.playSec !== null) this.spiralRing.position.y = (H * this.playSec) / CLIP_SECONDS;
+    }
+  }
+
+  private updateMode(geom: boolean) {
+    if (!this.session) return;
+    const m = this.mode;
+    const morphFrom = this.morph?.from;
+    if (this.surf) this.surf.mesh.visible = m === 'surface' || m === 'symmetry';
+    if (this.surf) this.surf.mirror.visible = m === 'symmetry';
+    if (this.rnd) this.rnd.mesh.visible = m === 'rounded';
+    if (this.vox) this.vox.body.visible = this.vox.cap.visible = m === 'voxel';
+    if (this.drops) this.drops.lines.visible = this.drops.points.visible = m === 'drops' || morphFrom === 'drops';
+    if (this.symLines) this.symLines.lines.visible = m === 'symmetry' && VIZ.symmetry.lines;
+    if (this.spiral) this.spiral.obj.visible = m === 'spiral';
+    if (m === 'surface' || m === 'symmetry') this.updateSurface(geom);
+    if (m === 'symmetry' && VIZ.symmetry.lines) this.updateSymLines(geom);
+    if (m === 'rounded') this.updateRounded(geom);
+    if (m === 'voxel') this.updateVoxel(geom);
+    if (m === 'drops' || morphFrom === 'drops') this.updateDrops(geom);
+    if (m === 'spiral') this.updateSpiral(geom);
+  }
+
+  // ---- surface (also the top of the symmetry mode) ----
+
+  private surfaceMaterials() {
+    const matte = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide }));
+    const water = withFog(
+      withWater(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12, metalness: 0.1, side: THREE.DoubleSide, transparent: true, opacity: 0.88, emissive: 0x000000 })),
+    );
+    return { matte, water };
+  }
+
+  private updateSurface(geom: boolean) {
+    const s = stride(VIZ.res[this.mode]);
+    if (this.surf && this.surf.s !== s) {
+      this.disposeObj(this.surf.mesh);
+      this.mirror.remove(this.surf.mirror);
+      this.surf = null;
+    }
+    if (!this.surf) {
+      const g = this.binGrid(s, s);
+      const n = g.nT * g.nK;
+      const pos = new Float32Array(n * 3);
+      for (let i = 0; i < g.nT; i++)
+        for (let j = 0; j < g.nK; j++) {
+          const o = i * g.nK + j;
+          pos[o * 3] = this.binX(g, i);
+          pos[o * 3 + 2] = this.binZ(g, j);
+        }
+      const idx = new Uint32Array((g.nT - 1) * (g.nK - 1) * 6);
+      let p = 0;
+      for (let i = 0; i < g.nT - 1; i++)
+        for (let j = 0; j < g.nK - 1; j++) {
+          const a = i * g.nK + j;
+          const b = (i + 1) * g.nK + j;
+          idx[p++] = a; idx[p++] = b; idx[p++] = a + 1;
+          idx[p++] = b; idx[p++] = b + 1; idx[p++] = a + 1;
+        }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(g.col, 3));
+      geo.setIndex(new THREE.BufferAttribute(idx, 1));
+      const { matte, water } = this.surfaceMaterials();
+      const mesh = new THREE.Mesh(geo, VIZ.material === 'water' ? water : matte);
+      const mirror = new THREE.Mesh(geo, withFog(withMirror(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide, depthWrite: false }))));
+      mirror.renderOrder = 2;
+      this.world.add(mesh);
+      this.mirror.add(mirror);
+      this.surf = { s, g, geo, mesh, mirror, matte, water };
+      geom = true;
+    }
+    const sf = this.surf;
+    sf.mesh.material = VIZ.material === 'water' ? sf.water : sf.matte;
+    this.poolBin(sf.g, geom);
+    (sf.geo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+    if (geom) {
+      const pos = sf.geo.getAttribute('position') as THREE.BufferAttribute;
+      const P = pos.array as Float32Array;
+      for (let i = 0; i < sf.g.h.length; i++) P[i * 3 + 1] = sf.g.h[i];
+      pos.needsUpdate = true;
+      sf.geo.computeVertexNormals();
+      sf.geo.computeBoundingSphere();
+    }
+    sf.mesh.visible = true;
+    sf.mirror.visible = this.mode === 'symmetry';
+  }
+
+  // ---- rounded solid ----
+
+  private updateRounded(geom: boolean) {
+    if (!this.rnd) {
+      const g = this.uniGrid(0.07 / VIZ.res.rounded);
+      const sub = Math.max(1, Math.round(VIZ.rounded.sub));
+      const nx = (g.NX - 1) * sub + 1;
+      const nz = (g.NZ - 1) * sub + 1;
+      const nTop = nx * nz;
+      // skirt: every edge vertex gets a top copy (own normals) and a base vertex
+      const edge: number[] = [];
+      for (let a = 0; a < nx; a++) edge.push(a * nz); // high-z edge
+      for (let b = 1; b < nz; b++) edge.push((nx - 1) * nz + b); // end of time
+      for (let a = nx - 2; a >= 0; a--) edge.push(a * nz + nz - 1); // low-z edge
+      for (let b = nz - 2; b >= 1; b--) edge.push(b); // start of time
+      const ne = edge.length;
+      const nv = nTop + ne * 2 + 4;
+      const pos = new Float32Array(nv * 3);
+      const col = new Float32Array(nv * 3);
+      const x0 = -WORLD_W / 2 + g.cw / 2;
+      const z0 = WORLD_D / 2 - g.cd / 2;
+      for (let a = 0; a < nx; a++)
+        for (let b = 0; b < nz; b++) {
+          const v = a * nz + b;
+          pos[v * 3] = x0 + (a / sub) * g.cw;
+          pos[v * 3 + 2] = z0 - (b / sub) * g.cd;
+        }
+      const idx: number[] = [];
+      for (let a = 0; a < nx - 1; a++)
+        for (let b = 0; b < nz - 1; b++) {
+          const p = a * nz + b;
+          const q = (a + 1) * nz + b;
+          idx.push(p, q, p + 1, q, q + 1, p + 1);
+        }
+      for (let e = 0; e < ne; e++) {
+        const top = nTop + e * 2;
+        const e2 = (e + 1) % ne;
+        const top2 = nTop + e2 * 2;
+        idx.push(top, top + 1, top2, top2, top + 1, top2 + 1);
+      }
+      // bottom
+      const bc = nTop + ne * 2;
+      const xs = [x0, x0 + ((nx - 1) / sub) * g.cw];
+      const zs = [z0, z0 - ((nz - 1) / sub) * g.cd];
+      [[0, 0], [1, 0], [1, 1], [0, 1]].forEach(([ix, iz], c) => {
+        pos[(bc + c) * 3] = xs[ix];
+        pos[(bc + c) * 3 + 2] = zs[iz];
+      });
+      idx.push(bc, bc + 1, bc + 2, bc, bc + 2, bc + 3);
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      geo.setIndex(idx);
+      const { matte, water } = this.surfaceMaterials();
+      (matte as THREE.MeshStandardMaterial).roughness = 0.78;
+      const mesh = new THREE.Mesh(geo, VIZ.material === 'water' ? water : matte);
+      this.world.add(mesh);
+      this.rnd = { g, nx, nz, G: new Float32Array(g.NX * g.NZ), GC: new Float32Array(g.NX * g.NZ * 3), geo, mesh, matte, water, nTop, skirt: Int32Array.from(edge) };
+      geom = true;
+    }
+    const r = this.rnd;
+    r.mesh.material = VIZ.material === 'water' ? r.water : r.matte;
+    const g = r.g;
+    this.poolUni(g, geom);
+    const NX = g.NX;
+    const NZ = g.NZ;
+    if (geom) {
+      // soft hills: between the mean and the peak, then a few gentle blur passes
+      const G = r.G;
+      for (let i = 0; i < G.length; i++) G[i] = 0.5 * g.h[i] + 0.5 * g.m[i];
+      const tmp = new Float32Array(G.length);
+      for (let pass = 0; pass < VIZ.rounded.softness; pass++) {
+        for (let i = 0; i < NX; i++)
+          for (let j = 0; j < NZ; j++) {
+            const a = G[Math.max(0, i - 1) * NZ + j];
+            const b = G[Math.min(NX - 1, i + 1) * NZ + j];
+            tmp[i * NZ + j] = (a + 2 * G[i * NZ + j] + b) / 4;
+          }
+        for (let i = 0; i < NX; i++)
+          for (let j = 0; j < NZ; j++) {
+            const a = tmp[i * NZ + Math.max(0, j - 1)];
+            const b = tmp[i * NZ + Math.min(NZ - 1, j + 1)];
+            G[i * NZ + j] = (a + 2 * tmp[i * NZ + j] + b) / 4;
+          }
       }
     }
-    mesh.count = n;
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.instanceColor!.needsUpdate = true;
-    mesh.visible = true;
+    r.GC.set(g.col);
+    // Catmull-Rom upsampling of heights and colours
+    const sub = (r.nx - 1) / (NX - 1);
+    const W = Array.from({ length: sub + 1 }, (_, s) => {
+      const w = new Float32Array(4);
+      crw(s / sub, w);
+      return w;
+    });
+    const pos = r.geo.getAttribute('position') as THREE.BufferAttribute;
+    const colA = r.geo.getAttribute('color') as THREE.BufferAttribute;
+    const P = pos.array as Float32Array;
+    const CC = colA.array as Float32Array;
+    const G = r.G;
+    const GC = r.GC;
+    for (let a = 0; a < r.nx; a++) {
+      let i0 = Math.floor(a / sub);
+      let fa = a - i0 * sub;
+      if (i0 >= NX - 1) {
+        i0 = NX - 2;
+        fa = sub;
+      }
+      const wa = W[fa];
+      for (let b = 0; b < r.nz; b++) {
+        let j0 = Math.floor(b / sub);
+        let fb = b - j0 * sub;
+        if (j0 >= NZ - 1) {
+          j0 = NZ - 2;
+          fb = sub;
+        }
+        const wb = W[fb];
+        let h = 0, cr = 0, cg = 0, cb = 0;
+        for (let di = 0; di < 4; di++) {
+          const ii = Math.min(NX - 1, Math.max(0, i0 + di - 1));
+          for (let dj = 0; dj < 4; dj++) {
+            const jj = Math.min(NZ - 1, Math.max(0, j0 + dj - 1));
+            const w = wa[di] * wb[dj];
+            const o = ii * NZ + jj;
+            h += w * G[o];
+            cr += w * GC[o * 3];
+            cg += w * GC[o * 3 + 1];
+            cb += w * GC[o * 3 + 2];
+          }
+        }
+        const v = a * r.nz + b;
+        if (geom) P[v * 3 + 1] = Math.max(0, h);
+        CC[v * 3] = Math.max(0, cr);
+        CC[v * 3 + 1] = Math.max(0, cg);
+        CC[v * 3 + 2] = Math.max(0, cb);
+      }
+    }
+    // skirt and bottom
+    const baseY = -VIZ.rounded.base;
+    for (let e = 0; e < r.skirt.length; e++) {
+      const src = r.skirt[e];
+      const top = r.nTop + e * 2;
+      for (const [v, y, f] of [[top, P[src * 3 + 1], 0.78], [top + 1, baseY, 0.32]] as const) {
+        P[v * 3] = P[src * 3];
+        P[v * 3 + 1] = y;
+        P[v * 3 + 2] = P[src * 3 + 2];
+        CC[v * 3] = CC[src * 3] * f;
+        CC[v * 3 + 1] = CC[src * 3 + 1] * f;
+        CC[v * 3 + 2] = CC[src * 3 + 2] * f;
+      }
+    }
+    const bc = r.nTop + r.skirt.length * 2;
+    for (let c = 0; c < 4; c++) P[(bc + c) * 3 + 1] = baseY;
+    colA.needsUpdate = true;
+    if (geom) {
+      pos.needsUpdate = true;
+      r.geo.computeVertexNormals();
+      r.geo.computeBoundingSphere();
+    }
+    r.mesh.visible = true;
+  }
+
+  /** Height of the rounded solid at canonical (x, z), using the same curves as the mesh. */
+  private roundedH(x: number, z: number) {
+    const r = this.rnd;
+    if (!r) return 0;
+    const { NX, NZ, cw, cd } = r.g;
+    const fx = (x - (-WORLD_W / 2 + cw / 2)) / cw;
+    const fz = (WORLD_D / 2 - cd / 2 - z) / cd;
+    const i0 = Math.min(NX - 2, Math.max(0, Math.floor(fx)));
+    const j0 = Math.min(NZ - 2, Math.max(0, Math.floor(fz)));
+    const wa = new Float32Array(4);
+    const wb = new Float32Array(4);
+    crw(Math.min(1, Math.max(0, fx - i0)), wa);
+    crw(Math.min(1, Math.max(0, fz - j0)), wb);
+    let h = 0;
+    for (let di = 0; di < 4; di++) {
+      const ii = Math.min(NX - 1, Math.max(0, i0 + di - 1));
+      for (let dj = 0; dj < 4; dj++) {
+        const jj = Math.min(NZ - 1, Math.max(0, j0 + dj - 1));
+        h += wa[di] * wb[dj] * r.G[ii * NZ + jj];
+      }
+    }
+    return Math.max(0, h);
+  }
+
+  // ---- voxel landscape ----
+
+  private updateVoxel(geom: boolean) {
+    if (!this.vox) {
+      const g = this.uniGrid(0.05 / VIZ.res.voxel);
+      const n = g.NX * g.NZ;
+      const mat = withFog(new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05 }));
+      const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), mat, n);
+      const cap = new THREE.InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 4, 0.45), mat, n);
+      for (const m of [body, cap]) {
+        m.setColorAt(0, new THREE.Color());
+        m.frustumCulled = false;
+        this.world.add(m);
+      }
+      this.vox = { g, body, cap, top: new Float32Array(n) };
+      geom = true;
+    }
+    const v = this.vox;
+    const g = v.g;
+    this.poolUni(g, geom);
+    const { step, gap, round } = VIZ.voxel;
+    const BC = v.body.instanceColor!.array as Float32Array;
+    const CC = v.cap.instanceColor!.array as Float32Array;
+    const w = g.cw * (1 - gap);
+    const d = g.cd * (1 - gap);
+    const capFull = Math.min(w, d) * round;
+    for (let i = 0; i < g.NX; i++) {
+      const cx = -WORLD_W / 2 + (i + 0.5) * g.cw;
+      for (let j = 0; j < g.NZ; j++) {
+        const cz = WORLD_D / 2 - (j + 0.5) * g.cd;
+        const o = i * g.NZ + j;
+        const r = g.col[o * 3], gg = g.col[o * 3 + 1], b = g.col[o * 3 + 2];
+        if (geom) {
+          const hq = Math.max(0.03, step > 0 ? Math.round(g.h[o] / step) * step : g.h[o]);
+          v.top[o] = hq;
+          if (round > 0) {
+            const capH = Math.min(capFull, hq);
+            const bodyH = Math.max(0.0001, hq - capH / 2);
+            tmpM.makeScale(w, bodyH, d).setPosition(cx, 0, cz);
+            v.body.setMatrixAt(o, tmpM);
+            tmpM.makeScale(w, capH, d).setPosition(cx, hq - capH / 2, cz);
+            v.cap.setMatrixAt(o, tmpM);
+          } else {
+            tmpM.makeScale(w, hq, d).setPosition(cx, 0, cz);
+            v.body.setMatrixAt(o, tmpM);
+          }
+        }
+        BC[o * 3] = r * 0.82;
+        BC[o * 3 + 1] = gg * 0.82;
+        BC[o * 3 + 2] = b * 0.82;
+        CC[o * 3] = r * 1.08;
+        CC[o * 3 + 1] = gg * 1.08;
+        CC[o * 3 + 2] = b * 1.08;
+      }
+    }
+    v.body.count = g.NX * g.NZ;
+    v.cap.count = round > 0 ? g.NX * g.NZ : 0;
+    if (geom) v.body.instanceMatrix.needsUpdate = v.cap.instanceMatrix.needsUpdate = true;
+    v.body.instanceColor!.needsUpdate = v.cap.instanceColor!.needsUpdate = true;
+    v.body.visible = v.cap.visible = true;
+  }
+
+  private voxelH(x: number, z: number) {
+    const v = this.vox;
+    if (!v) return 0;
+    const i = Math.floor((x + WORLD_W / 2) / v.g.cw);
+    const j = Math.floor((WORLD_D / 2 - z) / v.g.cd);
+    if (i < 0 || i >= v.g.NX || j < 0 || j >= v.g.NZ) return 0;
+    return v.top[i * v.g.NZ + j];
   }
 
   // ---- drop lines ----
 
-  private buildDrops() {
-    const st = Math.max(1, Math.round(VIZ.drops.stride));
-    const T = this.frames();
-    const ts: number[] = [];
-    const ks: number[] = [];
-    for (let t = 0; t < T; t += st) for (let k = 0; k < N_BINS; k += st) {
-      ts.push(t);
-      ks.push(k);
-    }
-    const n = ts.length;
+  private dropLines(g: BinGrid, mirror: boolean) {
+    const n = g.nT * g.nK;
     const lg = new THREE.BufferGeometry();
     lg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3));
     lg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 6), 3));
-    const pg = new THREE.BufferGeometry();
-    pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-    pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
-    const blending = VIZ.drops.glow ? THREE.AdditiveBlending : THREE.NormalBlending;
-    const lines = new THREE.LineSegments(lg, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: VIZ.drops.glow ? 0.22 : 0.9, blending, depthWrite: !VIZ.drops.glow }));
-    const points = new THREE.Points(pg, new THREE.PointsMaterial({ vertexColors: true, size: 2.2, sizeAttenuation: false, transparent: true, opacity: VIZ.drops.glow ? 0.55 : 0.95, blending, depthWrite: !VIZ.drops.glow }));
-    lines.frustumCulled = points.frustumCulled = false;
-    points.visible = VIZ.drops.points;
-    this.world.add(lines, points);
-    this.drops = { lines, points, t: Int32Array.from(ts), k: Int32Array.from(ks) };
+    const glow = VIZ.drops.glow && !mirror;
+    const blending = glow ? THREE.AdditiveBlending : THREE.NormalBlending;
+    let lm: THREE.Material = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: glow ? 0.16 : 0.85, blending, depthWrite: !glow });
+    lm = mirror ? withFog(withMirrorLines(lm)) : withFog(lm);
+    const lines = new THREE.LineSegments(lg, lm);
+    lines.frustumCulled = false;
+    return lines;
+  }
+
+  private fillDrops(g: BinGrid, lines: THREE.LineSegments, points: THREE.Points | null, geom: boolean, fade: number) {
+    this.poolBin(g, geom);
+    const LP = lines.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const LC = lines.geometry.getAttribute('color') as THREE.BufferAttribute;
+    const lp = LP.array as Float32Array, lc = LC.array as Float32Array;
+    const PP = points?.geometry.getAttribute('position') as THREE.BufferAttribute | undefined;
+    const PC = points?.geometry.getAttribute('color') as THREE.BufferAttribute | undefined;
+    const pp = PP?.array as Float32Array | undefined, pc = PC?.array as Float32Array | undefined;
+    for (let i = 0; i < g.nT; i++) {
+      const x = this.binX(g, i);
+      for (let j = 0; j < g.nK; j++) {
+        const o = i * g.nK + j;
+        const r = g.col[o * 3], gg = g.col[o * 3 + 1], b = g.col[o * 3 + 2];
+        if (geom) {
+          const z = this.binZ(g, j);
+          const y = g.h[o];
+          lp.set([x, 0, z, x, y, z], o * 6);
+          pp?.set([x, y, z], o * 3);
+        }
+        lc.set([r * fade, gg * fade, b * fade, r, gg, b], o * 6);
+        pc?.set([r, gg, b], o * 3);
+      }
+    }
+    if (geom) {
+      LP.needsUpdate = true;
+      if (PP) PP.needsUpdate = true;
+    }
+    LC.needsUpdate = true;
+    if (PC) PC.needsUpdate = true;
   }
 
   private updateDrops(geom: boolean) {
     if (!this.drops) {
-      this.buildDrops();
+      const s = stride(VIZ.res.drops);
+      const g = this.binGrid(s, s);
+      const lines = this.dropLines(g, false);
+      const n = g.nT * g.nK;
+      const pg = new THREE.BufferGeometry();
+      pg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      pg.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      const glow = VIZ.drops.glow;
+      const points = new THREE.Points(
+        pg,
+        withFog(new THREE.PointsMaterial({ vertexColors: true, size: 2.2, sizeAttenuation: false, transparent: true, opacity: glow ? 0.5 : 0.95, blending: glow ? THREE.AdditiveBlending : THREE.NormalBlending, depthWrite: !glow })),
+      );
+      points.frustumCulled = false;
+      this.world.add(lines, points);
+      this.drops = { g, lines, points };
       geom = true;
     }
-    const d = this.drops!;
-    const LP = d.lines.geometry.getAttribute('position') as THREE.BufferAttribute;
-    const LC = d.lines.geometry.getAttribute('color') as THREE.BufferAttribute;
-    const PP = d.points.geometry.getAttribute('position') as THREE.BufferAttribute;
-    const PC = d.points.geometry.getAttribute('color') as THREE.BufferAttribute;
-    const lp = LP.array as Float32Array, lc = LC.array as Float32Array, pp = PP.array as Float32Array, pc = PC.array as Float32Array;
-    const fade = VIZ.drops.fade;
-    for (let j = 0; j < d.t.length; j++) {
-      const t = d.t[j];
-      const k = d.k[j];
-      const i = t * N_BINS + k;
-      const r = this.colors[i * 3], g = this.colors[i * 3 + 1], b = this.colors[i * 3 + 2];
-      if (geom) {
-        const x = this.map.xOfFrame(t);
-        const z = this.map.zOfBin[k];
-        const y = this.heights[i];
-        lp.set([x, 0, z, x, y, z], j * 6);
-        pp.set([x, y, z], j * 3);
-      }
-      lc.set([r * fade, g * fade, b * fade, r, g, b], j * 6);
-      pc.set([r, g, b], j * 3);
-    }
-    if (geom) LP.needsUpdate = PP.needsUpdate = true;
-    LC.needsUpdate = PC.needsUpdate = true;
+    const d = this.drops;
+    this.fillDrops(d.g, d.lines, d.points, geom, VIZ.drops.fade);
+    d.lines.visible = true;
     d.points.visible = VIZ.drops.points;
+  }
+
+  private updateSymLines(geom: boolean) {
+    if (!this.symLines) {
+      const s = Math.max(2, stride(VIZ.res.symmetry) * 2);
+      const g = this.binGrid(s, s);
+      const lines = this.dropLines(g, true);
+      this.mirror.add(lines);
+      this.symLines = { g, lines };
+      geom = true;
+    }
+    this.fillDrops(this.symLines.g, this.symLines.lines, null, geom, 0.25);
+  }
+
+  // ---- morph: drop lines turn into a solid while the model is built ----
+
+  /** Sweep from drop lines into `to` (voxel or rounded) over `seconds`. */
+  morphTo(to: 'voxel' | 'rounded', seconds = 3.2) {
+    if (!this.session) return;
+    if (this.mode !== 'drops') this.setMode('drops');
+    this.endMorph();
+    this.mode = to;
+    this.morph = { from: 'drops', to, t0: performance.now(), dur: seconds * 1000 };
+    this.applyLayout();
+    this.updateMode(true);
+    this.setClipping(true);
+  }
+
+  private setClipping(on: boolean) {
+    const target: THREE.Material[] = [];
+    if (this.vox) target.push(this.vox.body.material as THREE.Material);
+    if (this.rnd) target.push(this.rnd.matte, this.rnd.water);
+    for (const m of target) m.clippingPlanes = on ? [this.clipTarget] : [];
+    if (this.drops) for (const m of [this.drops.lines.material, this.drops.points.material] as THREE.Material[]) m.clippingPlanes = on ? [this.clipSource] : [];
+    this.sweep.visible = on;
+  }
+
+  private endMorph() {
+    if (!this.morph) return;
+    this.morph = null;
+    this.setClipping(false);
+    if (this.drops) this.drops.lines.visible = this.drops.points.visible = this.mode === 'drops';
+  }
+
+  private stepMorph() {
+    const mo = this.morph;
+    if (!mo) return;
+    const p = Math.min(1, (performance.now() - mo.t0) / mo.dur);
+    const e = p < 0.5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2;
+    const { t: sx, a: sy, f: sz } = this.axis;
+    const X = (-WORLD_W / 2 - 0.3 + (WORLD_W + 0.6) * e) * sx;
+    this.clipTarget.constant = X;
+    this.clipSource.constant = -X;
+    this.sweep.position.set(X, ((WORLD_H + 0.6) * sy) / 2, 0);
+    this.sweep.scale.set(1, (WORLD_H + 0.6) * sy, WORLD_D * sz);
+    (this.sweep.material as THREE.MeshBasicMaterial).color.set(this.theme.accent2);
+    if (p >= 1) this.endMorph();
   }
 
   // ---- spiral ----
 
-  /** Canonical (x, y, z) -> spiral display position. Time rises along y, (amplitude, frequency) rotate around it. */
+  /** Canonical (x, y, z) -> spiral display position. Time rises along y. */
   private spiralPos(cx: number, cy: number, cz: number, out: THREE.Vector3) {
     const S = VIZ.spiral;
     const { t: sx, a: sy, f: sz } = this.axis;
     const tn = (cx + WORLD_W / 2) / WORLD_W;
-    const u = ((WORLD_D / 2 - cz) / WORLD_D - 0.5) * S.span * sz; // frequency, centred
-    const v = (cy / WORLD_H) * S.span * sy; // amplitude
+    const fn = (WORLD_D / 2 - cz) / WORLD_D; // 0 = low frequency
+    const amp = (cy / WORLD_H) * S.span * sy;
+    const y = tn * S.height * sx;
+    if (S.layout === 'wrap') {
+      // frequency goes around the axis, amplitude is the distance from it
+      const th = fn * S.arc * Math.PI * 2 + tn * S.turns * Math.PI * 2;
+      const r = S.offset * sz + amp * 0.8;
+      return out.set(r * Math.cos(th), y, r * Math.sin(th));
+    }
+    const u = (fn - 0.5) * S.span * sz;
     const th = tn * S.turns * Math.PI * 2;
     const c = Math.cos(th);
     const s = Math.sin(th);
     const r = S.offset + u;
-    return out.set(r * c - v * s, tn * S.height * sx, r * s + v * c);
-  }
-
-  private buildSpiral() {
-    const S = VIZ.spiral;
-    const T = this.frames();
-    const ts: number[] = [];
-    const ks: number[] = [];
-    for (let t = 0; t < T; t += S.tStride) for (let k = 0; k < N_BINS; k += S.kStride) {
-      ts.push(t);
-      ks.push(k);
-    }
-    const n = ts.length;
-    const mesh = new THREE.InstancedMesh(
-      new THREE.IcosahedronGeometry(S.radius, 1),
-      new THREE.MeshLambertMaterial(),
-      n,
-    );
-    mesh.setColorAt(0, new THREE.Color());
-    mesh.frustumCulled = false;
-    this.world.add(mesh);
-    this.spiral = { mesh, t: Int32Array.from(ts), k: Int32Array.from(ks), pos: new Float32Array(n * 3) };
+    return out.set(r * c - amp * s, y, r * s + amp * c);
   }
 
   private updateSpiral(geom: boolean) {
+    const S = VIZ.spiral;
     if (!this.spiral) {
-      this.buildSpiral();
+      const res = VIZ.res.spiral;
+      const g = this.binGrid(Math.max(1, Math.round(1.4 / res)), Math.max(1, Math.round(1 / res)));
+      const n = g.nT * g.nK;
+      let obj: THREE.Object3D;
+      if (S.style === 'dots') {
+        const m = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(S.radius, 1), withFog(new THREE.MeshLambertMaterial()), n);
+        m.setColorAt(0, new THREE.Color());
+        obj = m;
+      } else if (S.style === 'rays') {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 6), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 6), 3));
+        obj = new THREE.LineSegments(geo, withFog(new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.7 })));
+      } else {
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+        const idx: number[] = [];
+        for (let i = 0; i < g.nT - 1; i++)
+          for (let j = 0; j < g.nK - 1; j++) {
+            const a = i * g.nK + j;
+            const b = (i + 1) * g.nK + j;
+            idx.push(a, b, a + 1, b, b + 1, a + 1);
+          }
+        geo.setIndex(idx);
+        obj = new THREE.Mesh(geo, withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide })));
+      }
+      obj.frustumCulled = false;
+      this.world.add(obj);
+      this.spiral = { g, pos: new Float32Array(n * 3), obj };
       geom = true;
     }
-    const sp = this.spiral!;
-    const IC = sp.mesh.instanceColor!.array as Float32Array;
-    for (let j = 0; j < sp.t.length; j++) {
-      const i = sp.t[j] * N_BINS + sp.k[j];
-      IC[j * 3] = this.colors[i * 3];
-      IC[j * 3 + 1] = this.colors[i * 3 + 1];
-      IC[j * 3 + 2] = this.colors[i * 3 + 2];
-      if (geom) {
-        this.spiralPos(this.map.xOfFrame(sp.t[j]), this.heights[i], this.map.zOfBin[sp.k[j]], tmpV);
-        sp.pos[j * 3] = tmpV.x;
-        sp.pos[j * 3 + 1] = tmpV.y;
-        sp.pos[j * 3 + 2] = tmpV.z;
-        tmpM.makeTranslation(tmpV.x, tmpV.y, tmpV.z);
-        sp.mesh.setMatrixAt(j, tmpM);
+    const sp = this.spiral;
+    const g = sp.g;
+    this.poolBin(g, geom);
+    // gradient: amplitude ramp, drifting from one theme accent to the other along time
+    const ca = new THREE.Color(this.theme.accent);
+    const cb = new THREE.Color(this.theme.accent2);
+    const col = new Float32Array(g.nT * g.nK * 3);
+    for (let i = 0; i < g.nT; i++) {
+      const tn = i / Math.max(1, g.nT - 1);
+      const tr = ca.r + (cb.r - ca.r) * tn, tg = ca.g + (cb.g - ca.g) * tn, tb = ca.b + (cb.b - ca.b) * tn;
+      for (let j = 0; j < g.nK; j++) {
+        const o = i * g.nK + j;
+        const r = g.col[o * 3], gg = g.col[o * 3 + 1], b = g.col[o * 3 + 2];
+        const lum = Math.min(1, 0.3 * r + 0.55 * gg + 0.15 * b + 0.15);
+        col[o * 3] = r * 0.6 + tr * lum * 0.55;
+        col[o * 3 + 1] = gg * 0.6 + tg * lum * 0.55;
+        col[o * 3 + 2] = b * 0.6 + tb * lum * 0.55;
       }
     }
-    if (geom) sp.mesh.instanceMatrix.needsUpdate = true;
-    sp.mesh.instanceColor!.needsUpdate = true;
+    if (geom)
+      for (let i = 0; i < g.nT; i++) {
+        const x = this.binX(g, i);
+        for (let j = 0; j < g.nK; j++) {
+          const o = i * g.nK + j;
+          this.spiralPos(x, g.h[o], this.binZ(g, j), tmpV);
+          sp.pos[o * 3] = tmpV.x;
+          sp.pos[o * 3 + 1] = tmpV.y;
+          sp.pos[o * 3 + 2] = tmpV.z;
+        }
+      }
+    const n = g.nT * g.nK;
+    if (sp.obj instanceof THREE.InstancedMesh) {
+      const IC = sp.obj.instanceColor!.array as Float32Array;
+      IC.set(col);
+      if (geom) {
+        for (let o = 0; o < n; o++) {
+          tmpM.makeTranslation(sp.pos[o * 3], sp.pos[o * 3 + 1], sp.pos[o * 3 + 2]);
+          sp.obj.setMatrixAt(o, tmpM);
+        }
+        sp.obj.instanceMatrix.needsUpdate = true;
+      }
+      sp.obj.instanceColor!.needsUpdate = true;
+    } else if (sp.obj instanceof THREE.LineSegments) {
+      const PA = sp.obj.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const CA = sp.obj.geometry.getAttribute('color') as THREE.BufferAttribute;
+      const P = PA.array as Float32Array;
+      const C = CA.array as Float32Array;
+      for (let o = 0; o < n; o++) {
+        if (geom) P.set([0, sp.pos[o * 3 + 1], 0, sp.pos[o * 3], sp.pos[o * 3 + 1], sp.pos[o * 3 + 2]], o * 6);
+        C.set([col[o * 3] * 0.05, col[o * 3 + 1] * 0.05, col[o * 3 + 2] * 0.05, col[o * 3], col[o * 3 + 1], col[o * 3 + 2]], o * 6);
+      }
+      if (geom) PA.needsUpdate = true;
+      CA.needsUpdate = true;
+    } else {
+      const mesh = sp.obj as THREE.Mesh;
+      const PA = mesh.geometry.getAttribute('position') as THREE.BufferAttribute;
+      const CA = mesh.geometry.getAttribute('color') as THREE.BufferAttribute;
+      (CA.array as Float32Array).set(col);
+      CA.needsUpdate = true;
+      if (geom) {
+        (PA.array as Float32Array).set(sp.pos);
+        PA.needsUpdate = true;
+        mesh.geometry.computeVertexNormals();
+      }
+    }
+    sp.obj.visible = true;
   }
 
   // ---------------- picking ----------------
@@ -856,6 +1430,7 @@ export class SpectroView {
     return ((x + WORLD_W / 2) / WORLD_W) * (this.frames() - 1);
   }
 
+  /** Raw spectrogram height at canonical (x, z). */
   heightAt(x: number, z: number) {
     if (!this.session) return 0;
     const t = Math.round(this.frameOfX(x));
@@ -864,12 +1439,34 @@ export class SpectroView {
     return this.heights[t * N_BINS + k];
   }
 
+  /** Height of what is drawn at canonical (x, z) in the current mode. Overlays and picks follow it. */
+  dispH(x: number, z: number) {
+    switch (this.mode) {
+      case 'rounded':
+        return this.roundedH(x, z);
+      case 'voxel':
+        return this.voxelH(x, z);
+      case 'drops':
+        return this.drops ? this.binH(this.drops.g, x, z) : this.heightAt(x, z);
+      case 'surface':
+      case 'symmetry':
+        return this.surf && this.surf.s > 1 ? this.binH(this.surf.g, x, z) : this.heightAt(x, z);
+      default:
+        return this.heightAt(x, z);
+    }
+  }
+
   private ray = new THREE.Raycaster();
 
   /** Returns a pick in canonical coordinates, whatever the display mode, so the game tools stay unchanged. */
   pick(clientX: number, clientY: number): Pick | null {
     if (!this.session) return null;
     const rect = this.renderer.domElement.getBoundingClientRect();
+    if (this.walker.active) {
+      // first person: the pick ray goes through the crosshair
+      clientX = rect.left + rect.width / 2;
+      clientY = rect.top + rect.height / 2;
+    }
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.ray.setFromCamera(ndc, this.camera);
     const o = this.ray.ray.origin;
@@ -891,14 +1488,15 @@ export class SpectroView {
     return best;
   }
 
-  /** Ray-march the canonical height field (much faster than triangle raycasting on 320k faces). */
+  /** Ray-march the displayed height field in canonical space (much faster than triangle raycasting). */
   private marchCanonical(o: THREE.Vector3, d: THREE.Vector3): Pick | null {
     const maxY = WORLD_H + this.unfold * 6 + 0.1;
     const box = new THREE.Box3(new THREE.Vector3(-WORLD_W / 2, -0.01, -WORLD_D / 2), new THREE.Vector3(WORLD_W / 2, maxY, WORLD_D / 2));
     const r = new THREE.Ray(o, d);
     const hit = new THREE.Vector3();
-    if (!r.intersectBox(box, hit)) return null;
-    let tRay = hit.distanceTo(o);
+    const inside = box.containsPoint(o);
+    if (!inside && !r.intersectBox(box, hit)) return null;
+    let tRay = inside ? 0 : hit.distanceTo(o);
     const step = 0.03;
     let prev: THREE.Vector3 | null = null;
     for (let i = 0; i < 2000; i++) {
@@ -906,7 +1504,7 @@ export class SpectroView {
       if (p.x < -WORLD_W / 2 - 0.01 || p.x > WORLD_W / 2 + 0.01 || p.z < -WORLD_D / 2 - 0.01 || p.z > WORLD_D / 2 + 0.01 || p.y < -0.05) {
         if (prev) break;
       }
-      const h = this.heightAt(p.x, p.z);
+      const h = this.dispH(p.x, p.z);
       if (p.y <= h || p.y <= 0) {
         // bisection refine
         let a = tRay - step;
@@ -914,7 +1512,7 @@ export class SpectroView {
         for (let j = 0; j < 8; j++) {
           const m = (a + b) / 2;
           const q = o.clone().addScaledVector(d, m);
-          if (q.y <= this.heightAt(q.x, q.z)) b = m;
+          if (q.y <= this.dispH(q.x, q.z)) b = m;
           else a = m;
         }
         const q = o.clone().addScaledVector(d, b);
@@ -928,19 +1526,19 @@ export class SpectroView {
     return null;
   }
 
-  /** Nearest sphere along the ray. Falls back to the closest sphere near the ray so hovering feels forgiving. */
+  /** Nearest data point along the ray. Falls back to the closest point near the ray so hovering feels forgiving. */
   private pickSpiral(o: THREE.Vector3, d: THREE.Vector3): Pick | null {
     const sp = this.spiral;
     if (!sp) return null;
-    const R = VIZ.spiral.radius;
-    const hitR2 = (R * 1.6) ** 2;
-    const nearR2 = (R * 6) ** 2;
+    const hitR2 = (VIZ.spiral.style === 'dots' ? VIZ.spiral.radius * 1.6 : 0.07) ** 2;
+    const nearR2 = 0.3 ** 2;
     let best = -1;
     let bestS = Infinity;
     let near = -1;
     let nearD = Infinity;
     const P = sp.pos;
-    for (let j = 0; j < sp.t.length; j++) {
+    const n = sp.g.nT * sp.g.nK;
+    for (let j = 0; j < n; j++) {
       const wx = P[j * 3] - o.x, wy = P[j * 3 + 1] - o.y, wz = P[j * 3 + 2] - o.z;
       const s = wx * d.x + wy * d.y + wz * d.z;
       if (s <= 0) continue;
@@ -955,9 +1553,12 @@ export class SpectroView {
     }
     const j = best >= 0 ? best : near;
     if (j < 0) return null;
-    const t = sp.t[j];
-    const k = sp.k[j];
-    return { x: this.map.xOfFrame(t), z: this.map.zOfBin[k], y: this.heights[t * N_BINS + k], t, k };
+    const g = sp.g;
+    const t = g.tc[Math.floor(j / g.nK)];
+    const k = g.kc[j % g.nK];
+    const x = this.map.xOfFrame(t);
+    const z = zOfHz(k * BIN_HZ);
+    return { x, z, y: this.heightAt(x, z), t, k };
   }
 
   // ---------------- overlays ----------------
@@ -966,6 +1567,10 @@ export class SpectroView {
   private ov(x: number, y: number, z: number) {
     const v = new THREE.Vector3(x, y, z);
     return this.mode === 'spiral' ? this.spiralPos(x, y, z, v) : v;
+  }
+
+  private ovH(x: number, z: number) {
+    return this.mode === 'spiral' ? this.heightAt(x, z) : this.dispH(x, z);
   }
 
   /** Set line points, growing the buffer when needed (setFromPoints never grows an existing buffer). */
@@ -994,7 +1599,7 @@ export class SpectroView {
       const a = (i / 48) * Math.PI * 2;
       const x = p.x + Math.cos(a) * radius;
       const z = p.z + Math.sin(a) * radius;
-      pts.push(this.ov(x, this.heightAt(x, z) + 0.04, z));
+      pts.push(this.ov(x, this.ovH(x, z) + 0.04, z));
     }
     this.setLine(this.cursor, pts);
     this.cursor.visible = true;
@@ -1023,7 +1628,7 @@ export class SpectroView {
         const xb = this.map.xOfFrame(tb);
         const za = zOfHz(h * fa);
         const zb = zOfHz(h * fb);
-        pts.push(this.ov(xa, this.heightAt(xa, za) + 0.05, za), this.ov(xb, this.heightAt(xb, zb) + 0.05, zb));
+        pts.push(this.ov(xa, this.ovH(xa, za) + 0.05, za), this.ov(xb, this.ovH(xb, zb) + 0.05, zb));
       }
     }
     this.setLine(this.forkLines, pts);
@@ -1046,7 +1651,7 @@ export class SpectroView {
       for (let i = 0; i <= 30; i++) {
         const x = x0 + ((x1 - x0) * i) / 30;
         const z = z0 + ((z1 - z0) * i) / 30;
-        pts.push(this.ov(x, this.heightAt(x, z) + 0.05, z));
+        pts.push(this.ov(x, this.ovH(x, z) + 0.05, z));
       }
     }
     this.setLine(this.boxLine, pts);
@@ -1098,6 +1703,7 @@ export class SpectroView {
   }
 
   resetCamera(view: 'perspective' | 'top' | 'side' = 'perspective') {
+    if (this.walker.active) this.walker.exit();
     const { t: sx, a: sy } = this.axis;
     if (this.mode === 'spiral') {
       const H = VIZ.spiral.height * sx;
@@ -1108,8 +1714,8 @@ export class SpectroView {
       else this.camera.position.set(D * 0.7, H / 2 + D * 0.25, D * 0.7);
       return;
     }
-    const mirrored = this.mode === 'symmetry' && VIZ.symmetry.variant === 'amp';
-    const ty = mirrored ? 0 : 0.4 * sy;
+    const mirrored = this.mode === 'symmetry';
+    const ty = mirrored ? -0.3 * sy : 0.4 * sy;
     this.controls.target.set(0, ty, 0);
     const zoom = Math.max(1, sx * 0.85);
     if (view === 'top') this.camera.position.set(0, 21 * zoom, 0.01);
@@ -1119,6 +1725,9 @@ export class SpectroView {
   }
 
   private frame() {
+    const dt = Math.min(0.1, this.clock.getDelta());
+    U.time.value += dt;
+    this.stepMorph();
     // the mirror overlays share material with the originals but must follow geometry swaps and visibility
     if (this.mirror.visible) {
       this.overlays().forEach((o, i) => {
@@ -1129,7 +1738,21 @@ export class SpectroView {
       this.mirrorPlayhead.visible = this.playhead.visible;
       this.mirrorPlayhead.position.copy(this.playhead.position);
     }
-    this.controls.update();
+    // distance fog follows the zoom, so depth reads the same at every distance
+    const fog = this.scene.fog as THREE.Fog;
+    if (this.walker.active) {
+      this.walker.update(dt);
+      fog.near = 3;
+      fog.far = 22;
+      // at eye level the ground fog would cover everything, so it thins out while walking
+      U.hfog.value.z = Math.min(this.hfogDensity, 0.15);
+    } else {
+      U.hfog.value.z = this.hfogDensity;
+      this.controls.update();
+      const dist = this.camera.position.distanceTo(this.controls.target);
+      fog.near = dist * 0.75;
+      fog.far = dist * 2.6;
+    }
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
   }
