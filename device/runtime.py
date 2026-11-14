@@ -5,7 +5,13 @@ One decision per `decision_hop_s` on the latest `clip_seconds` of audio:
 1. energy gate        silent clip -> QUIET
 2. privacy gate       speech -> QUIET, the clip is dropped and never queued
 3. embedding + head   recognized animal -> RECOGNIZED, recognized noise -> QUIET
-4. otherwise          NEEDS_HELP, and the 5 s clip goes into the queue for players
+4. otherwise          NEEDS_HELP
+
+Uncertain segments are merged into sound events with a little context before and
+after (device/events.py). A finished event is queued for players, unless the same
+sound is already queued (then it is only counted) or the hourly budget is used up
+(then only a more novel event may replace the least novel one). Recognized sounds
+are counted, not sent.
 
 The trust knob sets T_known live. New prototypes swap in without a restart.
 """
@@ -18,7 +24,7 @@ import shutil
 import subprocess
 import threading
 import time
-from collections import deque
+from collections import Counter, deque
 from dataclasses import asdict, dataclass
 
 import numpy as np
@@ -32,6 +38,8 @@ from core.models.base import ModelRegistry
 from core.pipeline import analyze
 from core.queue import ClipQueue
 from core.state import StateKind, StateMachine, is_noise, state_for
+
+from .events import AudioHistory, ClosedEvent, EventTracker
 
 log = logging.getLogger("biospectra.device")
 
@@ -65,7 +73,8 @@ class DecisionEvent:
     level_dbfs: float
     t_known: float
     proto_version: int
-    queued: str | None
+    queued: str | None  # id of the event saved or updated at this decision
+    event: str | None  # what happened to a finished event: saved, repeat, replaced, dropped
     latency_ms: float
     peak_rss_mb: float
 
@@ -102,7 +111,6 @@ class Listener:
         self.sm = StateMachine(cfg["state"]["hold_seconds"])
         self.clip_s = float(cfg["runtime"]["clip_seconds"])
         self.hop_s = float(dev.get("decision_hop_s", self.clip_s))
-        self.cooldown_s = float(dev.get("queue_cooldown_s", 10))
         self.margin = float(cfg["head"]["margin"])
         self.noise_label = cfg["head"]["noise_label"]
         self.t_noise = float(cfg["head"].get("t_noise", 1.0))
@@ -114,8 +122,15 @@ class Listener:
         path = prototype_path(self.model.model_id)
         if path.exists():
             self.swap_prototypes(path.read_text(encoding="utf-8"), f"file {path.name}")
-        self._last_queued = -1e9  # in audio seconds, so the cooldown works at any playback speed
-        self._audio_t = 0.0
+        ev_cfg = cfg.get("events", {})
+        self.ev_cfg = ev_cfg
+        self.tracker = EventTracker(ev_cfg.get("pre_roll_s", 2.0), ev_cfg.get("post_roll_s", 2.0),
+                                    int(ev_cfg.get("gap_tolerance", 1)), ev_cfg.get("max_event_s", 30.0))
+        self.history: AudioHistory | None = None
+        self.stats = Counter()  # events_saved, repeats, replaced_better, budget_replaced, budget_dropped
+        self.detections = Counter()  # recognized label -> count since start
+        self.recent_detections: deque[tuple[float, str]] = deque(maxlen=20000)
+        self._last_speech_end = -1e9  # audio time: event context must not reach back into speech
         self.events: deque[DecisionEvent] = deque(maxlen=200)
         self.events_file = data_path("data") / "device_events.jsonl"
         self.sync_status = lambda: "offline"
@@ -176,32 +191,91 @@ class Listener:
         return Verdict(a, pr, decision, raw, energy_ok, emb, head.version, round(1000 * (time.perf_counter() - t0), 1))
 
     def step(self, clip: np.ndarray, sr: int, source_label: str = "") -> DecisionEvent:
+        """One decision on the latest clip. Call `run` for the loop (it keeps the audio history)."""
         self._apply_knob()
+        if self.history is None or self.history.sr != sr:
+            self.history = AudioHistory(sr, self._history_seconds())
+            self.history.push(clip)
         v = self.evaluate(clip, sr)
-        pr, decision, raw, emb = v.privacy, v.decision, v.raw, v.embedding
+        pr, decision, raw = v.privacy, v.decision, v.raw
         shown = self.sm.update(raw)
-        queued = None
-        self._audio_t += self.hop_s
-        now = self._audio_t
-        if raw.kind == StateKind.NEEDS_HELP and now - self._last_queued >= self.cooldown_s:
-            sims = decision.similarities if decision else {}
-            queued = self.queue.enqueue(
-                clip, sr, emb, device_id=self.cfg["device"]["id"], model_id=self.model.model_id,
-                best_guess=decision.best_label if decision else None,
-                best_score=round(decision.best, 4) if decision else None,
-                scores={k: round(v, 4) for k, v in sims.items()},
-            )
-            self._last_queued = now
+        if raw.kind == StateKind.RECOGNIZED and raw.label:
+            self.detections[raw.label] += 1
+            self.recent_detections.append((time.time(), raw.label))
+        seg_end = self.history.end_t
+        closed = self.tracker.observe(
+            seg_end - self.clip_s, seg_end, raw.kind == StateKind.NEEDS_HELP, embedding=v.embedding,
+            level=rms_dbfs(clip), best_label=decision.best_label if decision else None,
+            best=decision.best if decision else 0.0, similarities=decision.similarities if decision else None,
+            speech=pr.speech,
+        )
+        queued, action = self._commit(closed, sr) if closed else (None, None)
+        if pr.speech:  # after committing: this segment only limits the context of later events
+            self._last_speech_end = seg_end
         ev = DecisionEvent(
             time=time.strftime("%H:%M:%S"), source=source_label, raw_state=raw.kind.value, shown_state=shown.kind.value,
             label=raw.label, best_label=decision.best_label if decision else None,
             score=round(decision.best, 3) if decision else 0.0, margin=round(decision.margin, 3) if decision else 0.0,
             speech=pr.speech, speech_score=round(pr.score, 3), level_dbfs=round(rms_dbfs(clip), 1),
-            t_known=self.t_known, proto_version=v.proto_version, queued=queued,
+            t_known=self.t_known, proto_version=v.proto_version, queued=queued, event=action,
             latency_ms=v.latency_ms, peak_rss_mb=round(peak_rss_mb(), 0),
         )
         self._publish(ev, shown)
         return ev
+
+    def _history_seconds(self) -> float:
+        c = self.ev_cfg
+        return c.get("max_event_s", 30.0) + c.get("pre_roll_s", 2.0) + c.get("post_roll_s", 2.0) + self.clip_s + 2 * self.hop_s
+
+    def _commit(self, ev: ClosedEvent, sr: int) -> tuple[str | None, str]:
+        """Queue a finished event, count it as a repeat, or drop it when the hourly budget is used up."""
+        start = min(max(ev.start_t, self._last_speech_end), ev.first_t)  # no speech in the pre-roll
+        audio, t0, t1 = self.history.slice(start, ev.end_t)
+        shift = t0 - ev.start_t  # pre-roll may be shorter right after start
+        timeline = [{**s, "start": round(s["start"] - shift, 2), "end": round(s["end"] - shift, 2)} for s in ev.timeline]
+        fields = dict(embedding=ev.embedding, best_guess=ev.best_guess, best_score=ev.best_score, scores=ev.scores,
+                      novelty=ev.novelty, quality=ev.quality, timeline=timeline,
+                      segment_embeddings=ev.segment_embeddings)
+        now = time.time()
+        window = float(self.ev_cfg.get("dedup_window_h", 24)) * 3600
+        twin, cov, sim = self.queue.find_repeat(ev.segment_embeddings, now - window,
+                                                float(self.ev_cfg.get("dedup_similarity", 0.85)))
+        if twin is not None and cov >= float(self.ev_cfg.get("dedup_coverage", 0.8)):
+            replaced = self.queue.record_repeat(twin.id, audio=audio, sr=sr, **fields)
+            self.stats["repeats"] += 1
+            self.stats["replaced_better"] += int(replaced)
+            note = ", kept the clearer recording" if replaced else ""
+            return twin.id, (f"repeat of {twin.id} ({cov:.0%} of segments match, similarity {sim:.2f}, "
+                             f"heard {twin.heard_count + 1}×{note})")
+        budget = int(self.ev_cfg.get("budget_per_hour", 20))
+        if self.queue.count_since(now - 3600) >= budget:
+            weakest = self.queue.least_novel_pending_since(now - 3600)
+            if weakest is None or (weakest.novelty or 0.0) >= ev.novelty:
+                self.stats["budget_dropped"] += 1
+                return None, f"dropped: {budget} events this hour already, none less novel"
+            self.queue.delete(weakest.id)
+            self.stats["budget_replaced"] += 1
+            prefix = f"replaced less novel {weakest.id}, "
+        else:
+            prefix = ""
+        cid = self.queue.enqueue(audio, sr, ev.embedding, device_id=self.cfg["device"]["id"], model_id=self.model.model_id,
+                                 best_guess=ev.best_guess, best_score=ev.best_score, scores=ev.scores,
+                                 novelty=ev.novelty, quality=ev.quality, timeline=timeline)
+        self.stats["events_saved"] += 1
+        return cid, f"{prefix}saved event {cid} ({t1 - t0:.0f} s, {len(timeline)} unclear segments)"
+
+    def flush(self) -> tuple[str | None, str | None]:
+        """Close an event that is still open (end of a file, or Stop)."""
+        closed = self.tracker.flush()
+        if closed is None or self.history is None:
+            return None, None
+        cid, action = self._commit(closed, self.history.sr)
+        log.info("end of input: %s", action)
+        return cid, action
+
+    def detection_counts(self, last_s: float = 3600) -> dict:
+        since = time.time() - last_s
+        return dict(Counter(lbl for t, lbl in self.recent_detections if t >= since))
 
     def _publish(self, ev: DecisionEvent, shown) -> None:
         self.events.append(ev)
@@ -209,7 +283,7 @@ class Listener:
             f.write(json.dumps(asdict(ev)) + "\n")
         why = "speech, dropped" if ev.speech else (
             f"{ev.best_label} {ev.score:.2f} (margin {ev.margin:.2f})" if ev.best_label else f"{ev.level_dbfs:.0f} dBFS")
-        text = f"{ev.raw_state.upper():10s} {why}" + (f" → queued {ev.queued}" if ev.queued else "")
+        text = f"{ev.raw_state.upper():10s} {why}" + (f" → {ev.event}" if ev.event else "")
         log.info("%s [%s] %s · %.0f ms · %.0f MB", ev.time, ev.source, text, ev.latency_ms, ev.peak_rss_mb)
         with self._lock:
             classes = len(self.head.classes)
@@ -218,6 +292,7 @@ class Listener:
             "proto_version": ev.proto_version, "proto_classes": classes, "queue": self.queue.count(only_pending=True),
             "sync": self.sync_status(), "latency_ms": ev.latency_ms, "device": self.cfg["device"]["id"],
             "location": self.cfg["device"]["location"], "model_id": self.model.model_id,
+            "event_action": ev.event,
         })
 
     # ------------------------------------------------------------ main loop
@@ -231,14 +306,20 @@ class Listener:
         src = source or self.source
         sr = src.sample_rate
         need = int(self.clip_s * sr)
+        self.history = AudioHistory(sr, self._history_seconds())
+        self.tracker.open = None
         buf = np.zeros(0, dtype=np.float32)
         out: list[DecisionEvent] = []
-        while (max_decisions is None or len(out) < max_decisions) and not (stop and stop.is_set()):
-            chunk = src.read(self.hop_s)
-            if chunk is None or (stop and stop.is_set()):
-                break
-            buf = np.concatenate([buf, chunk])[-need:]
-            if len(buf) < need:
-                continue
-            out.append(self.step(buf, sr, getattr(src, "label", "")))
+        try:
+            while (max_decisions is None or len(out) < max_decisions) and not (stop and stop.is_set()):
+                chunk = src.read(self.hop_s)
+                if chunk is None or (stop and stop.is_set()):
+                    break
+                self.history.push(chunk)
+                buf = np.concatenate([buf, chunk])[-need:]
+                if len(buf) < need:
+                    continue
+                out.append(self.step(buf, sr, getattr(src, "label", "")))
+        finally:
+            self.flush()  # never lose an open event
         return out

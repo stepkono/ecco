@@ -59,9 +59,32 @@ def test_playlist_drives_light_and_queue(listener):
              if e.raw_state != expected[e.source]["state"]
              or (expected[e.source]["label"] and e.label != expected[e.source]["label"])]
     assert not wrong, f"unexpected states: {wrong}"
-    queued = {e.source for e in events if e.queued}
-    assert queued == {s for s, x in expected.items() if x["state"] == "needs_help"}
-    assert not any(e.queued for e in events if e.speech), "speech must never be queued"
+    # one event per unknown sound, with context: 2 s before, 2 s after unless speech follows
+    clips = sorted(listener.queue.all(), key=lambda c: c.created_at)
+    assert len(clips) == sum(x["state"] == "needs_help" for x in expected.values())
+    crickets, insects = clips
+    assert crickets.duration_s == 7.0  # 08-15 s: the speech clip right after adds no context
+    assert insects.duration_s == 9.0  # 28-37 s
+    assert crickets.timeline[0]["start"] == 2.0 and crickets.timeline[0]["end"] == 7.0
+    assert all(c.heard_count == 1 for c in clips)
+    # no saved audio overlaps the speech clip (15-20 s): the crickets event ends exactly where it starts
+    assert crickets.timeline[-1]["end"] == crickets.duration_s, "speech must never be saved"
+
+
+def test_repeated_sound_is_counted_not_saved_again(registry, tmp_path, monkeypatch):
+    cfg = json.loads(json.dumps(load_config()))
+    import device.runtime as rt
+
+    real = rt.data_path
+    monkeypatch.setattr(rt, "data_path", lambda key: (tmp_path / key) if key in ("queue", "data") else real(key))
+    (tmp_path / "data").mkdir()
+    src = PlaylistSource(PLAYLIST, int(cfg["audio"]["sample_rate"]), speed=0, loop=True)
+    lis = Listener(cfg, registry, src, NullHardware())
+    lis.run(max_decisions=16)  # the playlist twice
+    clips = lis.queue.all()
+    assert len(clips) == 2, "the second round must not create new events"
+    assert sorted(c.heard_count for c in clips) == [2, 2]
+    assert lis.stats["repeats"] == 2
 
 
 class _Backend(BaseHTTPRequestHandler):

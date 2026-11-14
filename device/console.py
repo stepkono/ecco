@@ -235,6 +235,8 @@ class Controller:
             "uptime_s": int(time.time() - self.started), "process_rss_mb": round(peak_rss_mb()),
             "mem_available_mb": round(vm.available / 1e6), "cpu_percent": psutil.cpu_percent(interval=None),
             "last": self.bus.last_state,
+            "events": dict(L.stats), "budget_per_hour": L.ev_cfg.get("budget_per_hour"),
+            "detections_total": dict(L.detections), "detections_hour": L.detection_counts(),
         }
 
     # ------------------------------------------------------------ analyze uploads
@@ -308,7 +310,9 @@ class Controller:
             p = Path(c.wav_path)
             out.append({"id": c.id, "created_at": c.created_at, "time": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(c.created_at)),
                         "best_guess": c.best_guess, "best_score": c.best_score, "uploaded": c.uploaded,
-                        "size_kb": round(p.stat().st_size / 1024) if p.exists() else 0, "model_id": c.model_id})
+                        "size_kb": round(p.stat().st_size / 1024) if p.exists() else 0, "model_id": c.model_id,
+                        "duration_s": c.duration_s, "heard_count": c.heard_count, "novelty": c.novelty,
+                        "quality": c.quality, "timeline": c.timeline})
         return out
 
     def clips_zip(self, ids: list[str] | None) -> bytes:
@@ -322,7 +326,9 @@ class Controller:
                 if p.exists():
                     z.write(p, f"{c.id}.wav")
                 meta.append({"id": c.id, "created_at": c.created_at, "device_id": c.device_id, "model_id": c.model_id,
-                             "best_guess": c.best_guess, "best_score": c.best_score, "scores": c.scores})
+                             "best_guess": c.best_guess, "best_score": c.best_score, "scores": c.scores,
+                             "duration_s": c.duration_s, "heard_count": c.heard_count, "last_heard": c.last_heard,
+                             "novelty": c.novelty, "quality_dbfs": c.quality, "timeline": c.timeline})
             z.writestr("clips.json", json.dumps(meta, indent=1))
         return buf.getvalue()
 

@@ -10,7 +10,19 @@ device:
   hardware: auto                 # auto | mock | led | mock,led | none
   web_port: 8765                 # mock light page: http://<device>:8765
   decision_hop_s: 5.0            # one decision per this many seconds of audio
-  queue_cooldown_s: 10           # at most one queued clip per this many seconds
+
+events:                          # how uncertain moments become puzzles (device/events.py)
+  pre_roll_s: 2.0                # context saved before the first uncertain segment
+  post_roll_s: 2.0               # and after the last one
+  gap_tolerance: 1               # quiet/recognized segments allowed inside one event
+  max_event_s: 30.0              # longer events are split
+  dedup_similarity: 0.90         # two 5 s segments are "the same sound" from this similarity (ESC-50: 67 % of
+                                 # same-recording pairs, 0.0 % of different-sound pairs). Repeats are counted
+  dedup_coverage: 0.8            # an event is a repeat only if this share of its 5 s segments has a twin
+                                 # in one saved event. A single new sound inside a long event keeps it
+  dedup_window_h: 24             # compare with events from this many hours back
+  budget_per_hour: 20            # at most this many new events per hour. When full, a more novel event
+                                 # replaces the least novel one
 
 audio:
   sample_rate: 48000             # capture rate, resampled per model

@@ -107,7 +107,9 @@
           <span>Mode</span><span id="k-mode">–</span>
           <span>Microphone</span><span id="k-mic">–</span>
           <span>Prototypes</span><span id="k-proto">–</span>
-          <span>Queued clips</span><span id="k-queue">–</span>
+          <span>Queued events</span><span id="k-queue">–</span>
+          <span>Events</span><span id="k-events">–</span>
+          <span>Recognized (1 h)</span><span id="k-det">–</span>
           <span>Backend</span><span id="k-sync">–</span>
           <span>Latency per clip</span><span id="k-lat">–</span>
           <span>Memory available</span><span id="k-mem">–</span>
@@ -133,14 +135,14 @@
       </section>
 
       <section aria-labelledby="h-clips">
-        <h2 id="h-clips">Clips on the board <span class="grow"></span>
+        <h2 id="h-clips">Sound events on the board <span class="grow"></span>
           <button id="btn-refresh">Refresh</button>
           <button id="btn-zip">Download all (zip)</button>
           <button id="btn-delall" class="danger">Delete all</button></h2>
-        <div class="muted" style="margin-bottom:6px">Uncertain clips the listener queued for players. They may contain anything the mic heard: download, then delete.</div>
+        <div class="muted" style="margin-bottom:6px">Sounds the listener could not recognize, one entry per event with 2 s of context on each side. The same sound heard again is counted, not saved twice. Entries may contain anything the mic heard: download, then delete.</div>
         <table>
-          <thead><tr><th>Recorded</th><th>Best guess</th><th class="num">Size</th><th>Uploaded</th><th></th></tr></thead>
-          <tbody id="clips"><tr><td colspan="5" class="empty">no clips</td></tr></tbody>
+          <thead><tr><th>Recorded</th><th class="num">Length</th><th class="num">Heard</th><th>Best guess</th><th class="num">Novelty</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody id="clips"><tr><td colspan="7" class="empty">no events</td></tr></tbody>
         </table>
         <audio id="player" controls hidden></audio>
       </section>
@@ -201,6 +203,12 @@ function renderStatus(s) {
   $("k-proto").textContent = `v${s.proto_version} · ${cls || "none"}`;
   $("k-proto").title = cls;
   $("k-queue").textContent = `${s.queue_pending} waiting · ${s.queue_total} total`;
+  const ev = s.events || {};
+  $("k-events").textContent = `${ev.events_saved || 0} saved · ${ev.repeats || 0} repeats · ${(ev.budget_dropped || 0) + (ev.budget_replaced || 0)} over budget`;
+  $("k-events").title = `budget ${s.budget_per_hour} new events per hour`;
+  const det = Object.entries(s.detections_hour || {}).map(([k, v]) => `${k}×${v}`).join(", ");
+  $("k-det").textContent = det || "none";
+  $("k-det").title = det;
   $("k-sync").textContent = s.sync;
   $("k-mem").textContent = `${s.mem_available_mb} MB`;
   $("tk").textContent = Number(s.t_known).toFixed(2);
@@ -219,7 +227,7 @@ function renderDecision(e) {
     logItems.unshift(`<li title="${e.event}"><span class="dot" style="background:${e.color}"></span>${e.time} ${e.event}</li>`);
     logItems.length = Math.min(logItems.length, 80);
     $("log").innerHTML = logItems.join("");
-    if (e.event.includes("queued")) loadClips();
+    if (e.event_action) { loadClips(); refreshStatus(); }
   }
 }
 
@@ -348,18 +356,25 @@ async function download(path, name) {
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
 
+async function refreshStatus() {
+  try { renderStatus(await (await api("/api/status")).json()); } catch {}
+}
+
 async function loadClips() {
   try {
     const clips = await (await api("/api/clips")).json();
     $("clips").innerHTML = clips.length ? clips.map((c) => `<tr>
       <td>${c.time}</td>
-      <td>${c.best_guess ? `${c.best_guess} <span class="mono muted">${(c.best_score ?? 0).toFixed(2)}</span>` : '<span class="muted">none</span>'}</td>
-      <td class="num">${c.size_kb} KB</td><td>${c.uploaded ? "yes" : "no"}</td>
+      <td class="num">${c.duration_s != null ? c.duration_s.toFixed(0) + " s" : "–"}</td>
+      <td class="num">${c.heard_count}×</td>
+      <td>${c.best_guess ? `${c.best_guess} <span class="mono muted">${(c.best_score ?? 0).toFixed(2)}</span>` : '<span class="muted">none</span>'}
+        <div class="labels">${(c.timeline || []).map((t) => `${t.start.toFixed(0)}–${t.end.toFixed(0)} s`).join(" · ")}</div></td>
+      <td class="num">${c.novelty != null ? c.novelty.toFixed(2) : "–"}</td><td>${c.uploaded ? "yes" : "no"}</td>
       <td class="row" style="justify-content:flex-end">
         <button data-play="${c.id}" aria-label="Play clip ${c.id}">Play</button>
         <button data-dl="${c.id}" aria-label="Download clip ${c.id}">Download</button>
         <button data-del="${c.id}" class="danger" aria-label="Delete clip ${c.id}">Delete</button></td></tr>`).join("")
-      : `<tr><td colspan="5" class="empty">no clips on the board</td></tr>`;
+      : `<tr><td colspan="7" class="empty">no events on the board</td></tr>`;
   } catch (e) { toast(e.message, true); }
 }
 $("clips").onclick = async (e) => {

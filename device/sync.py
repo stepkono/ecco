@@ -106,6 +106,8 @@ class SyncClient:
                 "created_at": clip.created_at, "sample_rate": clip.sample_rate,
                 "device_guess": clip.best_guess, "device_score": clip.best_score, "scores": clip.scores,
                 "embedding": [round(float(v), 6) for v in clip.embedding],
+                "duration_s": clip.duration_s, "heard_count": clip.heard_count, "last_heard": clip.last_heard,
+                "novelty": clip.novelty, "quality_dbfs": clip.quality, "timeline": clip.timeline,
             }
             body, ctype = _multipart({"metadata": json.dumps(meta)},
                                      {"audio": (f"{clip.id}.wav", Path(clip.wav_path).read_bytes(), "audio/wav")})
