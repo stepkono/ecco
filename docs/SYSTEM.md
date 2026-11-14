@@ -17,8 +17,8 @@ A listening post on an Arduino UNO Q listens to nature through a microphone. Eve
 | Phase 2: backend (clips, labels, prototypes) | `backend/` (FastAPI, SQLite, runs on the laptop) | Done, the full loop verified with the UNO Q |
 | 2D labeling page (stand-in for the game) | `backend/web/play.html`, served at `/` | Done. The 3D game design is still open |
 | Phase 3: game connected to the backend | `game/` | Not started. Waits for the 3D design. The API is ready |
-| Phase 4: end-to-end demo script | `demo/` | Not started |
-| Phase 5: tools (demo set builder, STL sculpture) | `tools/` | Partly: mixer, test sets, prototypes, playlists |
+| Phase 4: end-to-end demo | `demo/`, `/screen` | Done. 3 runs in a row pass on the laptop and with the UNO Q |
+| Phase 5: tools (demo set builder, STL sculpture) | `tools/` | Partly: demo set builder, mixer, test sets, prototypes, playlists. STL sculpture missing |
 | Phase 6: port details (autostart, Modulino knob and buzzer) | | Open. The device runs on the board, but by hand |
 
 ## Architecture
@@ -212,6 +212,37 @@ Runs on the laptop: `python -m backend.app` (port 8000). Storage: `data/backend/
 
 The labeling page at `/` is a 2D stand-in for the game: spectrogram (log frequency), drag boxes, play all or the selection, label buttons, a live feed and keyboard control (`N`, `P`, `S`, `C`, `1`–`5`).
 
+## The end-to-end demo (Phase 4)
+
+```bash
+make demo                         # backend + laptop listening post, opens the event screen and the labeling page
+make demo-check                   # the same, plus the scripted scenario 3 times (acceptance)
+bash demo/run_demo.sh --board     # the UNO Q is the listening post (add --auto for the 3 runs)
+```
+
+**Scenario** (clips in `data/demo/`, built and verified by `python -m tools.make_demo_set`):
+
+1. Unknown sound A (crickets, an ESC-50 recording the post never saw) plays. The post needs help and sends the event.
+2. A player boxes the unclear part on the labeling page and labels it `crickets`.
+3. New prototypes reach the post (one to two seconds after the label).
+4. A and A2, another crickets recording, are now recognized.
+5. A rain clip raised a false alarm in step 1. Labelled `noise`, it is quiet in the replay.
+
+The demo set builder only accepts clips that pass every step with the real model and the real starting prototypes (A2 is recognized at similarity 0.86 after learning from A alone).
+
+**Event screen** (`http://localhost:8000/screen?device=<console url>&token=<token>`): the post's light live, a timeline of everything that happens, the similarity of the learned sound to every class before and after the update, and a checklist of the 5 steps that ticks itself off from the real events.
+
+**Repeatable runs.** `POST /demo/reset` (only in demo mode) forgets all events and labels and republishes the backend's first stored prototype version as a new, higher version, so the post forgets what it learned. The console's `POST /api/demo/reset` clears the post's queue and counters. The demo uses its own data folders (`data/demo/`) through the overlay `demo/config.demo.yaml` (laptop) or `demo/config.board.yaml` (board).
+
+**Measured:**
+
+| Listening post | Runs passed | Loop (A needs help → A recognized) | Label → installed on the post |
+|---|---|---|---|
+| Laptop | 3 / 3 | 21.2 s | 0.8 s |
+| UNO Q over Wi-Fi | 3 / 3 | 23.6 to 24.4 s | 1.4 to 2.0 s |
+
+The plan requires under 30 s and three runs in a row without a restart.
+
 ## Configuration
 
 Everything is in `config.yaml`. The most important keys:
@@ -252,6 +283,7 @@ Machine-specific values go into `config.local.yaml` (git-ignored, merged on top)
 | ESC-50 subset | `data/esc50/` (Mac only) |
 | Real soundscapes (1.1 GB) | `data/soundscapes/` (Mac only): `amazon/`, `northeast/` (one-hour FLAC), `anuraset/frogs/`, `anuraset/no_frogs/` (one-minute WAV), `excerpts/` (busiest 3 min as WAV, ready for the console) |
 | Backend data | `data/backend/` (laptop): `backend.db`, `clips/*.wav` |
+| Demo data | `data/demo/` (laptop and board): `before/`, `after/`, `manifest.json`, separate backend, queue and prototypes |
 | Model files | `~/.local/share/birdnet`, `~/.cache/kagglehub` (board) |
 
 `data/` is git-ignored on both machines.
@@ -263,7 +295,8 @@ core/      audio, models (YAMNet, BirdNET, Perch adapters), gates, heads, state,
 device/    runtime (listener), events (merging, context), sources (mic, file, playlist), hardware (LED, web light),
            sync client, console (server + web/console.html), main (CLI without console)
 bench/     Phase 0 Gradio bench
-backend/   Phase 2: store (SQLite), service (puzzles, consensus, learning), app (FastAPI), web/play.html
+backend/   Phase 2: store (SQLite), service (puzzles, consensus, learning), app (FastAPI), web/play.html, web/screen.html
+demo/      Phase 4: run_demo.sh, scenario.py, config overlays for laptop and board
 tools/     board setup/cleanup, device_ctl, mixer, test sets, ESC-50 import,
            threshold calibration, prototypes, playlists, soundscape download and excerpts
 tests/     core, events, device acceptance, console API, backend (full loop)
@@ -274,6 +307,7 @@ docs/      this document
 ## Verified results
 
 * **Tests:** 28 pass on the Mac (`pytest -q tests`).
+* **Phase 4 acceptance:** 3 of 3 scripted runs in a row, on the laptop (21 s loop) and with the UNO Q (24 s loop). See [The end-to-end demo](#the-end-to-end-demo-phase-4).
 * **Phase 2 acceptance:** automated with a real backend server: the device's events appear as puzzles, a label with a box selection publishes a new version, the device installs it and recognizes the sound on the next play.
 * **Phase 2 on the real board:** the UNO Q uploaded its 18 queued events to the laptop. The insects event was boxed and labelled `noise` on the labeling page. The board installed prototypes v31 within seconds, and on the next playlist run the insects clip stayed quiet (noise 0.85) instead of asking for help.
 * **Phase 1 acceptance on the UNO Q:** the 8-clip demo playlist produced the expected light for 8 of 8 clips. Unknown sounds were queued, speech was not. Newer backend prototypes swapped in within 5 s (test backend).
@@ -305,10 +339,13 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 * **Repeat counts after upload.** A repeat the post hears after an event was uploaded is counted on the post only. The backend keeps the count from upload time.
 * **Backend access.** The backend has no login. It is meant for the laptop on the event network.
 * **Venue clips on the laptop.** The board's earlier venue clips were uploaded to the backend with the demo events. They may contain voices: delete `data/backend` before sharing the laptop data.
-* **Phase 3 and 4** (3D game, one-command demo with event screen) are not built yet.
+* **Phase 3** (the 3D game) waits for the visual design. The labeling page stands in for it.
+* **Demo species.** The demo teaches `crickets`, which is in the demo's label list only (`demo/config.demo.yaml`). Replace it with a real target species once the team has chosen them.
+* **Board after a board demo.** `run_demo.sh --board` restarts the board's console with the demo overlay. Restart it normally afterwards (`device_ctl.sh start`).
 
 ## Change log
 
+* **2026-11-14** Phase 4: one-command demo (`make demo`), scripted 5-step scenario, event screen, verified demo set, demo reset. 3/3 runs on the laptop and on the UNO Q. Fixed: a device on the backend's machine could overwrite the backend's seed file.
 * **2026-11-14** Phase 2 backend: events become puzzles, gold clips, reliability, consensus, learning from the player's selection, prototype versions, install confirmation, event stream, 2D labeling page. Full loop verified with the UNO Q.
 * **2026-11-14** Uncertain segments become events with 2 s context, speech-safe, repeats counted per segment, hourly budget. Recognized sounds are counted. Verified on soundscapes and the UNO Q.
 * **2026-11-14** Real soundscapes downloaded (Amazon, Northeastern US, AnuraSet subset), with tools to fetch and cut them. First field-audio results.
