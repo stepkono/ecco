@@ -146,3 +146,22 @@ def test_preview_and_spectrogram_grid(tmp_path):
     assert len(y) == len(x) and 0 < np.abs(y).max() <= np.abs(x).max() + 1e-3
     with pytest.raises(ValueError):
         be.preview(cid, {"grid": [[1]]})
+
+
+def test_device_update_is_confirmed_once(tmp_path):
+    from backend.service import Backend
+    from backend.store import Store
+
+    be = Backend(cfg_copy(demo_mode=True), Store(tmp_path))
+    be.latest_prototypes("yamnet-tflite", "post-1", 30)  # first contact: just registers the version
+    x, sr = sf.read(PLAYLIST / "03_crickets.wav", dtype="float32")
+    buf = io.BytesIO()
+    sf.write(buf, x, sr, format="WAV")
+    cid = be.receive_clip("post-1", {"clip_id": "c"}, buf.getvalue())["clip_id"]
+    pid = be.store.add_player("p")
+    v = be.submit_label(cid, pid, "crow", None)["prototype_version"]
+    be.latest_prototypes("yamnet-tflite", "post-1", 30)  # still old: downloading
+    be.latest_prototypes("yamnet-tflite", "post-1", v)  # installed
+    be.latest_prototypes("yamnet-tflite", "post-1", v)  # no second event
+    ups = [e for e in be.store.recent_events() if e["type"] == "device_updated"]
+    assert [(e["device_id"], e["version"]) for e in ups] == [("post-1", v)]
