@@ -25,3 +25,14 @@ dist-ssr
 
 # local tooling
 .claude/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# secrets, local audio, model caches, bench output
+.env
+data/
+*.tflite

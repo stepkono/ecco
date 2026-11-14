@@ -1,0 +1,52 @@
+# BioSpectra configuration. Shared by bench/, device/ and backend/.
+
+device:
+  id: post-01
+  location: Nuuksio wetland edge
+  model_id: birdnet-2.4          # must match the backend's model (decided after Phase 0)
+
+runtime:
+  threads: 4                     # CPU threads per model (UNO Q has 4 Cortex-A53 cores)
+  clip_seconds: 5.0              # length of a saved uncertain clip
+  hop_fraction: 1.0              # window hop as a fraction of the model window (1.0 = no overlap)
+
+models:
+  enabled: [yamnet, yamnet-tflite, birdnet-2.4, birdnet-2.4-int8, perch-2.0]
+  cache_dir: data/models         # informational. Packages keep their own caches (see README)
+
+gates:
+  energy_dbfs: -55.0             # windows quieter than this RMS level count as silence
+  privacy:
+    model_id: yamnet             # YAMNet decides about speech
+    # Calibrated on TTS speech vs. frogs, cicada, chainsaw and rain (see README):
+    # speech reaches ~1.0 in 4-5 windows, animals only spike in single windows.
+    threshold: 0.5               # per-window combined speech score
+    min_windows: 2               # windows at or above threshold needed to drop the clip
+    hard_threshold: 0.8          # a single window this sure is enough on its own
+    combine: max                 # max | sum over the speech classes
+    classes:                     # names from the YAMNet class map
+      - Speech
+      - Child speech, kid speaking
+      - Conversation
+      - Narration, monologue
+      - Babbling
+      - Speech synthesizer
+      - Shout
+      - Whispering
+
+head:
+  type: prototype                # prototype | knn
+  knn_k: 3
+  t_known: 0.75                  # min cosine similarity to call a sound recognized
+  margin: 0.05                   # min gap between best and second-best class
+  noise_label: noise             # label used by "Add as noise"
+
+state:
+  hold_seconds: 2.0              # keep a state at least this long so the light does not flicker
+
+paths:
+  data: data
+  prototypes: data/prototypes
+  queue: data/queue
+  demo_set: data/demo_set
+  bench_out: data/bench

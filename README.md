@@ -6,6 +6,11 @@ Edge sensors like the Arduino Nano 33 BLE Sense sit in forests and wetlands and 
 
 BioSpectra turns each 5-second clip into a 3D sound sculpture (time × frequency × loudness). Players carve it apart with spatial brushes, harmonic tuning forks, band knives and rhythm matching. Each finished separation is a ground-truth source-separation mask. Those masks train a tiny int8 model that is exported as an Arduino header and pushed back to the nodes.
 
+The repository has two parts:
+
+* **Web game prototype** (TypeScript, Vite, Three.js) in `src/`, described first below.
+* **Python pipeline** for the Arduino UNO Q listening post in `core/`, `bench/` and `tools/`. Phase 0 (model test bench) is done. See [Python pipeline](#python-pipeline-uno-q-listening-post).
+
 ## Run it
 
 ```bash
@@ -129,3 +134,97 @@ src/worker.ts  NMF, community simulation and training off the main thread
 ## Keyboard
 
 `B` brush · `F` fork · `K` knife · `E` echo · `V` view · `Shift` erase / steady comb · `[` `]` brush size · `Space` play mix · `L` play layer · `R` play residual · `1`–`9` select layer · `Ctrl/Cmd+Z` undo · right-drag orbit · wheel zoom
+
+---
+
+## Python pipeline (UNO Q listening post)
+
+The listening post runs on an Arduino UNO Q (Debian, ARM64, 2 GB RAM). It listens, embeds sound with a frozen audio model and decides with a few-shot head: **quiet**, **recognized** or **needs help**. Uncertain clips go to players. Their labels update class prototypes, which the device downloads. No retraining.
+
+Everything runs on a laptop first. Later only the audio input and the light output change.
+
+### Setup
+
+Python 3.11 and ffmpeg are required.
+
+```bash
+uv venv --python 3.11 .venv
+```
+
+```bash
+uv pip install --python .venv -r requirements.txt
+```
+
+Models download on first use: YAMNet from Kaggle (no account needed), BirdNET 2.4 from Zenodo (77 MB, int8 46 MB), Perch 2.0 (~380 MB). No secrets are needed so far. If a later phase needs keys, they go into `.env`, which is git-ignored.
+
+### Commands
+
+| What | Command |
+|---|---|
+| Phase 0 bench (Gradio, http://127.0.0.1:7860) | `.venv/bin/python -m bench.app` |
+| Measure one model in a fresh process | `.venv/bin/python -m core.measure --model birdnet-2.4 --threads 4` |
+| Mix a call into noise with ground truth | `.venv/bin/python -m tools.mixer --call call.wav --noise rain.ogg --label green_treefrog --snr 0` |
+| Cut long recordings into a test set | `.venv/bin/python -m tools.make_test_set --src data/raw --out data/testset` |
+| Unit tests | `.venv/bin/python -m pytest -q tests` |
+
+### Layout
+
+```
+core/            shared pipeline (bench now, device and backend later)
+  audio.py       ffmpeg decode, resample, windows, STFT/mel spectrograms, apply_mask
+  gates.py       energy gate, privacy gate (YAMNet speech classes)
+  heads.py       PrototypeHead, KNNHead, decision rule, prototype JSON
+  state.py       QUIET / RECOGNIZED / NEEDS_HELP with hold time
+  queue.py       SQLite + WAV queue of uncertain clips
+  pipeline.py    one model over one clip
+  measure.py     isolated latency and peak-memory measurement
+  models/        AudioModel interface, registry, adapters (yamnet, birdnet, perch)
+bench/           Phase 0 Gradio bench
+tools/           mixer, test-set builder
+config.yaml      model id, thresholds, paths
+```
+
+**One interface for all models.** Every adapter implements `load`, `embed`, `classify` (plus `embed_and_scores` for one inference per window) and reads sample rate, window length and embedding size from the model or its package at load time. These values are logged when a model loads. Adding a model means one adapter file and one registry line in `core/models/__init__.py`. A model that fails to load is marked unavailable with the reason, and the others keep working.
+
+### Phase 0 report
+
+Measured on a MacBook (Apple Silicon, 16 GB), 4 CPU threads, each model alone in a fresh process (`core.measure`). One inference per window gives both the embedding and the class scores.
+
+| Model id | Input | Embedding | Classes | Load | ms per window | Real-time factor | Peak RAM | 2 GB board |
+|---|---|---:|---:|---:|---:|---:|---:|---|
+| `yamnet-tflite` | 16 kHz, 0.975 s | 1024 (int8) | 521 | 0.6 s | 0.9 | 1,100× | 88 MB | fits comfortably |
+| `yamnet` | 16 kHz, 0.975 s | 1024 | 521 | 6.8 s | 3.5 | 277× | 617 MB | fits comfortably |
+| `birdnet-2.4` | 48 kHz, 3 s | 1024 | 6,522 | 0.3 s | 21.8 | 138× | 162 MB | fits comfortably |
+| `birdnet-2.4-int8` | 48 kHz, 3 s | 1024 | 6,522 | 0.1 s | 20.8 | 144× | 145 MB | fits comfortably |
+| `perch-2.0` | 32 kHz, 5 s | 1536 | 14,795 | 5.6 s | 400 | 12.5× | 1,263 to 1,440 MB | tight |
+
+Peak RAM includes the Python interpreter (~32 MB) and, for `yamnet` and `perch-2.0`, TensorFlow. The UNO Q's Cortex-A53 cores are several times slower than a laptop, so read latencies as lower bounds. Even at 10× slower, BirdNET stays well inside real time. Load time excludes the one-time download. Peak RAM varies by about 10 % between runs.
+
+**What each model heard** on the treefrog clip: BirdNET named *Green Treefrog* at 0.997 (0.995 in int8). Perch named *Hyla cinerea* as its top class. YAMNet said *Frog*. The int8 YAMNet TFLite is much weaker on classes (it called a chainsaw "Animal / Cat"), but its embeddings still separate classes well (see below).
+
+**One label is enough.** In the bench, labelling one recording of the green treefrog (mp3) as a new class made a second, different recording (mp4) land at cosine similarity 0.89 (YAMNet) and 0.91 (BirdNET). Both models switched from *unknown* to *recognized*.
+
+**Few-shot smoke test** (`data/testset`, 59 clips in 6 classes, 5 random splits):
+
+| Model | 1-shot accuracy | 3-shot | Held-out class flagged unknown | Known clips wrongly flagged unknown (3-shot) |
+|---|---:|---:|---:|---:|
+| `yamnet` | 0.96 | 0.99 | 0.80 to 1.00 | 0.07 |
+| `yamnet-tflite` | 0.97 | 0.97 | 0.58 to 0.98 | 0.06 |
+| `birdnet-2.4` | 1.00 | 1.00 | 1.00 | 0.01 |
+| `birdnet-2.4-int8` | 1.00 | 1.00 | 1.00 | 0.02 |
+| `perch-2.0` | 1.00 | 1.00 | 1.00 | 0.25 |
+
+These numbers are optimistic. Each class comes from one or two recordings, cut into overlapping 5 s chunks, so training and test clips share a lot. Treat it as a pipeline check, not a model ranking. A fair comparison needs different recordings per class (Xeno-canto).
+
+Perch's high "known flagged unknown" rate shows that its cosine similarities sit lower than BirdNET's. **`T_known` must be calibrated per model.** The trust knob on the device covers this, but the default should differ per model.
+
+**Privacy gate calibration.** On synthetic speech (macOS `say`, also mixed into rain) YAMNet's speech score reaches about 1.0 in 4 to 5 of 5 windows. Animals and noise only spike in single windows: one treefrog window scored *Speech 0.50*. The rule is therefore: drop the clip if **2 or more windows ≥ 0.5** or **any window ≥ 0.8**. Result: 3/3 speech clips dropped, 0 of 43 frog, cicada and rain clips dropped, 2 of 16 chainsaw clips dropped (YAMNet scores up to 0.96 there, which suggests real voices in that recording). More real speech recordings are needed before trusting this in the field.
+
+**Recommendation for Phase 1:** `birdnet-2.4-int8` as the device model. It is as fast as fp32 here (Apple Silicon, ARM int8 kernels may gain more on the A53), uses ~145 MB, needs no TensorFlow (LiteRT only) and its embeddings were as good as fp32 here. Add `yamnet-tflite` (89 MB, no TensorFlow) as the speech filter. Perch is the most general model (amphibians and insects are first-class), but at ~1.3 to 1.4 GB and ~0.4 s per window on a laptop it is risky on 2 GB. BirdNET weights are **non-commercial**, which is fine for the hackathon.
+
+### Assumptions and open points
+
+* `yamnet` (TF) in the privacy gate pulls TensorFlow (~550 MB) into the process. On the device, use `yamnet-tflite` instead (change `gates.privacy.model_id`). Its speech scores were not calibrated separately yet.
+* BirdNET thread control and the single-inference path use two private details of the `birdnet` 1.4.0 backend. Both fall back to the public behaviour if the package changes.
+* The `Rain drops (Gravity Sound)` recording contains musical tones below 1.5 kHz (YAMNet: "Music 0.98"). It was removed from the test set. The web game still uses it as a rain stem and should switch to a cleaner rain recording.
+* Questions from the brief that are still open: the three local target species and noise types, laptop OS and GPU for the demo, and whether game and backend share one laptop.
