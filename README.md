@@ -276,3 +276,43 @@ ssh arduino@10.0.41.141 'bash -s' < tools/board_cleanup.sh
 ```
 
 A full reflash with Arduino's flashing tool is still the cleanest hand-over.
+
+### Phase 1: the listening post (`device/`)
+
+```bash
+python -m device.main --source mic                                   # live (UNO Q: camera mic via arecord)
+python -m device.main --source playlist --path data/playlist --speed 4
+python -m device.main --source file --path clip.wav
+```
+
+On the board, `bash tools/device_ctl.sh start|stop|status|log` runs it in the background. The light page is at `http://<device>:8765`: the light, the trust knob, prototype version, queue size and recent decisions. On the UNO Q, RGB LED 1 shows the state too (off = quiet, green = recognized, amber = needs help).
+
+**One decision per 5 s clip:** energy gate, then privacy gate (speech is dropped and never queued), then embedding and prototype head. A recognized animal turns the light green. Recognized noise (`noise:rain`, `noise:wind` ...) stays quiet. Anything else is "needs help", and the clip goes into the SQLite queue (at most one per 10 s of audio). With `yamnet-tflite` as both device model and speech filter, one inference per window serves both.
+
+**Trust knob:** 0..1 maps to `T_known` 0.40 to 0.95. Defaults come from `python -m tools.calibrate_threshold` (ESC-50, 5 examples per class, new classes held out):
+
+| Model | Suggested `T_known` | Known sounds recognized | New sounds sent to players |
+|---|---:|---:|---:|
+| `yamnet-tflite` | 0.80 | 65 % | 88 % |
+| `birdnet-2.4-int8` | 0.40 | 38 % | 85 % |
+
+Noise uses a lower bar (`t_noise` 0.65): a missed gust costs nothing, a false alarm costs player time.
+
+**Sync** (offline first): every 5 s, queued clips are uploaded to `POST /devices/{id}/clips` and newer prototypes are fetched from `GET /prototypes/latest?model_id=`. They swap in without a restart and are cached locally. Without a backend (`device.backend_url` empty), the queue keeps growing. A newer local file `data/prototypes/<model>.prototype.json` is picked up too, so prototypes exported from the bench reach the device without a backend.
+
+**Demo data:** `python -m tools.make_prototypes` builds starting prototypes from ESC-50 (frog, chirping birds, crow, plus rain/wind/engine as noise). `python -m tools.make_playlist` builds 8 clips from other recordings with the expected light per clip.
+
+**Acceptance results** (`pytest tests/test_device.py` on the Mac, the same playlist on the UNO Q):
+
+| Clip | Light on the UNO Q |
+|---|---|
+| frog | recognized (0.88) |
+| rain | quiet (`noise:rain` 0.85) |
+| crickets (unknown) | needs help, queued |
+| speech | quiet, dropped, not queued |
+| chirping birds | recognized (0.92) |
+| silence | quiet |
+| insects (unknown) | needs help, queued |
+| wind | quiet (`noise:wind` 0.76) |
+
+8/8 as expected. About 100 ms per 5 s clip and 165 MB RAM on the board. A test backend's newer prototypes swapped in within 5 s, and queued clips uploaded. Live on the camera mic, the venue's chatter is dropped as speech. The mic gain is lowered to 60 % at start, because 100 % clipped.
