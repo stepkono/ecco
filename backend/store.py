@@ -119,6 +119,10 @@ class Store:
     def latest_prototypes(self, model_id: str) -> sqlite3.Row | None:
         return self.one("SELECT * FROM prototypes WHERE model_id=? ORDER BY version DESC LIMIT 1", (model_id,))
 
+    def first_prototypes(self, model_id: str) -> sqlite3.Row | None:
+        """The version the backend was seeded with."""
+        return self.one("SELECT * FROM prototypes WHERE model_id=? ORDER BY version ASC LIMIT 1", (model_id,))
+
     def save_prototypes(self, model_id: str, version: int, text: str) -> None:
         self.run("INSERT OR REPLACE INTO prototypes (model_id, version, json, created_at) VALUES (?,?,?,?)",
                  (model_id, version, text, time.time()))

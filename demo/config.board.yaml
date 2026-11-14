@@ -1,0 +1,8 @@
+# Overlay for the UNO Q during the scripted demo (the board keeps backend_url from its config.local.yaml).
+device:
+  sync_interval_s: 1
+events:
+  gap_tolerance: 0
+paths:
+  prototypes: data/demo/prototypes
+  queue: data/demo/queue

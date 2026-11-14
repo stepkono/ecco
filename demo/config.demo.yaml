@@ -1,0 +1,17 @@
+# Overlay for the scripted end-to-end demo (BIOSPECTRA_OVERLAY=demo/config.demo.yaml).
+# Separate data folders, so the demo never touches the real queue or backend data.
+device:
+  backend_url: http://localhost:8000  # the demo backend on this laptop
+  sync_interval_s: 1             # fast round trips for the demo
+  web_port: 8766                 # local device console
+events:
+  gap_tolerance: 0               # one known segment ends an event: puzzles appear sooner
+backend:
+  demo_mode: true                # one answer is enough
+  gold_rate: 0.0                 # no test sounds in the scripted demo
+  labels: [frog, crickets, crow] # crickets is the "new species" the device learns
+paths:
+  prototypes: data/demo/prototypes   # the demo device caches its downloads here, not in the real seed
+  queue: data/demo/queue
+  backend: data/demo/backend
+  data: data/demo/device

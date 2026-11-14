@@ -207,7 +207,7 @@ class Listener:
             seg_end - self.clip_s, seg_end, raw.kind == StateKind.NEEDS_HELP, embedding=v.embedding,
             level=rms_dbfs(clip), best_label=decision.best_label if decision else None,
             best=decision.best if decision else 0.0, similarities=decision.similarities if decision else None,
-            speech=pr.speech,
+            speech=pr.speech, source=source_label,
         )
         queued, action = self._commit(closed, sr) if closed else (None, None)
         if pr.speech:  # after committing: this segment only limits the context of later events
@@ -273,6 +273,17 @@ class Listener:
         log.info("end of input: %s", action)
         return cid, action
 
+    def reset_learning_state(self) -> None:
+        """Demo only: forget queued events, open events, counters and the light's hold."""
+        for c in self.queue.all(limit=100000):
+            self.queue.delete(c.id)
+        self.tracker.open = None
+        self.stats.clear()
+        self.detections.clear()
+        self.recent_detections.clear()
+        self.sm = StateMachine(self.cfg["state"]["hold_seconds"])
+        self._last_speech_end = -1e9
+
     def detection_counts(self, last_s: float = 3600) -> dict:
         since = time.time() - last_s
         return dict(Counter(lbl for t, lbl in self.recent_detections if t >= since))
@@ -292,7 +303,8 @@ class Listener:
             "proto_version": ev.proto_version, "proto_classes": classes, "queue": self.queue.count(only_pending=True),
             "sync": self.sync_status(), "latency_ms": ev.latency_ms, "device": self.cfg["device"]["id"],
             "location": self.cfg["device"]["location"], "model_id": self.model.model_id,
-            "event_action": ev.event,
+            "event_action": ev.event, "source": ev.source, "raw_state": ev.raw_state, "label": ev.label,
+            "score": ev.score, "proto_version": ev.proto_version,
         })
 
     # ------------------------------------------------------------ main loop

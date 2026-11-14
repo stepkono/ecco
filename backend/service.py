@@ -15,6 +15,7 @@ import queue as queue_mod
 import random
 import threading
 import time
+from pathlib import Path
 
 import numpy as np
 import soundfile as sf
@@ -256,13 +257,18 @@ class Backend:
         with self._infer:
             emb = analyze(self.model, audio, sr, energy_dbfs=self.cfg["gates"]["energy_dbfs"]).clip_embedding()
         with self._learn:
+            before = self.head.similarities(emb) if self.head.classes else {}
             self.head.add_example(label, emb)
+            after = self.head.similarities(emb)
             text = self.head.export_json()
             version = self.head.version
             self.store.save_prototypes(self.model_id, version, text)
         self.store.run("UPDATE clips SET status='solved', accepted_label=? WHERE id=?", (label, cid))
         self.emit("label_accepted", {"clip_id": cid, "label": label, "learned": True, "from_mask": bool(mask)})
-        self.emit("prototype_published", {"version": version, "model_id": self.model_id, "classes": self.head.classes})
+        rnd = lambda d: {k: round(float(v), 3) for k, v in d.items()}  # noqa: E731
+        # how the learned sound compares with every class before and after the update (event screen bars)
+        self.emit("prototype_published", {"version": version, "model_id": self.model_id, "classes": self.head.classes,
+                                          "label": label, "clip_id": cid, "before": rnd(before), "after": rnd(after)})
         return {"learned": True, "prototype_version": version}
 
     def latest_prototypes(self, model_id: str, device_id: str | None = None, have: int | None = None) -> str | None:
@@ -278,6 +284,39 @@ class Backend:
                     self.emit("device_updated", {"device_id": device_id, "version": have})
         row = self.store.latest_prototypes(model_id)
         return row["json"] if row else None
+
+    # ------------------------------------------------------------ clip info + demo
+    def clip_info(self, cid: str) -> dict:
+        c = self.store.clip(cid)
+        if c is None:
+            raise KeyError(f"unknown clip {cid}")
+        return {"clip_id": c["id"], "device_id": c["device_id"], "duration_s": c["duration_s"],
+                "heard_count": c["heard_count"], "status": c["status"], "accepted_label": c["accepted_label"],
+                "timeline": json.loads(c["timeline_json"] or "[]"), "received_at": c["received_at"]}
+
+    def demo_reset(self) -> dict:
+        """Demo only: forget all events and labels, and publish the seed prototypes as a newer version,
+        so devices drop what they learned in the previous run."""
+        if not self.b.get("demo_mode"):
+            raise ValueError("demo reset is only allowed with backend.demo_mode")
+        for r in self.store.q("SELECT id, audio_path FROM clips WHERE id NOT IN (SELECT clip_id FROM gold_clips)"):
+            Path(r["audio_path"]).unlink(missing_ok=True)
+        self.store.run("DELETE FROM labels WHERE clip_id NOT IN (SELECT clip_id FROM gold_clips)")
+        self.store.run("DELETE FROM clips WHERE id NOT IN (SELECT clip_id FROM gold_clips)")
+        self._spec_cache.clear()
+        # the seeded version from the database: a device on the same machine may overwrite the seed file
+        seed = self.store.first_prototypes(self.model_id)
+        if seed is None:
+            raise ValueError("no seed prototypes stored")
+        with self._learn:
+            nxt = self.head.version + 1
+            self.head.import_json(seed["json"])
+            self.head.version = nxt
+            self.store.save_prototypes(self.model_id, nxt, self.head.export_json())
+        self.emit("demo_reset", {"version": nxt})
+        self.emit("prototype_published", {"version": nxt, "model_id": self.model_id, "classes": self.head.classes,
+                                          "reset": True})
+        return {"version": nxt, "classes": self.head.classes}
 
     # ------------------------------------------------------------ gold + stats
     def add_gold(self, wav_path: str, true_label: str) -> str:

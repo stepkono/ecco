@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BioSpectra Live</title>
+<style>
+  :root { --bg: #0b0f14; --panel: #131a22; --line: #26313d; --text: #eef3f7; --muted: #8b98a5;
+          --quiet: #8a8f98; --ok: #009e73; --warn: #e69f00; --blue: #56b4e9; --mono: ui-monospace, Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.45 system-ui, -apple-system, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 18px; padding: 16px 28px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 22px; }
+  .grow { flex: 1; }
+  .muted { color: var(--muted); }
+  .mono { font-family: var(--mono); }
+  main { display: grid; grid-template-columns: 360px 1fr 420px; gap: 18px; padding: 18px 28px; }
+  @media (max-width: 1200px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+  h2 { margin: 0 0 12px; font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .lamp { width: 180px; height: 180px; border-radius: 50%; margin: 10px auto 14px; background: var(--quiet);
+          box-shadow: 0 0 70px var(--quiet); border: 5px solid #1d242c; transition: background .25s, box-shadow .25s; }
+  .state { text-align: center; font-size: 30px; font-weight: 700; }
+  .detail { text-align: center; color: var(--muted); min-height: 24px; }
+  .src { text-align: center; font: 13px var(--mono); color: var(--muted); margin-top: 6px; }
+  ol.steps { margin: 0; padding-left: 22px; }
+  ol.steps li { margin: 8px 0; color: var(--muted); }
+  ol.steps li.done { color: var(--text); }
+  ol.steps li.done::marker { color: var(--ok); }
+  ol.steps li .t { font: 13px var(--mono); color: var(--ok); margin-left: 6px; }
+  ul.tl { list-style: none; margin: 0; padding: 0; max-height: 62vh; overflow: auto; }
+  ul.tl li { display: grid; grid-template-columns: 64px 14px 1fr; gap: 10px; align-items: start; padding: 7px 0; border-top: 1px solid var(--line); }
+  ul.tl .t { font: 13px var(--mono); color: var(--muted); text-align: right; }
+  ul.tl .dot { width: 12px; height: 12px; border-radius: 50%; margin-top: 6px; }
+  .big { font-size: 26px; font-weight: 700; color: var(--ok); margin: 6px 0 14px; min-height: 34px; }
+  .bar { display: grid; grid-template-columns: 130px 1fr 48px; gap: 8px; align-items: center; margin: 5px 0; font-size: 14px; }
+  .track { position: relative; height: 22px; background: #0e141a; border-radius: 5px; overflow: hidden; }
+  .before, .after { position: absolute; left: 0; height: 50%; transition: width .6s; }
+  .before { top: 0; background: #6b7785; }
+  .after { bottom: 0; background: var(--blue); }
+  .thr { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--warn); }
+  .legend { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .legend i { display: inline-block; width: 12px; height: 8px; margin: 0 4px 0 10px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BioSpectra · live</h1>
+  <span class="muted">a listening post learns a new sound from one player</span>
+  <span class="grow"></span>
+  <span class="mono muted" id="proto">prototypes –</span>
+  <span class="mono" id="clock">0.0 s</span>
+</header>
+<main>
+  <section aria-labelledby="h-dev">
+    <h2 id="h-dev">Listening post</h2>
+    <div class="lamp" id="lamp" aria-hidden="true"></div>
+    <div class="state" id="state" role="status" aria-live="polite">waiting</div>
+    <div class="detail" id="detail"></div>
+    <div class="src" id="src"></div>
+    <h2 style="margin-top:22px">Scenario</h2>
+    <ol class="steps">
+      <li id="s1">Unknown sound A: the post asks for help and sends it</li>
+      <li id="s2">A player labels it in the game</li>
+      <li id="s3">New prototypes reach the post</li>
+      <li id="s4">A and a second recording A2 are recognized</li>
+      <li id="s5">A rain false alarm is labelled noise and goes quiet</li>
+    </ol>
+  </section>
+  <section aria-labelledby="h-tl">
+    <h2 id="h-tl">What happens</h2>
+    <ul class="tl" id="tl"></ul>
+  </section>
+  <section aria-labelledby="h-sim">
+    <h2 id="h-sim">What the post learned</h2>
+    <div class="big" id="learned"></div>
+    <div id="bars" class="muted">Similarity of the labelled sound to every known class, before and after the update.</div>
+    <div class="legend"><i style="background:#6b7785"></i>before<i style="background:var(--blue)"></i>after<i style="background:var(--warn);width:3px"></i>recognition threshold</div>
+  </section>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const qs = new URLSearchParams(location.search);
+const deviceUrl = qs.get("device") || "http://localhost:8766";
+const deviceToken = qs.get("token") || "";
+const tKnown = Number(qs.get("t") || 0.8);
+let t0 = performance.now(), species = qs.get("species") || "crickets";
+const STATE = { quiet: "Quiet", recognized: "Recognized", needs_help: "Needs help" };
+const COL = { quiet: "#8a8f98", recognized: "#009e73", needs_help: "#e69f00" };
+
+setInterval(() => { $("clock").textContent = ((performance.now() - t0) / 1000).toFixed(1) + " s"; }, 100);
+const elapsed = () => ((performance.now() - t0) / 1000).toFixed(1);
+
+function tl(text, color) {
+  const li = document.createElement("li");
+  li.innerHTML = `<span class="t">${elapsed()} s</span><span class="dot" style="background:${color}"></span><span>${text}</span>`;
+  $("tl").prepend(li);
+}
+function done(id) {
+  const li = $(id);
+  if (li.classList.contains("done")) return;
+  li.classList.add("done");
+  li.insertAdjacentHTML("beforeend", `<span class="t">${elapsed()} s</span>`);
+}
+function resetRun() {
+  t0 = performance.now(); $("tl").innerHTML = ""; $("learned").textContent = "";
+  ["s1", "s2", "s3", "s4", "s5"].forEach((id) => { $(id).classList.remove("done"); $(id).querySelector(".t")?.remove(); });
+}
+function bars(before, after) {
+  const keys = Object.keys(after).sort((a, b) => after[b] - after[a]).slice(0, 7);
+  $("bars").innerHTML = keys.map((k) => `<div class="bar"><span>${k.replace("_", " ")}</span>
+    <div class="track"><div class="before" style="width:${Math.max(0, (before[k] ?? 0)) * 100}%"></div>
+    <div class="after" style="width:${Math.max(0, after[k]) * 100}%"></div><div class="thr" style="left:${tKnown * 100}%"></div></div>
+    <span class="mono">${after[k].toFixed(2)}</span></div>`).join("");
+}
+
+// backend events
+const be = new EventSource("/events/stream");
+let learnedRain = false;
+be.onmessage = (m) => {
+  const e = JSON.parse(m.data);
+  if (e.type === "hello") { $("proto").textContent = `prototypes v${e.prototype_version}`; return; }
+  if (e.type === "demo_reset") { resetRun(); tl("new run: the post forgets what it learned", "#56b4e9"); return; }
+  if (e.type === "clip_received") tl(`event arrives from <b>${e.device_id}</b> (${(e.duration_s || 0).toFixed(0)} s)`, COL.needs_help);
+  else if (e.type === "label_accepted") {
+    tl(`player label accepted: <b>${e.label}</b>`, "#56b4e9");
+    if (e.label === species) done("s2");
+    if (e.label === "noise") learnedRain = true;
+  } else if (e.type === "prototype_published") {
+    $("proto").textContent = `prototypes v${e.version}`;
+    if (e.reset) return;
+    tl(`prototypes <b>v${e.version}</b> published`, "#56b4e9");
+    if (e.label) { $("learned").textContent = e.label === "noise" ? "noise (stay quiet)" : e.label; bars(e.before || {}, e.after || {}); }
+  } else if (e.type === "device_updated") {
+    tl(`<b>${e.device_id}</b> installed prototypes v${e.version}`, COL.recognized);
+    done("s3");
+  }
+};
+
+// device events (developer console)
+const seen = {};
+function deviceEvents() {
+  const es = new EventSource(`${deviceUrl}/api/events?token=${encodeURIComponent(deviceToken)}`);
+  es.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.type !== "decision" || !e.event) return;
+    const src = e.source || e.event.split(":")[0];
+    $("lamp").style.background = e.color; $("lamp").style.boxShadow = `0 0 70px ${e.color}`;
+    $("state").textContent = STATE[e.state] || e.state; $("detail").textContent = e.detail || ""; $("src").textContent = src;
+    const raw = e.raw_state || (e.event.split(": ")[1] || "").trim().split(/\s+/)[0].toLowerCase();
+    tl(`post: <b>${STATE[raw] || raw}</b> on ${src}${e.detail ? " · " + e.detail : ""}`, COL[raw] || COL.quiet);
+    if (src.includes("unknown_A") && raw === "needs_help") done("s1");
+    if (raw === "recognized" && src.includes("unknown_A")) seen.A = true;
+    if (raw === "recognized" && src.includes("A2")) seen.A2 = true;
+    if (seen.A && seen.A2) done("s4");
+    if (src.includes("rain") && raw === "quiet" && learnedRain) done("s5");
+  };
+}
+deviceEvents();
+</script>
+</body>
+</html>

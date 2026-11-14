@@ -83,7 +83,7 @@ class EventTracker:
 
     def observe(self, seg_start: float, seg_end: float, needs_help: bool, *, embedding=None, level: float = 0.0,
                 best_label: str | None = None, best: float = 0.0, similarities: dict | None = None,
-                speech: bool = False) -> ClosedEvent | None:
+                speech: bool = False, source: str = "") -> ClosedEvent | None:
         """Feed one decision. Returns an event when one is finished."""
         closed = None
         if speech:
@@ -95,7 +95,8 @@ class EventTracker:
             ev = self.open
             ev.end_t = seg_end
             ev.gap = 0
-            ev.segments.append({"start": seg_start, "end": seg_end, "best_guess": best_label, "best": round(best, 3),
+            ev.segments.append({"start": seg_start, "end": seg_end, "source": source, "best_guess": best_label,
+                                "best": round(best, 3),
                                 "similarities": {k: round(v, 3) for k, v in sorted(
                                     (similarities or {}).items(), key=lambda kv: -kv[1])[:5]}})
             ev.embeddings.append(np.asarray(embedding, np.float32))

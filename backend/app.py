@@ -6,6 +6,7 @@ Endpoints (see docs/SYSTEM.md):
   POST /devices/{device_id}/clips      multipart: audio (WAV) + metadata (JSON)
   POST /players                        {"nickname"} -> {"player_id"}
   GET  /puzzles/next?player_id=        next open event (sometimes a hidden gold clip)
+  GET  /clips/{id}                     metadata incl. timeline of the unclear segments
   GET  /clips/{id}/audio               WAV
   GET  /clips/{id}/spectrogram         dB grid with time and frequency axes
   POST /clips/{id}/preview             {"mask"} -> masked audio (WAV)
@@ -14,6 +15,8 @@ Endpoints (see docs/SYSTEM.md):
   GET  /events/stream                  Server-Sent Events for the demo screen
   GET  /events                         recent events
   GET  /stats
+  GET  /screen                         event screen for the demo
+  POST /demo/reset                     demo mode only: forget events and labels, republish the seed prototypes
 """
 
 from __future__ import annotations
@@ -88,6 +91,24 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
         if puzzle is None:
             return Response(status_code=204)
         return puzzle
+
+    @app.get("/clips/{cid}")
+    def clip_info(cid: str):
+        try:
+            return be.clip_info(cid)
+        except KeyError as e:
+            not_found(e)
+
+    @app.post("/demo/reset")
+    def demo_reset():
+        try:
+            return be.demo_reset()
+        except ValueError as e:
+            raise HTTPException(403, str(e))
+
+    @app.get("/screen", response_class=HTMLResponse)
+    def event_screen():
+        return (WEB / "screen.html").read_text(encoding="utf-8")
 
     @app.get("/clips/{cid}/audio")
     def clip_audio(cid: str):

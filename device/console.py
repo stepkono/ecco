@@ -138,7 +138,7 @@ class Controller:
         return ok
 
     # ------------------------------------------------------------ live mode
-    def start(self, mode: str, path: str | None = None, speed: float = 1.0) -> dict:
+    def start(self, mode: str, path: str | None = None, speed: float = 1.0, loop: bool = True) -> dict:
         with self._mode_lock:
             self._stop_locked()
             sr = int(self.cfg["audio"]["sample_rate"])
@@ -150,8 +150,9 @@ class Controller:
                 folder = Path(path or ROOT / "data" / "playlist")
                 if not folder.is_absolute():
                     folder = ROOT / folder
-                src = PlaylistSource(folder, sr, speed=speed, loop=True)
-                detail = f"{folder.relative_to(ROOT) if folder.is_relative_to(ROOT) else folder} ({len(src.files)} files, {speed}x)"
+                src = PlaylistSource(folder, sr, speed=speed, loop=loop)
+                detail = (f"{folder.relative_to(ROOT) if folder.is_relative_to(ROOT) else folder} "
+                          f"({len(src.files)} files, {speed}x{'' if loop else ', once'})")
             elif mode == "idle":
                 return self.status()
             else:
@@ -193,6 +194,14 @@ class Controller:
     def stop(self) -> dict:
         with self._mode_lock:
             self._stop_locked()
+        st = self.status()
+        self.bus.publish({"type": "status", **st})
+        return st
+
+    def demo_reset(self) -> dict:
+        """Stop listening and forget queued events and counters (the scripted demo runs repeatedly)."""
+        self.stop()
+        self.listener.reset_learning_state()
         st = self.status()
         self.bus.publish({"type": "status", **st})
         return st
@@ -357,6 +366,8 @@ def make_handler(ctl: Controller, token: str | None):
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")  # the demo event screen reads status and events
+            self.send_header("Access-Control-Allow-Headers", "X-Token, Content-Type")
             for k, v in (extra or {}).items():
                 self.send_header(k, v)
             self.end_headers()
@@ -401,6 +412,9 @@ def make_handler(ctl: Controller, token: str | None):
                 return self._events()
             return self._err(404, "not found")
 
+        def do_OPTIONS(self):  # noqa: N802  CORS preflight for the event screen
+            self._send(204, b"", "text/plain", {"Access-Control-Allow-Methods": "GET, POST, OPTIONS"})
+
         def do_POST(self):  # noqa: N802
             path = urlparse(self.path).path
             if not self._authed():
@@ -413,7 +427,10 @@ def make_handler(ctl: Controller, token: str | None):
                 if path == "/api/mode":
                     if body.get("mode") == "idle":
                         return self._json(ctl.stop())
-                    return self._json(ctl.start(body.get("mode", "mic"), body.get("path"), float(body.get("speed", 1))))
+                    return self._json(ctl.start(body.get("mode", "mic"), body.get("path"), float(body.get("speed", 1)),
+                                                bool(body.get("loop", True))))
+                if path == "/api/demo/reset":
+                    return self._json(ctl.demo_reset())
                 if path == "/api/knob":
                     return self._json(ctl.set_knob(body["value"]))
                 if path == "/api/clips/delete":
@@ -430,6 +447,7 @@ def make_handler(ctl: Controller, token: str | None):
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.send_header("Cache-Control", "no-store")
+            self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
             try:
                 self.wfile.write(f"data: {json.dumps({'type': 'status', **ctl.status()})}\n\n".encode())

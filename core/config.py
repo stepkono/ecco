@@ -6,6 +6,9 @@ Machine-specific values (for example the backend address on the board) go into
     # config.local.yaml on the UNO Q
     device:
       backend_url: http://10.0.41.129:8000
+
+An extra overlay can be named in the environment variable BIOSPECTRA_OVERLAY
+(the demo uses demo/config.demo.yaml).
 """
 
 from __future__ import annotations
@@ -33,8 +36,11 @@ def load_config(path: str | None = None) -> dict[str, Any]:
     with open(cfg_path, encoding="utf-8") as f:
         cfg = yaml.safe_load(f)
     local = cfg_path.with_name("config.local.yaml")
-    if local.exists():
-        with open(local, encoding="utf-8") as f:
+    overlays = [local] if local.exists() else []
+    if os.environ.get("BIOSPECTRA_OVERLAY"):  # e.g. demo/config.demo.yaml for the scripted demo
+        overlays.append(ROOT / os.environ["BIOSPECTRA_OVERLAY"])
+    for ov in overlays:
+        with open(ov, encoding="utf-8") as f:
             cfg = _merge(cfg, yaml.safe_load(f) or {})
     return cfg
 
