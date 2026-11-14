@@ -216,11 +216,23 @@ Peak RAM includes the Python interpreter (~32 MB) and, for `yamnet` and `perch-2
 
 These numbers are optimistic. Each class comes from one or two recordings, cut into overlapping 5 s chunks, so training and test clips share a lot. Treat it as a pipeline check, not a model ranking. A fair comparison needs different recordings per class (Xeno-canto).
 
-Perch's high "known flagged unknown" rate shows that its cosine similarities sit lower than BirdNET's. **`T_known` must be calibrated per model.** The trust knob on the device covers this, but the default should differ per model.
+**Fair comparison on ESC-50** (18 nature-relevant classes, 720 clips of 5 s: frog, crickets, insects, chirping birds, crow, rooster, rain, wind, thunderstorm, water drops, sea waves, crackling fire, chainsaw, hand saw, engine, airplane, footsteps, dog). Training and test clips never come from the same source recording. 5 random splits, prototype head:
+
+| Model | 1-shot | 3-shot | 5-shot | Runs on the board |
+|---|---:|---:|---:|---|
+| `perch-2.0` | 0.66 | 0.81 | **0.88** | no (TensorFlow, ~1.4 GB) |
+| `yamnet-tflite` | **0.68** | **0.82** | 0.86 | yes, 9 ms per window |
+| `yamnet` | 0.63 | 0.80 | 0.83 | no (TensorFlow) |
+| `birdnet-2.4` | 0.42 | 0.63 | 0.70 | yes, 303 ms per window |
+| `birdnet-2.4-int8` | 0.42 | 0.63 | 0.71 | yes, 278 ms per window |
+
+Chance level is 0.06. BirdNET's embeddings are tuned to bird species. They separate rain, engines and saws much worse than the general-purpose YAMNet. The small int8 YAMNet is the best model the board can run, and it is 30× cheaper than BirdNET there.
+
+Perch's high "known flagged unknown" rate shows that its cosine similarities sit lower than BirdNET's. **`T_known` must be calibrated per model.** On ESC-50 with `T_known` 0.75, known clips were wrongly called unknown 26 % (yamnet-tflite, 5-shot), 67 % (BirdNET) and 92 % (Perch) of the time. The trust knob on the device covers this, but each model needs its own default.
 
 **Privacy gate calibration.** On synthetic speech (macOS `say`, also mixed into rain) YAMNet's speech score reaches about 1.0 in 4 to 5 of 5 windows. Animals and noise only spike in single windows: one treefrog window scored *Speech 0.50*. The rule is therefore: drop the clip if **2 or more windows ≥ 0.5** or **any window ≥ 0.8**. Result: 3/3 speech clips dropped, 0 of 43 frog, cicada and rain clips dropped, 2 of 16 chainsaw clips dropped (YAMNet scores up to 0.96 there, which suggests real voices in that recording). More real speech recordings are needed before trusting this in the field.
 
-**Recommendation for Phase 1:** `birdnet-2.4-int8` as the device model. It is as fast as fp32 here (Apple Silicon, ARM int8 kernels may gain more on the A53), uses ~145 MB, needs no TensorFlow (LiteRT only) and its embeddings were as good as fp32 here. Add `yamnet-tflite` (89 MB, no TensorFlow) as the speech filter. Perch is the most general model (amphibians and insects are first-class), but at ~1.3 to 1.4 GB and ~0.4 s per window on a laptop it is risky on 2 GB. BirdNET weights are **non-commercial**, which is fine for the hackathon.
+**Recommendation for Phase 1** (revised after ESC-50): `yamnet-tflite` as the device model. It had the best few-shot accuracy of the models that fit the board, needs 9 ms and 95 MB on the UNO Q, needs no TensorFlow and also serves as the speech filter, so one model does both jobs. `birdnet-2.4-int8` stays an option for fine-grained bird species. Perch is the most accurate, but at ~1.4 GB with TensorFlow it does not fit the 2 GB board. BirdNET weights are **non-commercial**, which is fine for the hackathon.
 
 ### Assumptions and open points
 
@@ -228,3 +240,31 @@ Perch's high "known flagged unknown" rate shows that its cosine similarities sit
 * BirdNET thread control and the single-inference path use two private details of the `birdnet` 1.4.0 backend. Both fall back to the public behaviour if the package changes.
 * The `Rain drops (Gravity Sound)` recording contains musical tones below 1.5 kHz (YAMNet: "Music 0.98"). It was removed from the test set. The web game still uses it as a rain stem and should switch to a cleaner rain recording.
 * Questions from the brief that are still open: the three local target species and noise types, laptop OS and GPU for the demo, and whether game and backend share one laptop.
+
+### Running on the Arduino UNO Q
+
+Tested on a UNO Q **ABX00162** (2 GB RAM, of which ~1.7 GB visible, ~1.27 GB free at idle), Debian 13.1, Python 3.13.5, 4 cores.
+
+**Access without the network.** With the board on USB-C, it shows up as an ADB device (`arduino-cli board list` lists it as `arduino:zephyr:unoq`). `adb shell` gives a shell as user `arduino` without a password. Any `adb` works, for example the one bundled with scrcpy. SSH only works when the Mac and the board are on the same network and the network allows device-to-device traffic. Many event Wi-Fis do not. A phone hotspot for both devices is the quickest fix.
+
+**Setup** (on the board, no sudo):
+
+```bash
+git clone https://github.com/stepkono/spetrum.git && bash spetrum/tools/board_setup.sh --measure
+```
+
+The script installs `uv` from its GitHub release (Debian on the board has no `python3-venv`), creates `.venv` and installs `requirements-device.txt` (LiteRT only, no TensorFlow). `sudo apt install ffmpeg` is only needed for mp3/mp4 decoding.
+
+**Measured on the board** (4 threads, fresh process each):
+
+| Model | ms per window | Real-time factor | Peak RAM | Load (cached) |
+|---|---:|---:|---:|---:|
+| `yamnet-tflite` | 8.9 (0.975 s window) | 109× | 95 MB | 2.4 s |
+| `birdnet-2.4-int8` | 278 (3 s window) | 10.8× | 146 MB | 0.9 s |
+| `birdnet-2.4` | 303 (3 s window) | 9.9× | 152 MB | |
+
+Both device models together need ~250 MB and less than 0.3 s per 3 s of audio. The board is about 13× slower than an Apple Silicon laptop for BirdNET. Perch 2.0 needs TensorFlow and ~1.4 GB, so it is not installed on the board.
+
+**Lights.** The RGB LED 1 (`/sys/class/leds/unoq:user-red1`, `-green1`, `-blue1`) is writable by the `arduino` user (group `gpiod`). Quiet, recognized and needs help can be shown from Python without the microcontroller.
+
+**Microphone.** The board has no microphone and only one USB-C port, which also powers it. Use a **USB-C hub with Power Delivery**: the hub's cable into the board, a 5 V / 3 A USB-C power supply into the hub's PD port, the USB microphone or USB camera (it has a mic) into a USB-A port of the hub. Never use an unpowered hub. Plug the microphone in before starting the program. Check with `arecord -l`. While the hub occupies the port, ADB over USB is not available, so the board must be reachable over Wi-Fi.

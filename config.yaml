@@ -3,7 +3,7 @@
 device:
   id: post-01
   location: Nuuksio wetland edge
-  model_id: birdnet-2.4          # must match the backend's model (decided after Phase 0)
+  model_id: yamnet-tflite        # best few-shot accuracy on the board (ESC-50, see README). Must match the backend
 
 runtime:
   threads: 4                     # CPU threads per model (UNO Q has 4 Cortex-A53 cores)
@@ -17,7 +17,7 @@ models:
 gates:
   energy_dbfs: -55.0             # windows quieter than this RMS level count as silence
   privacy:
-    model_id: yamnet             # YAMNet decides about speech
+    model_id: yamnet             # YAMNet decides about speech. On the board use yamnet-tflite
     # Calibrated on TTS speech vs. frogs, cicada, chainsaw and rain (see README):
     # speech reaches ~1.0 in 4-5 windows, animals only spike in single windows.
     threshold: 0.5               # per-window combined speech score

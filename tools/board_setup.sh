@@ -38,7 +38,7 @@ cd "$DIR"
 echo "[setup] python: $(.venv/bin/python --version)"
 
 command -v ffmpeg >/dev/null || echo "[setup] note: ffmpeg missing. Needed to decode mp3/mp4 on the board: sudo apt install ffmpeg"
-arecord -l >/dev/null 2>&1 && arecord -l | grep -E "^card" || echo "[setup] no microphone detected yet (arecord -l)"
+arecord -l 2>/dev/null | grep -E "^card" || echo "[setup] no microphone detected yet (arecord -l)"
 
 if [ "${1:-}" = "--measure" ]; then
   for m in yamnet-tflite birdnet-2.4-int8; do
