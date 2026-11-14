@@ -17,6 +17,12 @@ Last updated: 2026-11-15
 - **Decentralized, not in the cloud.** Many small listening posts ("agents") sit in forests and national parks. They record and categorize sounds on the spot.
 - **The result is a living map of animals.** It shows which species can be found where and at what time of day. Over time it builds a large set of environmental data on endangered species.
 
+### The problem: labeling data is boring
+- Labeling data is hard and tiring, and nobody is really interested in doing it.
+- Our idea: make labeling creative, maybe even inspiring, and fun to use.
+- The person should not feel like they are feeding yet another AI machine that takes their data.
+- Instead they should feel that they contribute to a bigger goal for the whole society and community.
+
 ### The human-in-the-loop system
 - The edge AI is trained, but sometimes it is not certain.
 - There is a certainty threshold. When a sound stays below it, the board sends a short audio snippet to our game.
@@ -171,6 +177,15 @@ Framing for the "why a human" argument:
 Suggested sentence: "The AI sends us exactly what it can't solve, and people solve it differently than a machine would."
 
 Extra idea: the game can log which view and tool solved which kind of sound, for example voxels and the top view for crickets. That data improves the game itself, because it can suggest the best starting view for each new puzzle.
+
+### A13. Make "for the community, not for an AI company" visible and concrete · open
+The feeling only works if players can see it. Ideas that back the claim:
+- **Show the impact right away.** The player sees their label arrive on a real board in the forest. The board installs it in about 2 s, and the event screen shows "the post learned". Most labeling work never shows the worker what their effort changed.
+- **Open data.** The fingerprint library and the species map are published under an open license, for research and conservation. Players can see who uses the data.
+- **Credit.** Players' names appear on their discoveries ("first discoverer", see Part 1) and in the stamp library.
+- **No hidden use.** Speech never leaves the board (A1), and labels are used for conservation only.
+
+Suggested opening for the pitch: "AI needs labeled data, and labeling is the most boring job in tech. We turned it into a game where every label teaches a listening post in a real forest, in seconds."
 
 ---
 
