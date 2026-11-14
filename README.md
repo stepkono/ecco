@@ -268,3 +268,11 @@ Both device models together need ~250 MB and less than 0.3 s per 3 s of audio. T
 **Lights.** The RGB LED 1 (`/sys/class/leds/unoq:user-red1`, `-green1`, `-blue1`) is writable by the `arduino` user (group `gpiod`). Quiet, recognized and needs help can be shown from Python without the microcontroller.
 
 **Microphone.** The board has no microphone and only one USB-C port, which also powers it. Use a **USB-C hub with Power Delivery**: the hub's cable into the board, a 5 V / 3 A USB-C power supply into the hub's PD port, the USB microphone or USB camera (it has a mic) into a USB-A port of the hub. Never use an unpowered hub. Plug the microphone in before starting the program. Check with `arecord -l`. While the hub occupies the port, ADB over USB is not available, so the board must be reachable over Wi-Fi.
+
+**Borrowed board? Clean up before returning it.** Development access uses an SSH key added over ADB (tagged `biospectra-dev`), because the board's password belongs to whoever set it up. One command removes the key, the code, the Python environment, model caches, recordings and the Wi-Fi priority change:
+
+```bash
+ssh arduino@10.0.41.141 'bash -s' < tools/board_cleanup.sh
+```
+
+A full reflash with Arduino's flashing tool is still the cleanest hand-over.
