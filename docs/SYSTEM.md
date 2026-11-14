@@ -194,6 +194,7 @@ Everything is in `config.yaml`. The most important keys:
 | Console log, process id, token | `data/device.log`, `data/device.pid`, `data/console_token` |
 | Demo playlist | `data/playlist/` (+ `expected.json`) |
 | ESC-50 subset | `data/esc50/` (Mac only) |
+| Real soundscapes (1.1 GB) | `data/soundscapes/` (Mac only): `amazon/`, `northeast/` (one-hour FLAC), `anuraset/frogs/`, `anuraset/no_frogs/` (one-minute WAV), `excerpts/` (busiest 3 min as WAV, ready for the console) |
 | Model files | `~/.local/share/birdnet`, `~/.cache/kagglehub` (board) |
 
 `data/` is git-ignored on both machines.
@@ -206,7 +207,7 @@ device/    runtime (listener), sources (mic, file, playlist), hardware (LED, web
            sync client, console (server + web/console.html), main (CLI without console)
 bench/     Phase 0 Gradio bench
 tools/     board setup/cleanup, device_ctl, mixer, test sets, ESC-50 import,
-           threshold calibration, prototypes, playlists
+           threshold calibration, prototypes, playlists, soundscape download and excerpts
 tests/     core, device acceptance, console API
 src/       web game prototype (TypeScript)
 docs/      this document
@@ -217,6 +218,17 @@ docs/      this document
 * **Tests:** 15 pass on the Mac (`pytest -q tests`).
 * **Phase 1 acceptance on the UNO Q:** the 8-clip demo playlist produced the expected light for 8 of 8 clips. Unknown sounds were queued, speech was not. Newer backend prototypes swapped in within 5 s (test backend).
 * **Console on the UNO Q:** live mic start and stop, upload analysis (about 0.1 s per segment), clip download, zip and delete.
+* **First real soundscapes** (device pipeline on the Mac, same model and prototypes as the board): a busy frog minute from a Brazilian wetland (AnuraSet) was recognized as frog in 12 of 12 segments. Three minutes of Amazon rainforest gave 11 segments "chirping birds" and 25 "needs help". The bird prototype comes from ESC-50 and only partly matches rainforest birds. These are the clips players should label.
+
+## Test audio
+
+| Set | What it is | How to get it |
+|---|---|---|
+| ESC-50 (18 classes, 720 clips of 5 s) | Separate sound events: frog, insects, birds, rain, wind, chainsaw, engine and more | `python -m tools.import_esc50` after downloading the ESC-50 zip |
+| Demo playlist (8 clips) | Clips from ESC-50 recordings not used for the prototypes, plus speech and silence, with the expected light | `python -m tools.make_playlist` |
+| Real soundscapes (about 1.1 GB) | Continuous field recordings: 4 one-hour Amazon rainforest recordings, 4 one-hour Sapsucker Woods (NY) recordings, 20 busy and 4 frog-free one-minute Brazilian wetland recordings | `python -m tools.fetch_soundscapes`, then `python -m tools.soundscape_excerpts` for 3-minute WAV pieces that fit the console upload |
+
+The soundscape tool pulls single recordings out of the remote Zenodo archives (49 GB in total) and picks the busiest ones by their own annotations. Licenses and credits are in `LICENSES.md` (CC BY 4.0 and CC BY).
 
 ## Known issues and open points
 
@@ -232,6 +244,7 @@ docs/      this document
 
 ## Change log
 
+* **2026-11-14** Real soundscapes downloaded (Amazon, Northeastern US, AnuraSet subset), with tools to fetch and cut them. First field-audio results.
 * **2026-11-14** Developer console on the board: live control, file analysis, clip offload. Board reboot traced to power. This document created.
 * **2026-11-14** Phase 1 listening post, verified 8/8 on the UNO Q. Thresholds calibrated. Noise prototypes split per type.
 * **2026-11-14** ESC-50 comparison: device model switched from BirdNET to YAMNet TFLite.

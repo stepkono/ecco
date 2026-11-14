@@ -14,3 +14,4 @@ pyyaml==6.0.3
 pytest==9.2.0
 websockets==17.4       # device mock light page
 sounddevice==0.5.6     # device mic input on laptops (the UNO Q uses arecord)
+remotezip==0.12.3     # tools.fetch_soundscapes: pull single files out of remote zips

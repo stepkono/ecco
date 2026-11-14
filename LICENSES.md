@@ -30,3 +30,13 @@ Planned sources (check every recording individually): Xeno-canto (per-recording 
 ## Python dependencies
 
 Gradio (Apache 2.0), TensorFlow (Apache 2.0), LiteRT (Apache 2.0), NumPy/SciPy/pandas/matplotlib (BSD-style), soundfile (BSD), PyYAML (MIT), psutil (BSD).
+
+## Soundscape recordings (local, `data/soundscapes/`, fetched by `tools/fetch_soundscapes.py`)
+
+| Dataset | Source | License | Credit |
+|---|---|---|---|
+| Southwestern Amazon soundscapes (21 one-hour recordings, Peru) | [Zenodo 7079124](https://zenodo.org/records/7079124) | CC BY 4.0 | Hopping, Kahl, Klinck (2022) |
+| Northeastern US soundscapes (285 one-hour recordings, Sapsucker Woods, NY) | [Zenodo 7018484](https://zenodo.org/records/7018484) | CC BY 4.0 | Kahl et al. (2022) |
+| AnuraSet (1-minute recordings, Brazilian wetlands, frog activity labels) | [Zenodo 8342596](https://zenodo.org/records/8342596) | CC BY (per the Zenodo record. The paper states CC0) | Cañas et al. (2023), Scientific Data |
+
+ESC-50 (`data/esc50/`): Piczak (2015), github.com/karolpiczak/ESC-50, CC BY-NC 3.0 (non-commercial).
