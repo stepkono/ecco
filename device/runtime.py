@@ -37,6 +37,20 @@ log = logging.getLogger("biospectra.device")
 
 
 @dataclass
+class Verdict:
+    """Everything the device concluded about one clip, without side effects."""
+
+    analysis: object  # core.pipeline.ClipAnalysis
+    privacy: object  # core.gates.PrivacyResult
+    decision: object | None  # core.heads.Decision
+    raw: object  # core.state.State
+    energy_ok: bool
+    embedding: np.ndarray
+    proto_version: int
+    latency_ms: float
+
+
+@dataclass
 class DecisionEvent:
     time: str
     source: str
@@ -95,6 +109,7 @@ class Listener:
         self.knob_lo, self.knob_hi = cfg["head"].get("knob_range", [0.4, 0.95])
         self.t_known = float(cfg["head"].get("t_known_by_model", {}).get(self.model.model_id, cfg["head"]["t_known"]))
         self._lock = threading.Lock()
+        self.infer_lock = threading.Lock()  # LiteRT interpreters are not thread-safe: one inference at a time
         self.head = PrototypeHead(self.model.model_id, self.model.model_version, self.model.embedding_dim)
         path = prototype_path(self.model.model_id)
         if path.exists():
@@ -138,15 +153,16 @@ class Listener:
         return True
 
     # ------------------------------------------------------------ one decision
-    def step(self, clip: np.ndarray, sr: int, source_label: str = "") -> DecisionEvent:
+    def evaluate(self, clip: np.ndarray, sr: int) -> Verdict:
+        """Gates, embedding and head for one clip. No queue, no light, no log: safe for ad-hoc analysis."""
         t0 = time.perf_counter()
-        self._apply_knob()
-        a = analyze(self.model, clip, sr, energy_dbfs=self.cfg["gates"]["energy_dbfs"])
+        with self.infer_lock:
+            a = analyze(self.model, clip, sr, energy_dbfs=self.cfg["gates"]["energy_dbfs"])
+            if self.shared_privacy and a.scores is not None:
+                pr = self.privacy.check_scores(a.scores)
+            else:
+                pr = self.privacy.check(clip, sr)
         energy_ok = bool(a.energy_ok.any())
-        if self.shared_privacy and a.scores is not None:
-            pr = self.privacy.check_scores(a.scores)
-        else:
-            pr = self.privacy.check(clip, sr)
         with self._lock:
             head = self.head
         decision = None
@@ -157,6 +173,12 @@ class Listener:
                     and decision.best >= self.t_noise and decision.margin >= self.margin):
                 decision.label = decision.best_label  # clearly weather: stay quiet
         raw = state_for(energy_ok, pr.speech, decision, self.noise_label)
+        return Verdict(a, pr, decision, raw, energy_ok, emb, head.version, round(1000 * (time.perf_counter() - t0), 1))
+
+    def step(self, clip: np.ndarray, sr: int, source_label: str = "") -> DecisionEvent:
+        self._apply_knob()
+        v = self.evaluate(clip, sr)
+        pr, decision, raw, emb = v.privacy, v.decision, v.raw, v.embedding
         shown = self.sm.update(raw)
         queued = None
         self._audio_t += self.hop_s
@@ -175,8 +197,8 @@ class Listener:
             label=raw.label, best_label=decision.best_label if decision else None,
             score=round(decision.best, 3) if decision else 0.0, margin=round(decision.margin, 3) if decision else 0.0,
             speech=pr.speech, speech_score=round(pr.score, 3), level_dbfs=round(rms_dbfs(clip), 1),
-            t_known=self.t_known, proto_version=head.version, queued=queued,
-            latency_ms=round(1000 * (time.perf_counter() - t0), 1), peak_rss_mb=round(peak_rss_mb(), 0),
+            t_known=self.t_known, proto_version=v.proto_version, queued=queued,
+            latency_ms=v.latency_ms, peak_rss_mb=round(peak_rss_mb(), 0),
         )
         self._publish(ev, shown)
         return ev
@@ -199,18 +221,24 @@ class Listener:
         })
 
     # ------------------------------------------------------------ main loop
-    def run(self, max_decisions: int | None = None) -> list[DecisionEvent]:
-        """Read `hop` seconds at a time, decide on the latest `clip` seconds. Returns the events."""
-        sr = self.source.sample_rate
+    def run(self, max_decisions: int | None = None, stop: threading.Event | None = None,
+            source=None) -> list[DecisionEvent]:
+        """Read `hop` seconds at a time, decide on the latest `clip` seconds. Returns the events.
+
+        `stop` ends the loop from another thread (the console's Stop button). `source`
+        overrides the source given at construction.
+        """
+        src = source or self.source
+        sr = src.sample_rate
         need = int(self.clip_s * sr)
         buf = np.zeros(0, dtype=np.float32)
         out: list[DecisionEvent] = []
-        while max_decisions is None or len(out) < max_decisions:
-            chunk = self.source.read(self.hop_s)
-            if chunk is None:
+        while (max_decisions is None or len(out) < max_decisions) and not (stop and stop.is_set()):
+            chunk = src.read(self.hop_s)
+            if chunk is None or (stop and stop.is_set()):
                 break
             buf = np.concatenate([buf, chunk])[-need:]
             if len(buf) < need:
                 continue
-            out.append(self.step(buf, sr, getattr(self.source, "label", "")))
+            out.append(self.step(buf, sr, getattr(src, "label", "")))
         return out

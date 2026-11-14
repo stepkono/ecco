@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BioSpectra Console</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --line: #2a3340; --text: #e6edf3; --muted: #8b98a5;
+    --accent: #58a6ff; --ok: #2bb673; --warn: #f5a623; --bad: #f85149; --quiet: #8a8f98;
+    --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; }
+  header .muted { font-size: 12px; }
+  .grow { flex: 1; }
+  .badge { font: 12px var(--mono); padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); white-space: nowrap; }
+  .badge.live { color: var(--ok); border-color: #2bb67366; }
+  .badge.off { color: var(--bad); border-color: #f8514966; }
+  main { display: grid; grid-template-columns: minmax(320px, 400px) 1fr; gap: 16px; padding: 16px 20px; max-width: 1500px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  h2 .grow { flex: 1; }
+  .muted { color: var(--muted); }
+  .mono { font-family: var(--mono); }
+  .light { display: flex; gap: 18px; align-items: center; margin-bottom: 14px; }
+  .lamp { width: 92px; height: 92px; border-radius: 50%; background: var(--quiet); border: 3px solid #222; box-shadow: 0 0 34px var(--quiet); flex: none; transition: background .2s, box-shadow .2s; }
+  .state { font-size: 22px; font-weight: 600; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover { border-color: #3d4b5c; }
+  button.primary { background: #1f6feb; border-color: #1f6feb; }
+  button.danger { color: var(--bad); }
+  button.on { border-color: var(--ok); color: var(--ok); }
+  button:disabled { opacity: .5; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; margin-top: 12px; }
+  .kv span:nth-child(odd) { color: var(--muted); }
+  .kv span:nth-child(even) { font-family: var(--mono); text-align: right; overflow: hidden; text-overflow: ellipsis; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=number], input[type=text] { font: inherit; background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 5px 8px; }
+  .drop { border: 2px dashed var(--line); border-radius: 10px; padding: 22px; text-align: center; color: var(--muted); cursor: pointer; transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent); background: #58a6ff11; }
+  .result { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 12px; background: var(--panel2); }
+  .result h3 { margin: 0 0 6px; font-size: 14px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  canvas.spec { width: 100%; height: 120px; border-radius: 6px; display: block; background: #000; image-rendering: pixelated; margin: 8px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 6px; border-top: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; border-top: 0; }
+  td.num { font-family: var(--mono); text-align: right; white-space: nowrap; }
+  .chip { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #0d1117; white-space: nowrap; }
+  .labels { font-size: 12px; color: var(--muted); }
+  .labels b { color: var(--text); font-weight: 500; }
+  ul.log { list-style: none; margin: 0; padding: 0; font: 12px/1.7 var(--mono); max-height: 360px; overflow: auto; }
+  ul.log li { border-top: 1px solid var(--line); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .toast { position: fixed; right: 16px; bottom: 16px; background: var(--panel2); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 10px 14px; border-radius: 8px; max-width: 420px; z-index: 10; }
+  .toast.err { border-left-color: var(--bad); }
+  .tokenbox { max-width: 460px; margin: 80px auto; }
+  .busy::after { content: " …"; }
+  audio { width: 100%; height: 34px; margin-top: 6px; }
+  .empty { color: var(--muted); padding: 10px 0; }
+</style>
+</head>
+<body>
+<div id="app" hidden>
+  <header>
+    <h1>BioSpectra Console</h1>
+    <span class="muted" id="where">connecting…</span>
+    <span class="grow"></span>
+    <span class="badge" id="b-mode">idle</span>
+    <span class="badge" id="b-model">model</span>
+    <span class="badge" id="b-mem">mem</span>
+    <span class="badge off" id="b-conn">offline</span>
+  </header>
+
+  <main>
+    <div>
+      <section aria-labelledby="h-live">
+        <h2 id="h-live">Live</h2>
+        <div class="light" role="status" aria-live="polite">
+          <div class="lamp" id="lamp" aria-hidden="true"></div>
+          <div>
+            <div class="state" id="state">Quiet</div>
+            <div class="muted" id="detail">listener idle</div>
+          </div>
+        </div>
+        <div class="row">
+          <button id="btn-mic" class="primary">Listen to mic</button>
+          <button id="btn-playlist">Play demo playlist</button>
+          <button id="btn-stop" class="danger">Stop</button>
+        </div>
+        <div class="row" style="margin-top:8px">
+          <span class="muted">playlist</span>
+          <input type="text" id="pl-path" value="data/playlist" size="14">
+          <span class="muted">speed</span>
+          <input type="number" id="pl-speed" value="1" min="0" step="0.5" style="width:64px">
+        </div>
+        <div style="margin-top:14px">
+          <label for="knob"><b>Trust knob</b> <span class="muted">higher = more cautious</span></label>
+          <input id="knob" type="range" min="0" max="1" step="0.01">
+          <div class="muted">T_known <b class="mono" id="tk">–</b> · noise bar <span class="mono" id="tn">–</span></div>
+        </div>
+        <div class="kv">
+          <span>Mode</span><span id="k-mode">–</span>
+          <span>Microphone</span><span id="k-mic">–</span>
+          <span>Prototypes</span><span id="k-proto">–</span>
+          <span>Queued clips</span><span id="k-queue">–</span>
+          <span>Backend</span><span id="k-sync">–</span>
+          <span>Latency per clip</span><span id="k-lat">–</span>
+          <span>Memory available</span><span id="k-mem">–</span>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-log">
+        <h2 id="h-log">Recent decisions</h2>
+        <ul class="log" id="log"><li class="muted">waiting for the listener</li></ul>
+      </section>
+    </div>
+
+    <div>
+      <section aria-labelledby="h-an">
+        <h2 id="h-an">Analyze files on the board <span class="grow"></span>
+          <label class="muted" style="text-transform:none;letter-spacing:0"><input type="checkbox" id="opt-birdnet"> also BirdNET</label></h2>
+        <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose audio files to analyze">
+          Drop audio or video files here, or click to choose (wav, mp3, m4a, mp4, ogg, flac).<br>
+          <span class="muted">Your browser converts them to 48 kHz WAV. The board's models analyze each 5 s segment like live audio, without queueing or changing the light.</span>
+        </div>
+        <input type="file" id="file" multiple accept="audio/*,video/*" hidden>
+        <div id="results"></div>
+      </section>
+
+      <section aria-labelledby="h-clips">
+        <h2 id="h-clips">Clips on the board <span class="grow"></span>
+          <button id="btn-refresh">Refresh</button>
+          <button id="btn-zip">Download all (zip)</button>
+          <button id="btn-delall" class="danger">Delete all</button></h2>
+        <div class="muted" style="margin-bottom:6px">Uncertain clips the listener queued for players. They may contain anything the mic heard: download, then delete.</div>
+        <table>
+          <thead><tr><th>Recorded</th><th>Best guess</th><th class="num">Size</th><th>Uploaded</th><th></th></tr></thead>
+          <tbody id="clips"><tr><td colspan="5" class="empty">no clips</td></tr></tbody>
+        </table>
+        <audio id="player" controls hidden></audio>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div id="tokenbox" class="tokenbox" hidden>
+  <section>
+    <h2>Access token</h2>
+    <p class="muted">The console needs the token printed when it starts (also in <span class="mono">data/console_token</span> on the board).</p>
+    <div class="row"><input type="text" id="token-in" placeholder="token" style="flex:1"><button class="primary" id="token-go">Open</button></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let token = new URLSearchParams(location.search).get("token") || sessionStorage.getItem("bs-token") || "";
+const STATE_NAME = { quiet: "Quiet", recognized: "Recognized", needs_help: "Needs help" };
+const logItems = [];
+let knobBusy = false;
+
+function toast(msg, err = false) {
+  const t = document.createElement("div");
+  t.className = "toast" + (err ? " err" : "");
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), err ? 7000 : 3500);
+}
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { ...opts, headers: { "X-Token": token, ...(opts.headers || {}) } });
+  if (r.status === 401) { showToken(); throw new Error("access token missing or wrong"); }
+  if (!r.ok) { let m = r.statusText; try { m = (await r.json()).error || m; } catch {} throw new Error(m); }
+  return r;
+}
+const post = (path, body) => api(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+function showToken() { $("app").hidden = true; $("tokenbox").hidden = false; }
+$("token-go").onclick = () => { token = $("token-in").value.trim(); sessionStorage.setItem("bs-token", token); start(); };
+
+// ---------------------------------------------------------------- status + live
+function setLamp(color, stateText, detail) {
+  $("lamp").style.background = color; $("lamp").style.boxShadow = `0 0 34px ${color}`;
+  if (stateText) $("state").textContent = stateText;
+  if (detail !== undefined) $("detail").textContent = detail;
+}
+
+function renderStatus(s) {
+  $("where").textContent = `${s.device} · ${s.location}`;
+  $("b-mode").textContent = s.mode === "idle" ? "idle" : `live: ${s.mode}`;
+  $("b-mode").className = "badge" + (s.mode !== "idle" ? " live" : "");
+  $("b-model").textContent = s.model_id;
+  $("b-mem").textContent = `${s.process_rss_mb} MB · ${s.mem_available_mb} MB free`;
+  $("k-mode").textContent = s.mode === "idle" ? "idle" : `${s.mode} · ${s.mode_detail}`;
+  $("k-mic").textContent = s.mic;
+  const cls = Object.entries(s.proto_classes).map(([k, v]) => `${k}×${v}`).join(", ");
+  $("k-proto").textContent = `v${s.proto_version} · ${cls || "none"}`;
+  $("k-proto").title = cls;
+  $("k-queue").textContent = `${s.queue_pending} waiting · ${s.queue_total} total`;
+  $("k-sync").textContent = s.sync;
+  $("k-mem").textContent = `${s.mem_available_mb} MB`;
+  $("tk").textContent = Number(s.t_known).toFixed(2);
+  $("tn").textContent = Number(s.t_noise).toFixed(2);
+  if (!knobBusy) $("knob").value = s.knob;
+  $("btn-mic").classList.toggle("on", s.mode === "mic");
+  $("btn-playlist").classList.toggle("on", s.mode === "playlist");
+  if (s.mode === "idle") setLamp("#8a8f98", "Quiet", "listener idle");
+}
+
+function renderDecision(e) {
+  setLamp(e.color, STATE_NAME[e.state] || e.state, e.detail);
+  if (e.latency_ms !== undefined) $("k-lat").textContent = `${Math.round(e.latency_ms)} ms`;
+  if (e.queue !== undefined) $("k-queue").textContent = `${e.queue} waiting`;
+  if (e.event) {
+    logItems.unshift(`<li title="${e.event}"><span class="dot" style="background:${e.color}"></span>${e.time} ${e.event}</li>`);
+    logItems.length = Math.min(logItems.length, 80);
+    $("log").innerHTML = logItems.join("");
+    if (e.event.includes("queued")) loadClips();
+  }
+}
+
+function connect() {
+  const es = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
+  es.onopen = () => { $("b-conn").textContent = "connected"; $("b-conn").className = "badge live"; };
+  es.onerror = () => { $("b-conn").textContent = "reconnecting"; $("b-conn").className = "badge off"; };
+  es.onmessage = (m) => {
+    const e = JSON.parse(m.data);
+    if (e.type === "status") renderStatus(e);
+    else if (e.type === "decision") renderDecision(e);
+    else if (e.type === "error") toast(e.message, true);
+  };
+}
+
+async function setMode(mode) {
+  try {
+    const body = { mode };
+    if (mode === "playlist") { body.path = $("pl-path").value; body.speed = Number($("pl-speed").value); }
+    renderStatus(await (await post("/api/mode", body)).json());
+  } catch (e) { toast(e.message, true); }
+}
+$("btn-mic").onclick = () => setMode("mic");
+$("btn-playlist").onclick = () => setMode("playlist");
+$("btn-stop").onclick = () => setMode("idle");
+$("knob").addEventListener("input", () => {
+  knobBusy = true;
+  clearTimeout(window._kt);
+  window._kt = setTimeout(async () => {
+    try { renderStatus(await (await post("/api/knob", { value: Number($("knob").value) })).json()); }
+    catch (e) { toast(e.message, true); }
+    knobBusy = false;
+  }, 150);
+});
+
+// ---------------------------------------------------------------- analyze
+async function toWav(file) {
+  const buf = await file.arrayBuffer();
+  const ctx = new AudioContext();
+  let audio;
+  try { audio = await ctx.decodeAudioData(buf); } finally { ctx.close(); }
+  const sr = 48000, n = Math.max(1, Math.ceil(audio.duration * sr));
+  const off = new OfflineAudioContext(1, n, sr);
+  const src = off.createBufferSource(); src.buffer = audio; src.connect(off.destination); src.start();
+  const x = (await off.startRendering()).getChannelData(0);
+  const out = new DataView(new ArrayBuffer(44 + x.length * 2));
+  const w = (o, s) => [...s].forEach((c, i) => out.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); out.setUint32(4, 36 + x.length * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, 1, true);
+  out.setUint32(24, sr, true); out.setUint32(28, sr * 2, true); out.setUint16(32, 2, true); out.setUint16(34, 16, true);
+  w(36, "data"); out.setUint32(40, x.length * 2, true);
+  for (let i = 0; i < x.length; i++) out.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x[i])) * 32767, true);
+  return new Blob([out], { type: "audio/wav" });
+}
+
+function drawSpec(canvas, spec, segments, duration) {
+  const { rows, cols, data } = spec;
+  canvas.width = cols; canvas.height = rows;
+  const g = canvas.getContext("2d"), img = g.createImageData(cols, rows);
+  for (let i = 0; i < rows * cols; i++) {
+    const v = data[i] / 255;
+    img.data[i * 4] = Math.min(255, 255 * Math.pow(v, 0.9) * 1.1);
+    img.data[i * 4 + 1] = 210 * Math.pow(v, 1.6);
+    img.data[i * 4 + 2] = 120 * Math.pow(v, 3) + 40 * (1 - v) * v * 4;
+    img.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  for (const s of segments) {   // state bar along the top of each 5 s segment
+    const x0 = (s.start / duration) * cols, x1 = (s.end / duration) * cols;
+    g.fillStyle = s.color; g.fillRect(x0, 0, Math.max(1, x1 - x0 - 1), 4);
+    g.fillStyle = "#ffffff55"; g.fillRect(x1 - 1, 0, 1, rows);
+  }
+}
+
+function resultHtml(r, url) {
+  const seg = r.segments.map((s) => {
+    const why = s.speech ? `speech ${s.speech_score.toFixed(2)} · dropped`
+      : !s.energy_ok ? `silent (${s.level_dbfs} dBFS)`
+      : `${s.best_label} <span class="mono">${s.best.toFixed(2)}</span> · margin <span class="mono">${s.margin.toFixed(2)}</span>`;
+    const sims = s.similarities.map(([k, v]) => `${k} ${v.toFixed(2)}`).join(" · ");
+    const wins = s.windows.map((w) => `<b>${w.start.toFixed(1)}s</b> ${w.top.map(([l, p]) => `${l} ${p.toFixed(2)}`).join(", ")}`).join("<br>");
+    return `<tr><td class="num">${s.start.toFixed(0)}–${s.end.toFixed(0)} s</td>
+      <td><span class="chip" style="background:${s.color}">${STATE_NAME[s.state]}</span></td>
+      <td>${why}${sims ? `<div class="labels">prototypes: ${sims}</div>` : ""}</td>
+      <td class="labels">${wins}</td><td class="num">${Math.round(s.latency_ms)} ms</td></tr>`;
+  }).join("");
+  const bn = r.birdnet ? (r.birdnet.error ? `<div class="labels">BirdNET: ${r.birdnet.error}</div>` :
+    `<div class="labels" style="margin-top:8px"><b>BirdNET int8</b> (${r.birdnet.latency_ms} ms per 3 s): ` +
+    r.birdnet.windows.map((w) => `<b>${w.start.toFixed(0)}s</b> ${w.top.map(([l, p]) => `${l} ${p.toFixed(2)}`).join(", ")}`).join(" · ") + "</div>") : "";
+  return `<h3>${r.name}<span class="muted mono">${r.duration.toFixed(1)} s · ${r.model_id} · T_known ${r.t_known.toFixed(2)} · prototypes v${r.proto_version}</span></h3>
+    <canvas class="spec"></canvas><audio controls src="${url}"></audio>
+    <table><thead><tr><th>Segment</th><th>Light</th><th>Prototype head</th><th>YAMNet per window (top 3)</th><th class="num">Time</th></tr></thead>
+    <tbody>${seg}</tbody></table>${bn}`;
+}
+
+async function analyzeFiles(files) {
+  for (const f of files) {
+    const box = document.createElement("div");
+    box.className = "result";
+    box.innerHTML = `<h3 class="busy">${f.name}: converting and analyzing on the board</h3>`;
+    $("results").prepend(box);
+    try {
+      const wav = await toWav(f);
+      const q = `?name=${encodeURIComponent(f.name)}&birdnet=${$("opt-birdnet").checked ? 1 : 0}`;
+      const r = await (await api("/api/analyze" + q, { method: "POST", headers: { "Content-Type": "audio/wav" }, body: wav })).json();
+      box.innerHTML = resultHtml(r, URL.createObjectURL(wav));
+      drawSpec(box.querySelector("canvas"), r.spectrogram, r.segments, r.duration);
+    } catch (e) {
+      box.innerHTML = `<h3>${f.name}</h3><div style="color:var(--bad)">${e.message}</div>`;
+    }
+  }
+}
+const drop = $("drop");
+drop.onclick = () => $("file").click();
+drop.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") $("file").click(); };
+$("file").onchange = () => { analyzeFiles([...$("file").files]); $("file").value = ""; };
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); analyzeFiles([...e.dataTransfer.files]); };
+
+// ---------------------------------------------------------------- clips
+async function download(path, name) {
+  const blob = await (await api(path)).blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+async function loadClips() {
+  try {
+    const clips = await (await api("/api/clips")).json();
+    $("clips").innerHTML = clips.length ? clips.map((c) => `<tr>
+      <td>${c.time}</td>
+      <td>${c.best_guess ? `${c.best_guess} <span class="mono muted">${(c.best_score ?? 0).toFixed(2)}</span>` : '<span class="muted">none</span>'}</td>
+      <td class="num">${c.size_kb} KB</td><td>${c.uploaded ? "yes" : "no"}</td>
+      <td class="row" style="justify-content:flex-end">
+        <button data-play="${c.id}" aria-label="Play clip ${c.id}">Play</button>
+        <button data-dl="${c.id}" aria-label="Download clip ${c.id}">Download</button>
+        <button data-del="${c.id}" class="danger" aria-label="Delete clip ${c.id}">Delete</button></td></tr>`).join("")
+      : `<tr><td colspan="5" class="empty">no clips on the board</td></tr>`;
+  } catch (e) { toast(e.message, true); }
+}
+$("clips").onclick = async (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  try {
+    if (b.dataset.play) {
+      const blob = await (await api(`/api/clips/${b.dataset.play}.wav`)).blob();
+      const p = $("player"); p.hidden = false; p.src = URL.createObjectURL(blob); p.play();
+    } else if (b.dataset.dl) {
+      await download(`/api/clips/${b.dataset.dl}.wav?download=1`, `${b.dataset.dl}.wav`);
+    } else if (b.dataset.del) {
+      await post("/api/clips/delete", { ids: [b.dataset.del] }); loadClips();
+    }
+  } catch (err) { toast(err.message, true); }
+};
+$("btn-refresh").onclick = loadClips;
+$("btn-zip").onclick = async () => {
+  try { toast("packing clips on the board…"); await download("/api/clips.zip", `biospectra_clips_${Date.now()}.zip`); }
+  catch (e) { toast(e.message, true); }
+};
+$("btn-delall").onclick = async () => {
+  if (!confirm("Delete every queued clip on the board? This cannot be undone.")) return;
+  try { const r = await (await post("/api/clips/delete", {})).json(); toast(`deleted ${r.deleted} clips`); loadClips(); }
+  catch (e) { toast(e.message, true); }
+};
+
+// ---------------------------------------------------------------- start
+async function start() {
+  if (new URLSearchParams(location.search).get("token")) {
+    sessionStorage.setItem("bs-token", token);
+    history.replaceState(null, "", location.pathname);  // keep the token out of the address bar
+  }
+  try {
+    renderStatus(await (await api("/api/status")).json());
+  } catch (e) { if (!$("tokenbox").hidden) return; toast(e.message, true); return; }
+  $("tokenbox").hidden = true; $("app").hidden = false;
+  connect();
+  loadClips();
+}
+start();
+</script>
+</body>
+</html>
