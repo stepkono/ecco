@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BioSpectra Labeling</title>
+<style>
+  :root { --bg: #0d1117; --panel: #161b22; --panel2: #1c2330; --line: #2a3340; --text: #e6edf3; --muted: #8b98a5;
+          --accent: #56b4e9; --ok: #009e73; --warn: #e69f00; --bad: #d55e00; --mono: ui-monospace, Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+  header { display: flex; align-items: center; gap: 14px; padding: 12px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  .grow { flex: 1; }
+  .badge { font: 12px var(--mono); padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); }
+  main { max-width: 1200px; margin: 0 auto; padding: 16px 20px; display: grid; grid-template-columns: 1fr 300px; gap: 16px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+  button { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button:hover { border-color: #3d4b5c; }
+  button.primary { background: #0072b2; border-color: #0072b2; }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .muted { color: var(--muted); }
+  .wrap { position: relative; }
+  canvas { width: 100%; height: 360px; display: block; border-radius: 8px; background: #000; cursor: crosshair; }
+  .axis { position: absolute; left: 6px; font: 11px var(--mono); color: #ffffffb0; text-shadow: 0 0 3px #000; pointer-events: none; }
+  .labels button { min-width: 120px; }
+  kbd { font: 11px var(--mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
+  .result { padding: 10px 12px; border-radius: 8px; margin-top: 12px; border-left: 4px solid var(--accent); background: var(--panel2); }
+  .learned { font-size: 18px; font-weight: 600; color: var(--ok); }
+  ul.feed { list-style: none; padding: 0; margin: 0; font: 12px/1.6 var(--mono); max-height: 420px; overflow: auto; }
+  ul.feed li { border-top: 1px solid var(--line); padding: 2px 0; }
+  .empty { padding: 60px 0; text-align: center; color: var(--muted); }
+  input { font: inherit; background: var(--panel2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 5px 8px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>BioSpectra · label a sound</h1>
+  <span class="muted">2D stand-in until the 3D game design is final</span>
+  <span class="grow"></span>
+  <label class="muted">Player <input id="nick" size="10"></label>
+  <span class="badge" id="b-solved">0 solved</span>
+  <span class="badge" id="b-proto">prototypes –</span>
+</header>
+<main>
+  <div>
+    <section aria-labelledby="h-p">
+      <h2 id="h-p">Puzzle <span id="p-info" class="muted" style="text-transform:none;letter-spacing:0"></span></h2>
+      <div id="empty" class="empty">Press <b>Next sound</b> to load a sound the listening post could not recognize.</div>
+      <div id="puzzle" hidden>
+        <div class="wrap">
+          <canvas id="spec" width="1280" height="360" aria-label="Spectrogram. Drag to select the animal call."></canvas>
+          <div id="axis"></div>
+        </div>
+        <p class="muted">Drag boxes around the call you hear (time left to right, pitch bottom to top). Then listen to your selection and pick a label.</p>
+        <div class="row">
+          <button id="b-play">Play all <kbd>P</kbd></button>
+          <button id="b-sel">Play selection <kbd>S</kbd></button>
+          <button id="b-clear">Clear boxes <kbd>C</kbd></button>
+          <span class="muted" id="sel-info">no selection</span>
+        </div>
+        <h2 style="margin-top:14px">What is it?</h2>
+        <div class="row labels" id="labels"></div>
+        <div id="result"></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="primary" id="b-next">Next sound <kbd>N</kbd></button></div>
+    </section>
+  </div>
+  <div>
+    <section aria-labelledby="h-f">
+      <h2 id="h-f">What happens</h2>
+      <ul class="feed" id="feed"></ul>
+    </section>
+  </div>
+</main>
+<audio id="player"></audio>
+<script>
+const $ = (id) => document.getElementById(id);
+let player = localStorage.getItem("bs-player"), puzzle = null, spec = null, boxes = [], drag = null, solved = 0;
+const fmin = 50;
+
+async function j(url, opts) { const r = await fetch(url, opts); if (!r.ok && r.status !== 204) throw new Error((await r.json()).detail || r.statusText); return r; }
+const post = (url, body) => j(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+
+async function ensurePlayer() {
+  $("nick").value = localStorage.getItem("bs-nick") || "player";
+  if (player) return;
+  const r = await (await post("/players", { nickname: $("nick").value })).json();
+  player = r.player_id; localStorage.setItem("bs-player", player);
+}
+$("nick").onchange = () => { localStorage.setItem("bs-nick", $("nick").value); localStorage.removeItem("bs-player"); player = null; ensurePlayer(); };
+
+// frequency axis: logarithmic for readability
+function fmax() { return spec.freqs[spec.freqs.length - 1]; }
+function yOfF(f, h) { const a = Math.log(fmin), b = Math.log(fmax()); return h - (Math.log(Math.max(f, fmin)) - a) / (b - a) * h; }
+function fOfY(y, h) { const a = Math.log(fmin), b = Math.log(fmax()); return Math.exp(a + (h - y) / h * (b - a)); }
+function xOfT(t, w) { return t / spec.duration_s * w; }
+function tOfX(x, w) { return Math.max(0, Math.min(spec.duration_s, x / w * spec.duration_s)); }
+
+function draw() {
+  const c = $("spec"), g = c.getContext("2d"), W = c.width, H = c.height;
+  const img = g.createImageData(W, H), lo = spec.db_max - 80;
+  for (let y = 0; y < H; y++) {
+    const f = fOfY(y, H);
+    let r = 0; while (r + 1 < spec.rows && spec.freqs[r + 1] <= f) r++;
+    for (let x = 0; x < W; x++) {
+      const col = Math.min(spec.cols - 1, Math.floor(x / W * spec.cols));
+      const v = Math.max(0, Math.min(1, (spec.db[r][col] - lo) / 80));
+      const i = (y * W + x) * 4;   // viridis-like ramp: colour-blind safe
+      img.data[i] = 255 * Math.min(1, Math.max(0, 1.6 * v * v - 0.2 * v));
+      img.data[i + 1] = 255 * Math.min(1, 0.05 + 0.95 * v);
+      img.data[i + 2] = 255 * Math.min(1, 0.35 + 0.4 * Math.sin(3.1 * v) - 0.3 * v);
+      img.data[i + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  g.lineWidth = 3;
+  for (const b of boxes.concat(drag ? [drag] : [])) {
+    const x0 = xOfT(b.t0, W), x1 = xOfT(b.t1, W), y0 = yOfF(b.f1, H), y1 = yOfF(b.f0, H);
+    g.fillStyle = "#e69f0033"; g.fillRect(x0, y0, x1 - x0, y1 - y0);
+    g.strokeStyle = "#e69f00"; g.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  }
+  const ax = [100, 500, 1000, 2000, 5000, 10000, 20000].filter((f) => f < fmax());
+  $("axis").innerHTML = ax.map((f) => `<div class="axis" style="top:${yOfF(f, H) / H * 100}%">${f >= 1000 ? f / 1000 + " kHz" : f + " Hz"}</div>`).join("");
+  $("sel-info").textContent = boxes.length ? `${boxes.length} box${boxes.length > 1 ? "es" : ""} selected` : "no selection (the whole sound will be used)";
+}
+
+function canvasPos(e) {
+  const c = $("spec"), r = c.getBoundingClientRect();
+  return { x: (e.clientX - r.left) / r.width * c.width, y: (e.clientY - r.top) / r.height * c.height };
+}
+$("spec").onmousedown = (e) => { const p = canvasPos(e); drag = { sx: p.x, sy: p.y, t0: 0, t1: 0, f0: 0, f1: 0 }; };
+window.onmousemove = (e) => {
+  if (!drag) return;
+  const c = $("spec"), p = canvasPos(e);
+  drag.t0 = tOfX(Math.min(drag.sx, p.x), c.width); drag.t1 = tOfX(Math.max(drag.sx, p.x), c.width);
+  drag.f0 = fOfY(Math.max(drag.sy, p.y), c.height); drag.f1 = fOfY(Math.min(drag.sy, p.y), c.height);
+  draw();
+};
+window.onmouseup = () => { if (drag && drag.t1 - drag.t0 > 0.05) boxes.push({ t0: drag.t0, t1: drag.t1, f0: drag.f0, f1: drag.f1 }); drag = null; if (spec) draw(); };
+
+function play(url) { const a = $("player"); a.src = url; a.play(); }
+$("b-play").onclick = () => puzzle && play(puzzle.audio_url);
+$("b-sel").onclick = async () => {
+  if (!puzzle) return;
+  try {
+    const blob = await (await post(`/clips/${puzzle.clip_id}/preview`, { mask: boxes.length ? { boxes } : null })).blob();
+    play(URL.createObjectURL(blob));
+  } catch (e) { feed(`preview failed: ${e.message}`); }
+};
+$("b-clear").onclick = () => { boxes = []; if (spec) draw(); };
+
+async function next() {
+  await ensurePlayer();
+  $("result").innerHTML = "";
+  const r = await j(`/puzzles/next?player_id=${player}`);
+  if (r.status === 204) { puzzle = null; $("puzzle").hidden = true; $("empty").hidden = false; $("empty").textContent = "No open sounds right now. The listening post sends new ones when it is unsure."; return; }
+  puzzle = await r.json(); boxes = [];
+  spec = await (await j(puzzle.spectrogram_url)).json();
+  $("p-info").textContent = `${puzzle.duration_s ? puzzle.duration_s.toFixed(1) : spec.duration_s.toFixed(1)} s`;
+  $("labels").innerHTML = puzzle.labels.map((l, i) => `<button data-l="${l}">${l.replace("_", " ")} <kbd>${i + 1}</kbd></button>`).join("");
+  $("empty").hidden = true; $("puzzle").hidden = false;
+  draw();
+}
+$("b-next").onclick = () => next().catch((e) => feed(e.message));
+
+$("labels").onclick = async (e) => {
+  const b = e.target.closest("button"); if (!b || !puzzle) return;
+  try {
+    const r = await (await post(`/clips/${puzzle.clip_id}/labels`, { player_id: player, label: b.dataset.l, mask: boxes.length ? { boxes } : null })).json();
+    let html;
+    if (r.gold) html = r.correct ? `Correct! This was a test sound: <b>${r.true_label}</b>.` : `This was a test sound. The answer was <b>${r.true_label}</b>.`;
+    else if (r.accepted && r.learned) html = `Accepted as <b>${r.label}</b>. Prototypes are now version ${r.prototype_version}. Waiting for the listening post…`;
+    else if (r.accepted) html = `Accepted as <b>${r.label}</b>. Nothing to learn for the device.`;
+    else html = `Thanks. ${Object.values(r.votes || {}).reduce((a, b) => a + b, 0)} of ${r.needed} answers so far.`;
+    $("result").innerHTML = `<div class="result">${html}</div>`;
+    solved++; $("b-solved").textContent = `${solved} solved`;
+    $("labels").querySelectorAll("button").forEach((x) => (x.disabled = true));
+  } catch (err) { $("result").innerHTML = `<div class="result" style="border-color:var(--bad)">${err.message}</div>`; }
+};
+
+window.onkeydown = (e) => {
+  if (e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  if (k === "n") $("b-next").click(); else if (k === "p") $("b-play").click();
+  else if (k === "s") $("b-sel").click(); else if (k === "c") $("b-clear").click();
+  else if (/^[1-9]$/.test(k)) $("labels").querySelectorAll("button")[+k - 1]?.click();
+};
+
+function feed(text) {
+  const li = document.createElement("li"); li.textContent = `${new Date().toLocaleTimeString()} ${text}`;
+  $("feed").prepend(li);
+}
+const es = new EventSource("/events/stream");
+es.onmessage = (m) => {
+  const e = JSON.parse(m.data);
+  if (e.type === "hello") { $("b-proto").textContent = `prototypes v${e.prototype_version}`; return; }
+  if (e.type === "clip_received") feed(`new sound from ${e.device_id} (${(e.duration_s || 0).toFixed(0)} s)`);
+  else if (e.type === "label_accepted") feed(`label accepted: ${e.label}`);
+  else if (e.type === "prototype_published") {
+    $("b-proto").textContent = `prototypes v${e.version}`;
+    feed(`prototypes v${e.version} published`);
+    if (puzzle) $("result").insertAdjacentHTML("beforeend", `<div class="result learned">The forest device learned this sound.</div>`);
+  } else if (e.type === "gold_answered") feed(`test sound answered: ${e.correct ? "correct" : "wrong"}`);
+};
+ensurePlayer();
+</script>
+</body>
+</html>

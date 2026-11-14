@@ -76,9 +76,23 @@ head:
 state:
   hold_seconds: 2.0              # keep a state at least this long so the light does not flicker
 
+backend:                         # Phase 2 (backend/app.py), runs on the laptop
+  host: 0.0.0.0
+  port: 8000
+  model_id: yamnet-tflite        # must equal device.model_id: prototypes are only valid for one model
+  consensus_n: 2                 # agreeing reliable players needed to accept a label
+  demo_mode: true                # demo: one label is enough (consensus_n = 1)
+  min_reliability: 0.4           # players below this do not count towards consensus
+  reliability_step: 0.2          # how fast gold answers move a player's reliability
+  gold_rate: 0.2                 # share of puzzles that are hidden gold clips (when gold clips exist)
+  labels: [frog, chirping_birds, crow]  # placeholder for the three local target species
+  spectrogram_max_rows: 192      # display grid sent to the game
+  spectrogram_max_cols: 640
+
 paths:
   data: data
   prototypes: data/prototypes
   queue: data/queue
   demo_set: data/demo_set
   bench_out: data/bench
+  backend: data/backend

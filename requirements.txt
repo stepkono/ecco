@@ -15,3 +15,7 @@ pytest==9.2.0
 websockets==17.4       # device mock light page
 sounddevice==0.5.6     # device mic input on laptops (the UNO Q uses arecord)
 remotezip==0.12.6     # tools.fetch_soundscapes: pull single files out of remote zips
+fastapi==0.162.7      # Phase 2 backend
+uvicorn==0.54.0
+python-multipart==0.0.33
+httpx==0.28.1          # FastAPI test client

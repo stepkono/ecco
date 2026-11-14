@@ -36,3 +36,6 @@ __pycache__/
 .env
 data/
 *.tflite
+
+# per-machine settings (backend address on the board, ...)
+config.local.yaml
