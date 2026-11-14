@@ -65,8 +65,8 @@ h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: 
 }
 .btn:hover { border-color: #3a6676; background: #12262f; }
 .btn:disabled { opacity: 0.45; cursor: default; }
-.btn.primary { background: #9be15d; color: #08130a; border-color: #9be15d; font-weight: 600; }
-.btn.primary:hover { background: #b3ef7c; }
+.btn.primary { background: var(--accent); color: #08130a; border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { background: color-mix(in srgb, var(--accent), white 15%); }
 .btn.ghost { background: transparent; }
 .btn.wide { width: 100%; justify-content: center; padding: 10px; }
 .btn.active { border-color: var(--accent); color: var(--accent); }
@@ -284,3 +284,7 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 .node-chip.active { background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
 .tool.active { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); }
 .pipe-step.on { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent) inset; }
+
+/* axis labels on light (pastel) backdrops */
+.light-theme .axis-label { color: #44585f; }
+.light-theme .axis-title { color: #5d6f74; }

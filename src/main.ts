@@ -685,6 +685,13 @@ function deployToCurrent() {
 setLabHooks({ deploy: deployToCurrent, refresh: () => renderNodes() });
 $('#btn-lab').onclick = () => openLab();
 $('#btn-eco').onclick = () => openEco();
+// the 3D view changed theme, so layer colours may have changed
+window.addEventListener('viz-theme', () => {
+  if (!state.session) return;
+  renderBrief();
+  renderLayers();
+  renderScores();
+});
 
 // ---------------- keyboard ----------------
 window.addEventListener('keydown', (e) => {

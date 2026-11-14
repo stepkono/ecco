@@ -17,8 +17,8 @@ export class Walker {
   private pos = new THREE.Vector3();
   private eyeY = 0;
   private saved: { pos: THREE.Vector3; target: THREE.Vector3; near: number } | null = null;
-  private audio: { ctx: AudioContext; src: AudioBufferSourceNode; band: BiquadFilterNode; loopT: number } | null = null;
-  readonly eye = 0.32; // display units above the ground
+  private audio: { ctx: AudioContext; buf: AudioBuffer; band: BiquadFilterNode; out: GainNode; next: number } | null = null;
+  readonly eye = 0.55; // display units above the ground
   speed = 2.2; // display units per second
 
   private view: SpectroView;
@@ -55,6 +55,7 @@ export class Walker {
     if (this.active) return;
     const cam = this.view.camera;
     this.saved = { pos: cam.position.clone(), target: this.view.controls.target.clone(), near: cam.near };
+    this.view.walkLook(true);
     this.view.controls.enabled = false;
     cam.near = 0.02;
     cam.updateProjectionMatrix();
@@ -83,6 +84,7 @@ export class Walker {
       this.view.controls.target.copy(this.saved.target);
     }
     this.view.controls.enabled = true;
+    this.view.walkLook(false);
     this.stopAudio();
     this.onChange(false);
   }
@@ -118,6 +120,9 @@ export class Walker {
   }
 
   // ---------------- spatial audio ----------------
+  // Granular: short overlapping grains taken from the time under your feet,
+  // band-passed to the frequency under your feet and scaled by the local
+  // loudness. You only hear the patch of sound you stand on, never the whole clip.
 
   private startAudio() {
     const s = this.view.currentSession;
@@ -125,22 +130,14 @@ export class Walker {
     const ctx = new AudioContext();
     const buf = ctx.createBuffer(1, s.mixture.mix.length, SR);
     buf.copyToChannel(s.mixture.mix as Float32Array<ArrayBuffer>, 0);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    // the whole clip quietly, plus the band under your feet loudly
-    const dry = ctx.createGain();
-    dry.gain.value = 0.18;
     const band = ctx.createBiquadFilter();
     band.type = 'bandpass';
-    band.Q.value = 1.6;
-    const wet = ctx.createGain();
-    wet.gain.value = 1.8;
-    src.connect(dry).connect(ctx.destination);
-    src.connect(band).connect(wet).connect(ctx.destination);
-    src.start();
+    band.Q.value = 4;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    band.connect(out).connect(ctx.destination);
     void ctx.resume();
-    this.audio = { ctx, src, band, loopT: -1 };
+    this.audio = { ctx, buf, band, out, next: ctx.currentTime + 0.05 };
     this.updateAudio();
   }
 
@@ -150,22 +147,28 @@ export class Walker {
     const c = this.view.toCanonical(this.pos.x, this.pos.z);
     const sec = this.view.frameOfX(c.x) * FRAME_SEC;
     const hz = Math.max(60, Math.min(7800, this.view.binOfZ(c.z) * BIN_HZ));
-    a.band.frequency.setTargetAtTime(hz, a.ctx.currentTime, 0.05);
-    if (Math.abs(sec - a.loopT) > 0.04) {
-      const dur = a.src.buffer!.duration;
-      a.src.loopStart = Math.max(0, Math.min(dur - 0.5, sec - 0.25));
-      a.src.loopEnd = a.src.loopStart + 0.5;
-      a.loopT = sec;
+    const loud = Math.min(1, this.view.heightAt(c.x, c.z) / 2.4);
+    const now = a.ctx.currentTime;
+    a.band.frequency.setTargetAtTime(hz, now, 0.05);
+    a.out.gain.setTargetAtTime(0.15 + 2.2 * loud * loud, now, 0.08);
+    // keep about 0.15 s of grains scheduled ahead
+    const grain = 0.14;
+    while (a.next < now + 0.15) {
+      const src = a.ctx.createBufferSource();
+      src.buffer = a.buf;
+      const env = a.ctx.createGain();
+      env.gain.setValueAtTime(0, a.next);
+      env.gain.linearRampToValueAtTime(1, a.next + grain * 0.4);
+      env.gain.linearRampToValueAtTime(0, a.next + grain);
+      src.connect(env).connect(a.band);
+      const offset = Math.max(0, Math.min(a.buf.duration - grain, sec + (Math.random() - 0.5) * 0.08));
+      src.start(Math.max(now, a.next), offset, grain);
+      a.next += grain * 0.5;
     }
   }
 
   private stopAudio() {
     if (!this.audio) return;
-    try {
-      this.audio.src.stop();
-    } catch {
-      /* already stopped */
-    }
     void this.audio.ctx.close();
     this.audio = null;
   }

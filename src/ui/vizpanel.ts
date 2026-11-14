@@ -1,5 +1,6 @@
 import { VIZ, VIZ_MODES, WORLD_D, WORLD_W, type SpectroView, type VizMode } from '../view/scene';
 import { THEMES } from '../view/themes';
+import { DISC } from '../view/disc';
 
 /**
  * Visualization playground: mode menu, theme picker, axis spacing and
@@ -39,6 +40,20 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
         slider('vz-round', 'Roundness', 0, 1, 0.05, VIZ.voxel.round, 'How round the column tops are. 0 = flat boxes') +
         slider('vz-gap', 'Spacing', 0, 0.5, 0.02, VIZ.voxel.gap, 'Empty space between columns. 0 = columns touch and form one volume') +
         slider('vz-step', 'Terraces', 0, 0.4, 0.02, VIZ.voxel.step, 'Rounds heights to steps of this size. 0 = exact heights');
+    if (m === 'skyline')
+      html +=
+        slider('vk-depth', 'Hang depth', 0, 2, 0.05, VIZ.skyline.depth, 'How far the blocks hang below the zero level before they dissolve in the fog') +
+        slider('vk-merge', 'Merge', 0, 0.6, 0.02, VIZ.skyline.merge, 'Neighbours closer than this in height merge into one bigger block') +
+        slider('vk-gap', 'Spacing', 0, 0.5, 0.02, VIZ.skyline.gap, 'Empty space between blocks');
+    if (m === 'disc')
+      html +=
+        seg('ds', DISC.style, [
+          ['rings', 'Rings', 'Concentric contour rings, one per time step'],
+          ['sheets', 'Sheets', 'Thin layered walls, like sliced terrain'],
+          ['dots', 'Dots', 'A polar grid of points'],
+          ['ridges', 'Ridges', 'Parallel lines, one per time step, inside a disc'],
+        ]) +
+        slider('vc-bowl', 'Bowl', 0, 1, 0.05, DISC.bowl, 'Lifts the rim, so the disc becomes a bowl');
     if (m === 'drops')
       html +=
         slider('vd-fade', 'Line foot', 0, 0.6, 0.02, VIZ.drops.fade, 'Brightness at the bottom of each line') +
@@ -86,9 +101,10 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
         ${slider('va-a', 'Amplitude', 0.1, 4, 0.05, view.axis.a, 'Spacing between points along the amplitude axis')}
         ${slider('va-res', 'Resolution', 0.1, 1, 0.05, VIZ.res[m], 'How much of the data is drawn. Lower = fewer, bigger cells. Picks still hit the exact frame and bin')}
         <div class="row-btns">
-          <button class="btn ghost tiny" id="va-reset" title="Time, frequency and amplitude back to 1">Reset axes</button>
+          <button class="btn ghost tiny" id="va-reset" title="Back to the default square tile">Reset axes</button>
           <button class="btn ghost tiny" id="va-square" title="Give time and frequency the same length, so the field is a square tile">Square tile</button>
         </div>
+        ${check('v-iso', 'Isometric camera', view.iso, 'A very narrow lens from far away, close to an isometric drawing')}
       </div>
       <div class="viz-group">
         ${slider('vf-fog', 'Fog', 0, 1, 0.05, VIZ.atmosphere.fog, 'Density of the coloured ground fog. 0 = off')}
@@ -129,6 +145,7 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
       VIZ.spiral.turns = v === 'wrap' ? 0.6 : 1.25;
     });
     segBind('ss', (v) => (VIZ.spiral.style = v as 'dots' | 'rays' | 'surface'));
+    segBind('ds', (v) => (DISC.style = v as typeof DISC.style));
     q<HTMLSelectElement>('v-theme')!.onchange = (e) => {
       view.setTheme((e.target as HTMLSelectElement).value);
       render();
@@ -140,7 +157,7 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
     };
     for (const id of ['va-t', 'va-f', 'va-a']) q<HTMLInputElement>(id)!.oninput = axis;
     q('va-reset')!.onclick = () => {
-      view.setAxis(1, 1, 1);
+      view.setAxis(1, WORLD_W / WORLD_D, 1);
       view.resetCamera('perspective');
       render();
     };
@@ -166,6 +183,10 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
       ['vs-offset', VIZ.spiral, 'offset', true],
       ['vs-radius', VIZ.spiral, 'radius', true],
       ['vy-fade', VIZ.symmetry, 'fade', false],
+      ['vk-depth', VIZ.skyline, 'depth', true],
+      ['vk-merge', VIZ.skyline, 'merge', true],
+      ['vk-gap', VIZ.skyline, 'gap', true],
+      ['vc-bowl', DISC as unknown as Record<string, unknown>, 'bowl', true],
       ['vy-lines', VIZ.symmetry, 'lines', true],
     ];
     for (const [id, obj, key, rebuild] of params) {
@@ -187,6 +208,8 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
     if (mv) mv.onclick = () => morph('voxel');
     const mr = q('vd-morph-rnd');
     if (mr) mr.onclick = () => morph('rounded');
+    const iso = q<HTMLInputElement>('v-iso');
+    if (iso) iso.onchange = () => view.setIso(iso.checked);
     const walk = q('v-walk');
     if (walk) walk.onclick = () => (view.walker.active ? view.walker.exit() : view.walker.enter());
   }
@@ -198,7 +221,7 @@ export function mountVizPanel(view: SpectroView, host: HTMLElement) {
     render();
   };
 
-  // number keys 1-9 select layers in the game, so modes use Alt+1..6
+  // number keys 1-9 select layers in the game, so modes use Alt+1..8
   window.addEventListener('keydown', (e) => {
     if (!e.altKey) return;
     const i = parseInt(e.code.replace('Digit', ''), 10) - 1;

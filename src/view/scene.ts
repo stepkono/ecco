@@ -6,8 +6,12 @@ import { BIN_HZ, CLIP_SECONDS, N_BINS, SR } from '../dsp/stft';
 import type { Session } from '../game/session';
 import type { Mapping } from '../game/tools';
 import { U, withFog, withMirror, withMirrorLines, withWater } from './shaders';
-import { LEVEL_THEME, applyUiTheme, themeById, type Theme } from './themes';
+import { LEVEL_THEME, applyPaint, applyUiTheme, themeById, type Theme } from './themes';
+import { CLASSES } from '../game/catalog';
 import { Walker } from './walk';
+import { DiscMode } from './disc';
+import { FogSheets } from './fogsheets';
+import type { ModeCtx, ModeView } from './modetypes';
 
 export const WORLD_W = 16; // time axis (x)
 export const WORLD_D = 9; // frequency axis (z)
@@ -55,13 +59,15 @@ export interface Pick {
 
 // ---------------- visualization playground ----------------
 
-export type VizMode = 'surface' | 'rounded' | 'voxel' | 'drops' | 'spiral' | 'symmetry';
+export type VizMode = 'surface' | 'rounded' | 'voxel' | 'skyline' | 'drops' | 'disc' | 'spiral' | 'symmetry';
 
 export const VIZ_MODES: { id: VizMode; label: string; note: string; walk: boolean }[] = [
   { id: 'surface', label: 'Surface', note: 'All tools work here.', walk: true },
   { id: 'rounded', label: 'Rounded', note: 'All tools work. Picks follow the smooth hills.', walk: true },
   { id: 'voxel', label: 'Voxels', note: 'All tools work. Picks hit the column tops.', walk: true },
+  { id: 'skyline', label: 'Skyline', note: 'All tools work. Blocks merge where the sound is even. Picks hit the block tops.', walk: true },
   { id: 'drops', label: 'Drop lines', note: 'All tools work. Picks hit the tops of the lines.', walk: false },
+  { id: 'disc', label: 'Disc', note: 'All tools work. Picks snap to the nearest point.', walk: false },
   { id: 'spiral', label: 'Spiral', note: 'All tools work. Picks snap to the nearest point.', walk: false },
   { id: 'symmetry', label: 'Symmetry', note: 'All tools work on both halves. The reflection is a copy, so paint shows on both.', walk: false },
 ];
@@ -72,7 +78,7 @@ export const VIZ_MODES: { id: VizMode; label: string; note: string; walk: boolea
  */
 export const VIZ = {
   /** 1 = full data resolution, 0.1 = a tenth of it. One value per mode. */
-  res: { surface: 1, rounded: 0.5, voxel: 0.36, drops: 0.5, spiral: 0.35, symmetry: 1 } as Record<VizMode, number>,
+  res: { surface: 1, rounded: 0.5, voxel: 0.3, skyline: 0.3, drops: 0.5, disc: 0.35, spiral: 0.35, symmetry: 1 } as Record<VizMode, number>,
   /** surface material for Surface, Rounded and the top of Symmetry */
   material: 'matte' as 'matte' | 'water',
   atmosphere: {
@@ -103,6 +109,11 @@ export const VIZ = {
     offset: 1.4, // wrap: inner radius, ribbon: distance of the ribbon centre from the axis
     arc: 0.92, // wrap: fraction of the circle used by the frequency axis
     radius: 0.022, // dot radius, equal for all points
+  },
+  skyline: {
+    depth: 0.8, // how far the blocks hang below zero, in amplitude axis lengths
+    merge: 0.18, // height difference that still merges neighbours into one bigger block
+    gap: 0.1, // space between blocks, as a fraction of the cell
   },
   symmetry: {
     fade: 0.7, // depth (in amplitude axis lengths) where the reflection is gone
@@ -149,6 +160,16 @@ const stride = (res: number) => Math.max(1, Math.round(1 / res));
 const tmpM = new THREE.Matrix4();
 const tmpV = new THREE.Vector3();
 
+/** Border of an nx x nz vertex grid (index a * nz + b) as one closed loop. */
+function edgeLoop(nx: number, nz: number) {
+  const edge: number[] = [];
+  for (let a = 0; a < nx; a++) edge.push(a * nz);
+  for (let b = 1; b < nz; b++) edge.push((nx - 1) * nz + b);
+  for (let a = nx - 2; a >= 0; a--) edge.push(a * nz + nz - 1);
+  for (let b = nz - 2; b >= 1; b--) edge.push(b);
+  return edge;
+}
+
 /** Catmull-Rom weights for the 4 neighbours at fraction f. */
 function crw(f: number, out: Float32Array) {
   const f2 = f * f;
@@ -187,10 +208,14 @@ export class SpectroView {
   private container: HTMLElement;
   private clock = new THREE.Clock();
   private hfogDensity = 0.5;
+  /** soft drifting fog layers that fill the whole environment */
+  private fogSheets = new FogSheets();
 
   // playground state
   mode: VizMode = 'surface';
-  readonly axis = { t: 1, f: 1, a: 1 };
+  readonly axis = { t: 1, f: WORLD_W / WORLD_D, a: 1 };
+  /** near-isometric camera: very narrow field of view from far away */
+  iso = false;
   theme: Theme;
   themeChoice = 'auto';
   onThemeChange: () => void = () => {};
@@ -202,12 +227,16 @@ export class SpectroView {
   private mirrorOverlays: THREE.Object3D[] = [];
   private mirrorPlayhead: THREE.Group;
   private symPlane: THREE.Mesh;
-  private surf: { s: number; g: BinGrid; geo: THREE.BufferGeometry; mesh: THREE.Mesh; mirror: THREE.Mesh; matte: THREE.Material; water: THREE.Material } | null = null;
+  private surf: {
+    s: number; g: BinGrid; geo: THREE.BufferGeometry; mesh: THREE.Mesh; mirror: THREE.Mesh; matte: THREE.Material; water: THREE.Material; skirt: Int32Array;
+  } | null = null;
   private rnd: {
     g: UniGrid; nx: number; nz: number; G: Float32Array; GC: Float32Array;
     geo: THREE.BufferGeometry; mesh: THREE.Mesh; matte: THREE.Material; water: THREE.Material; nTop: number; skirt: Int32Array;
   } | null = null;
   private vox: { g: UniGrid; body: THREE.InstancedMesh; cap: THREE.InstancedMesh; top: Float32Array } | null = null;
+  private sky: { g: UniGrid; mesh: THREE.InstancedMesh; top: Float32Array } | null = null;
+  private disc: ModeView | null = null;
   private drops: { g: BinGrid; lines: THREE.LineSegments; points: THREE.Points } | null = null;
   private symLines: { g: BinGrid; lines: THREE.LineSegments } | null = null;
   private spiral: { g: BinGrid; pos: Float32Array; obj: THREE.Object3D } | null = null;
@@ -231,7 +260,7 @@ export class SpectroView {
     this.labels.domElement.className = 'labels-layer';
     container.appendChild(this.labels.domElement);
 
-    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(42, 1, 0.1, 900);
     this.camera.position.set(-2.5, 10.5, 15.5);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.target.set(0, 0.4, 0);
@@ -346,6 +375,7 @@ export class SpectroView {
     );
     this.sweep.visible = false;
     this.scene.add(this.sweep);
+    this.scene.add(this.fogSheets.group);
 
     this.theme = themeById('lagoon');
     this.walker = new Walker(this);
@@ -413,11 +443,14 @@ export class SpectroView {
   /** 'auto' follows the level. */
   setTheme(choice: string) {
     this.themeChoice = choice;
-    const id = choice === 'auto' ? LEVEL_THEME[this.session?.level?.id ?? ''] ?? 'lagoon' : choice;
+    const id = choice === 'auto' ? LEVEL_THEME[this.session?.level?.id ?? ''] ?? 'glacier' : choice;
     const t = themeById(id);
     this.theme = t;
     setRamp(t);
     applyUiTheme(t);
+    // brush and layer colours come from the theme too
+    applyPaint(t, this.session?.level?.targets ?? []);
+    for (const l of this.session?.layers ?? []) l.color = CLASSES[l.cls].color;
     // sky: a subtle tint at the top that melts into the fog colour at the horizon
     const cv = document.createElement('canvas');
     cv.width = 2;
@@ -441,13 +474,15 @@ export class SpectroView {
     this.sun.color.set(0xffffff).lerp(new THREE.Color(t.accent), 0.15);
     const gm = this.grid.material as THREE.LineBasicMaterial;
     gm.vertexColors = false;
-    gm.color.set(t.fog).multiplyScalar(1.4);
+    gm.color.set(t.fog).multiplyScalar(t.light ? 0.82 : 1.4);
+    this.container.classList.toggle('light-theme', t.light);
     gm.transparent = true;
     gm.opacity = 0.35;
     (this.symPlane.material as THREE.MeshBasicMaterial).color.set(t.accent2);
     (this.symPlane.children[0] as THREE.LineSegments<THREE.BufferGeometry, THREE.LineBasicMaterial>).material.color.set(t.accent2);
     if (this.session) this.refresh();
     this.onThemeChange();
+    window.dispatchEvent(new Event('viz-theme'));
   }
 
   setSession(s: Session) {
@@ -625,9 +660,10 @@ export class SpectroView {
     return g.h[i * g.nK + j];
   }
 
+  /** Uniform grid whose cells are square on screen: `cell` is the displayed size, so the axis sliders are taken into account. */
   private uniGrid(cell: number): UniGrid {
-    const NX = Math.max(8, Math.round(WORLD_W / cell));
-    const NZ = Math.max(4, Math.round(WORLD_D / cell));
+    const NX = Math.max(8, Math.round((WORLD_W * this.axis.t) / cell));
+    const NZ = Math.max(4, Math.round((WORLD_D * this.axis.f) / cell));
     const cw = WORLD_W / NX;
     const cd = WORLD_D / NZ;
     const T = this.frames();
@@ -696,11 +732,15 @@ export class SpectroView {
   }
 
   setAxis(t: number, f: number, a: number) {
+    const footprint = t !== this.axis.t || f !== this.axis.f;
     this.axis.t = t;
     this.axis.f = f;
     this.axis.a = a;
+    // grid modes keep square cells on screen, so a new footprint means a new grid
+    if (footprint && (this.mode === 'voxel' || this.mode === 'rounded' || this.mode === 'skyline')) this.disposeModes();
+    if (this.disc) this.disposeDisc();
     this.applyLayout();
-    if (this.mode === 'spiral') this.updateMode(true);
+    if (this.mode === 'spiral' || this.mode === 'disc' || footprint) this.updateMode(true);
   }
 
   /** Throw away the per-mode objects so they are rebuilt with the current VIZ parameters. */
@@ -743,11 +783,19 @@ export class SpectroView {
     this.symLines = null;
     if (this.spiral) this.disposeObj(this.spiral.obj);
     this.spiral = null;
+    if (this.sky) this.disposeObj(this.sky.mesh);
+    this.sky = null;
+    this.disposeDisc();
+  }
+
+  private disposeDisc() {
+    this.disc?.dispose();
+    this.disc = null;
   }
 
   copies(): Copy[] {
     const { t: sx, a: sy, f: sz } = this.axis;
-    if (this.mode === 'spiral') return [{ ox: 0, ax: 1, ay: 1, az: 1 }];
+    if (this.mode === 'spiral' || this.mode === 'disc') return [{ ox: 0, ax: 1, ay: 1, az: 1 }];
     if (this.mode === 'symmetry')
       return [
         { ox: 0, ax: sx, ay: sy, az: sz },
@@ -779,9 +827,9 @@ export class SpectroView {
     set(this.world, cs[0]);
     this.mirror.visible = cs.length > 1;
     if (cs.length > 1) set(this.mirror, cs[1]);
-    this.axisGroup.visible = m !== 'spiral';
+    this.axisGroup.visible = m !== 'spiral' && m !== 'disc';
     this.spiralDeco.visible = m === 'spiral';
-    this.playhead.visible = m !== 'spiral' && this.playSec !== null;
+    this.playhead.visible = m !== 'spiral' && m !== 'disc' && this.playSec !== null;
 
     const { t: sx, a: sy, f: sz } = this.axis;
     this.symPlane.visible = m === 'symmetry';
@@ -792,8 +840,13 @@ export class SpectroView {
     // ground fog: the terrain rises out of it
     const A = VIZ.atmosphere;
     U.hfog.value.set(-0.05, Math.max(0.05, A.height * WORLD_H * sy), A.fog, 0);
+    U.water.value.y = 0.5 * WORLD_H * sy; // crest height for the water colours
     if (m === 'spiral') U.hfog.value.z = 0;
     if (m === 'rounded') U.hfog.value.x = -VIZ.rounded.base * sy;
+    if (m === 'skyline') {
+      // the hanging undersides dissolve into the fog
+      U.hfog.value.set(-VIZ.skyline.depth * WORLD_H * sy, 0.15 * WORLD_H * sy, Math.max(A.fog, 0.85), 0);
+    }
     if (m === 'symmetry') {
       const fade = VIZ.symmetry.fade * WORLD_H * sy;
       U.mirror.value.set(fade, fade * 2.2, 6 / sx);
@@ -833,7 +886,11 @@ export class SpectroView {
     if (this.drops) this.drops.lines.visible = this.drops.points.visible = m === 'drops' || morphFrom === 'drops';
     if (this.symLines) this.symLines.lines.visible = m === 'symmetry' && VIZ.symmetry.lines;
     if (this.spiral) this.spiral.obj.visible = m === 'spiral';
+    if (this.sky) this.sky.mesh.visible = m === 'skyline';
+    if (this.disc) this.disc.object.visible = m === 'disc';
     if (m === 'surface' || m === 'symmetry') this.updateSurface(geom);
+    if (m === 'skyline') this.updateSkyline(geom);
+    if (m === 'disc') this.updateDisc(geom);
     if (m === 'symmetry' && VIZ.symmetry.lines) this.updateSymLines(geom);
     if (m === 'rounded') this.updateRounded(geom);
     if (m === 'voxel') this.updateVoxel(geom);
@@ -846,7 +903,7 @@ export class SpectroView {
   private surfaceMaterials() {
     const matte = withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide }));
     const water = withFog(
-      withWater(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.12, metalness: 0.1, side: THREE.DoubleSide, transparent: true, opacity: 0.88, emissive: 0x000000 })),
+      withWater(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, transparent: true, opacity: 0.94, emissive: 0x000000 })),
     );
     return { matte, water };
   }
@@ -861,14 +918,17 @@ export class SpectroView {
     if (!this.surf) {
       const g = this.binGrid(s, s);
       const n = g.nT * g.nK;
-      const pos = new Float32Array(n * 3);
+      // walls down to the zero plane make the surface read as one solid object
+      const skirt = Int32Array.from(edgeLoop(g.nT, g.nK));
+      const ne = skirt.length;
+      const pos = new Float32Array((n + ne * 2) * 3);
       for (let i = 0; i < g.nT; i++)
         for (let j = 0; j < g.nK; j++) {
           const o = i * g.nK + j;
           pos[o * 3] = this.binX(g, i);
           pos[o * 3 + 2] = this.binZ(g, j);
         }
-      const idx = new Uint32Array((g.nT - 1) * (g.nK - 1) * 6);
+      const idx = new Uint32Array((g.nT - 1) * (g.nK - 1) * 6 + ne * 6);
       let p = 0;
       for (let i = 0; i < g.nT - 1; i++)
         for (let j = 0; j < g.nK - 1; j++) {
@@ -877,9 +937,22 @@ export class SpectroView {
           idx[p++] = a; idx[p++] = b; idx[p++] = a + 1;
           idx[p++] = b; idx[p++] = b + 1; idx[p++] = a + 1;
         }
+      for (let e = 0; e < ne; e++) {
+        const top = n + e * 2;
+        const top2 = n + ((e + 1) % ne) * 2;
+        idx[p++] = top; idx[p++] = top + 1; idx[p++] = top2;
+        idx[p++] = top2; idx[p++] = top + 1; idx[p++] = top2 + 1;
+      }
+      for (let e = 0; e < ne; e++) {
+        const src = skirt[e];
+        for (const v of [n + e * 2, n + e * 2 + 1]) {
+          pos[v * 3] = pos[src * 3];
+          pos[v * 3 + 2] = pos[src * 3 + 2];
+        }
+      }
       const geo = new THREE.BufferGeometry();
       geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-      geo.setAttribute('color', new THREE.BufferAttribute(g.col, 3));
+      geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array((n + ne * 2) * 3), 3));
       geo.setIndex(new THREE.BufferAttribute(idx, 1));
       const { matte, water } = this.surfaceMaterials();
       const mesh = new THREE.Mesh(geo, VIZ.material === 'water' ? water : matte);
@@ -887,17 +960,33 @@ export class SpectroView {
       mirror.renderOrder = 2;
       this.world.add(mesh);
       this.mirror.add(mirror);
-      this.surf = { s, g, geo, mesh, mirror, matte, water };
+      this.surf = { s, g, geo, mesh, mirror, matte, water, skirt };
       geom = true;
     }
     const sf = this.surf;
     sf.mesh.material = VIZ.material === 'water' ? sf.water : sf.matte;
     this.poolBin(sf.g, geom);
-    (sf.geo.getAttribute('color') as THREE.BufferAttribute).needsUpdate = true;
+    const colA = sf.geo.getAttribute('color') as THREE.BufferAttribute;
+    const CC = colA.array as Float32Array;
+    CC.set(sf.g.col);
+    const n = sf.g.h.length;
+    for (let e = 0; e < sf.skirt.length; e++) {
+      const src = sf.skirt[e];
+      for (const [v, f] of [[n + e * 2, 0.75], [n + e * 2 + 1, 0.3]]) {
+        CC[v * 3] = sf.g.col[src * 3] * f;
+        CC[v * 3 + 1] = sf.g.col[src * 3 + 1] * f;
+        CC[v * 3 + 2] = sf.g.col[src * 3 + 2] * f;
+      }
+    }
+    colA.needsUpdate = true;
     if (geom) {
       const pos = sf.geo.getAttribute('position') as THREE.BufferAttribute;
       const P = pos.array as Float32Array;
-      for (let i = 0; i < sf.g.h.length; i++) P[i * 3 + 1] = sf.g.h[i];
+      for (let i = 0; i < n; i++) P[i * 3 + 1] = sf.g.h[i];
+      for (let e = 0; e < sf.skirt.length; e++) {
+        P[(n + e * 2) * 3 + 1] = sf.g.h[sf.skirt[e]];
+        P[(n + e * 2 + 1) * 3 + 1] = 0;
+      }
       pos.needsUpdate = true;
       sf.geo.computeVertexNormals();
       sf.geo.computeBoundingSphere();
@@ -1099,7 +1188,7 @@ export class SpectroView {
       const n = g.NX * g.NZ;
       const mat = withFog(new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.05 }));
       const body = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0), mat, n);
-      const cap = new THREE.InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 4, 0.45), mat, n);
+      const cap = new THREE.InstancedMesh(new RoundedBoxGeometry(1, 1, 1, 2, 0.45), mat, n);
       for (const m of [body, cap]) {
         m.setColorAt(0, new THREE.Color());
         m.frustumCulled = false;
@@ -1138,12 +1227,9 @@ export class SpectroView {
             v.body.setMatrixAt(o, tmpM);
           }
         }
-        BC[o * 3] = r * 0.82;
-        BC[o * 3 + 1] = gg * 0.82;
-        BC[o * 3 + 2] = b * 0.82;
-        CC[o * 3] = r * 1.08;
-        CC[o * 3 + 1] = gg * 1.08;
-        CC[o * 3 + 2] = b * 1.08;
+        BC[o * 3] = CC[o * 3] = r;
+        BC[o * 3 + 1] = CC[o * 3 + 1] = gg;
+        BC[o * 3 + 2] = CC[o * 3 + 2] = b;
       }
     }
     v.body.count = g.NX * g.NZ;
@@ -1160,6 +1246,141 @@ export class SpectroView {
     const j = Math.floor((WORLD_D / 2 - z) / v.g.cd);
     if (i < 0 || i >= v.g.NX || j < 0 || j >= v.g.NZ) return 0;
     return v.top[i * v.g.NZ + j];
+  }
+
+  // ---- skyline: floating blocks of mixed sizes ----
+
+  private updateSkyline(geom: boolean) {
+    if (!this.sky) {
+      const g = this.uniGrid(0.05 / VIZ.res.skyline);
+      const n = g.NX * g.NZ;
+      const mesh = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0),
+        withFog(new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.05, flatShading: true })),
+        n,
+      );
+      mesh.setColorAt(0, new THREE.Color());
+      mesh.frustumCulled = false;
+      this.world.add(mesh);
+      this.sky = { g, mesh, top: new Float32Array(n) };
+      geom = true;
+    }
+    const sk = this.sky;
+    const g = sk.g;
+    this.poolUni(g, geom);
+    const { NX, NZ, cw, cd } = g;
+    const S = VIZ.skyline;
+    const hash = (i: number, j: number) => {
+      const h = Math.sin(i * 127.1 + j * 311.7) * 43758.5453;
+      return h - Math.floor(h);
+    };
+    // quadtree merge: even areas become big blocks, busy areas stay fine
+    const owner = new Int32Array(NX * NZ).fill(-1);
+    const blocks: { i: number; j: number; s: number }[] = [];
+    const flat = (i0: number, j0: number, size: number, tol: number) => {
+      if (i0 + size > NX || j0 + size > NZ) return false;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let i = i0; i < i0 + size; i++)
+        for (let j = j0; j < j0 + size; j++) {
+          if (owner[i * NZ + j] >= 0) return false;
+          const h = g.h[i * NZ + j];
+          lo = Math.min(lo, h);
+          hi = Math.max(hi, h);
+        }
+      return hi - lo < tol;
+    };
+    const claim = (i0: number, j0: number, size: number) => {
+      const id = blocks.length;
+      blocks.push({ i: i0, j: j0, s: size });
+      for (let i = i0; i < i0 + size; i++) for (let j = j0; j < j0 + size; j++) owner[i * NZ + j] = id;
+    };
+    for (let i = 0; i < NX; i += 4)
+      for (let j = 0; j < NZ; j += 4) {
+        if (hash(i, j) > 0.35 && flat(i, j, 4, S.merge * 0.6)) {
+          claim(i, j, 4);
+          continue;
+        }
+        for (let a = i; a < i + 4; a += 2)
+          for (let b = j; b < j + 4; b += 2) {
+            if (hash(a, b) > 0.3 && flat(a, b, 2, S.merge)) claim(a, b, 2);
+            else for (let x = a; x < Math.min(NX, a + 2); x++) for (let z = b; z < Math.min(NZ, b + 2); z++) if (owner[x * NZ + z] < 0) claim(x, z, 1);
+          }
+      }
+    const IC = sk.mesh.instanceColor!.array as Float32Array;
+    const gap = 1 - S.gap;
+    const drop = S.depth * WORLD_H;
+    blocks.forEach((bk, n) => {
+      let h = 0;
+      let r = 0, gg = 0, b = 0, w = 0;
+      for (let i = bk.i; i < bk.i + bk.s; i++)
+        for (let j = bk.j; j < bk.j + bk.s; j++) {
+          const o = i * NZ + j;
+          h = Math.max(h, g.h[o]);
+          const ww = g.h[o] + 0.05;
+          r += g.col[o * 3] * ww;
+          gg += g.col[o * 3 + 1] * ww;
+          b += g.col[o * 3 + 2] * ww;
+          w += ww;
+        }
+      h = Math.max(0.04, h);
+      for (let i = bk.i; i < bk.i + bk.s; i++) for (let j = bk.j; j < bk.j + bk.s; j++) sk.top[i * NZ + j] = h;
+      const under = drop * (0.25 + 0.75 * hash(bk.i + 0.5, bk.j + 0.5)) * (0.4 + h / WORLD_H);
+      const cx = -WORLD_W / 2 + (bk.i + bk.s / 2) * cw;
+      const cz = WORLD_D / 2 - (bk.j + bk.s / 2) * cd;
+      tmpM.makeScale(bk.s * cw * gap, h + under, bk.s * cd * gap).setPosition(cx, -under, cz);
+      sk.mesh.setMatrixAt(n, tmpM);
+      IC[n * 3] = r / w;
+      IC[n * 3 + 1] = gg / w;
+      IC[n * 3 + 2] = b / w;
+    });
+    sk.mesh.count = blocks.length;
+    sk.mesh.instanceMatrix.needsUpdate = true;
+    sk.mesh.instanceColor!.needsUpdate = true;
+    sk.mesh.visible = true;
+  }
+
+  private skylineH(x: number, z: number) {
+    const sk = this.sky;
+    if (!sk) return 0;
+    const i = Math.floor((x + WORLD_W / 2) / sk.g.cw);
+    const j = Math.floor((WORLD_D / 2 - z) / sk.g.cd);
+    if (i < 0 || i >= sk.g.NX || j < 0 || j >= sk.g.NZ) return 0;
+    return sk.top[i * sk.g.NZ + j];
+  }
+
+  // ---- disc (own module, see disc.ts) ----
+
+  private modeCtx(): ModeCtx {
+    return {
+      frames: this.frames(),
+      nBins: N_BINS,
+      BIN_HZ,
+      WORLD_W,
+      WORLD_D,
+      WORLD_H,
+      heights: this.heights,
+      colors: this.colors,
+      xOfFrame: (t) => this.map.xOfFrame(t),
+      zOfHz,
+      axis: this.axis,
+      res: VIZ.res[this.mode],
+      theme: this.theme,
+      fog: (m) => withFog(m),
+    };
+  }
+
+  private updateDisc(geom: boolean) {
+    const ctx = this.modeCtx();
+    let d = this.disc;
+    if (!d) {
+      d = new DiscMode(ctx) as ModeView;
+      this.disc = d;
+      this.scene.add(d.object);
+      geom = true;
+    }
+    d.update(ctx, geom);
+    d.object.visible = true;
   }
 
   // ---- drop lines ----
@@ -1343,7 +1564,7 @@ export class SpectroView {
             idx.push(a, b, a + 1, b, b + 1, a + 1);
           }
         geo.setIndex(idx);
-        obj = new THREE.Mesh(geo, withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0.05, side: THREE.DoubleSide })));
+        obj = new THREE.Mesh(geo, withFog(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05, side: THREE.DoubleSide, transparent: true, opacity: 0.45, depthWrite: false })));
       }
       obj.frustumCulled = false;
       this.world.add(obj);
@@ -1446,6 +1667,8 @@ export class SpectroView {
         return this.roundedH(x, z);
       case 'voxel':
         return this.voxelH(x, z);
+      case 'skyline':
+        return this.skylineH(x, z);
       case 'drops':
         return this.drops ? this.binH(this.drops.g, x, z) : this.heightAt(x, z);
       case 'surface':
@@ -1472,6 +1695,7 @@ export class SpectroView {
     const o = this.ray.ray.origin;
     const d = this.ray.ray.direction;
     if (this.mode === 'spiral') return this.pickSpiral(o, d);
+    if (this.mode === 'disc') return this.pickDisc(o, d);
     let best: Pick | null = null;
     let bestDist = Infinity;
     for (const c of this.copies()) {
@@ -1561,16 +1785,43 @@ export class SpectroView {
     return { x, z, y: this.heightAt(x, z), t, k };
   }
 
+  private pickDisc(o: THREE.Vector3, d: THREE.Vector3): Pick | null {
+    if (!this.disc) return null;
+    const c = this.disc.pickCloud();
+    const hitR2 = 0.06 ** 2;
+    const nearR2 = 0.3 ** 2;
+    let best = -1, bestS = Infinity, near = -1, nearD = Infinity;
+    for (let j = 0; j < c.count; j++) {
+      const wx = c.pos[j * 3] - o.x, wy = c.pos[j * 3 + 1] - o.y, wz = c.pos[j * 3 + 2] - o.z;
+      const s = wx * d.x + wy * d.y + wz * d.z;
+      if (s <= 0) continue;
+      const d2 = wx * wx + wy * wy + wz * wz - s * s;
+      if (d2 < hitR2 && s < bestS) {
+        bestS = s;
+        best = j;
+      } else if (d2 < nearR2 && d2 < nearD) {
+        nearD = d2;
+        near = j;
+      }
+    }
+    const j = best >= 0 ? best : near;
+    if (j < 0) return null;
+    const x = this.map.xOfFrame(c.t[j]);
+    const z = zOfHz(c.k[j] * BIN_HZ);
+    return { x, z, y: this.heightAt(x, z), t: c.t[j], k: c.k[j] };
+  }
+
   // ---------------- overlays ----------------
 
   /** Canonical point -> the overlay's local space (identity, except in the spiral). */
   private ov(x: number, y: number, z: number) {
     const v = new THREE.Vector3(x, y, z);
+    if (this.mode === 'disc' && this.disc) return this.disc.toDisplay(x, y, z, v);
     return this.mode === 'spiral' ? this.spiralPos(x, y, z, v) : v;
   }
 
   private ovH(x: number, z: number) {
-    return this.mode === 'spiral' ? this.heightAt(x, z) : this.dispH(x, z);
+    return this.mode === 'spiral' || this.mode === 'disc' ? this.heightAt(x, z) : this.dispH(x, z);
   }
 
   /** Set line points, growing the buffer when needed (setFromPoints never grows an existing buffer). */
@@ -1702,26 +1953,72 @@ export class SpectroView {
     };
   }
 
+  private walkSaved: { a: number; res: number } | null = null;
+
+  /** While walking: flatter terrain and a coarser grid, so you can see far ahead instead of a wall of noise. */
+  walkLook(on: boolean) {
+    const m = this.mode;
+    if (on && !this.walkSaved) {
+      this.walkSaved = { a: this.axis.a, res: VIZ.res[m] };
+      VIZ.res[m] = Math.min(VIZ.res[m], m === 'surface' ? 0.34 : 0.3);
+      this.disposeModes();
+      this.setAxis(this.axis.t, this.axis.f, this.axis.a * 0.4);
+    } else if (!on && this.walkSaved) {
+      VIZ.res[m] = this.walkSaved.res;
+      const a = this.walkSaved.a;
+      this.walkSaved = null;
+      this.disposeModes();
+      this.setAxis(this.axis.t, this.axis.f, a);
+    }
+  }
+
+  /** Near-isometric look (Monument Valley style): a very narrow lens from far away. */
+  setIso(on: boolean) {
+    this.iso = on;
+    this.camera.fov = on ? 9 : 42;
+    this.camera.updateProjectionMatrix();
+    this.controls.maxDistance = on ? 400 : 60;
+    this.resetCamera('perspective');
+  }
+
   resetCamera(view: 'perspective' | 'top' | 'side' = 'perspective') {
     if (this.walker.active) this.walker.exit();
-    const { t: sx, a: sy } = this.axis;
+    const { t: sx, a: sy, f: sz } = this.axis;
+    const target = new THREE.Vector3();
+    const pos = new THREE.Vector3();
     if (this.mode === 'spiral') {
       const H = VIZ.spiral.height * sx;
       const D = Math.max(18, H * 1.9);
-      this.controls.target.set(0, H / 2, 0);
-      if (view === 'top') this.camera.position.set(0, H + D, 0.01);
-      else if (view === 'side') this.camera.position.set(0, H / 2, D);
-      else this.camera.position.set(D * 0.7, H / 2 + D * 0.25, D * 0.7);
-      return;
+      target.set(0, H / 2, 0);
+      if (view === 'top') pos.set(0, H + D, 0.01);
+      else if (view === 'side') pos.set(0, H / 2, D);
+      else pos.set(D * 0.7, H / 2 + D * 0.25, D * 0.7);
+    } else if (this.mode === 'disc' && this.disc) {
+      const f = this.disc.frame();
+      target.copy(f.target);
+      const D = f.distance;
+      if (view === 'top') pos.set(0, D, 0.01).add(target);
+      else if (view === 'side') pos.set(0, D * 0.25, D).add(target);
+      else pos.set(-D * 0.25, D * 0.6, D * 0.75).add(target);
+    } else {
+      const mirrored = this.mode === 'symmetry';
+      const ty = mirrored ? -0.3 * sy : 0.4 * sy;
+      target.set(0, ty, 0);
+      // fit the larger of the two footprint sides (the default field is a square tile)
+      const zoom = Math.max(1, sx * 0.85, (sz * WORLD_D * 1.25) / WORLD_W);
+      if (view === 'top') pos.set(0, 21 * zoom, 0.01);
+      else if (view === 'side') pos.set(0, ty + 3, 15 * zoom);
+      else if (mirrored) pos.set(-4 * zoom, 3.5, 17 * zoom);
+      else pos.set(-2.5 * zoom, 10.5 * zoom, 15.5 * zoom);
     }
-    const mirrored = this.mode === 'symmetry';
-    const ty = mirrored ? -0.3 * sy : 0.4 * sy;
-    this.controls.target.set(0, ty, 0);
-    const zoom = Math.max(1, sx * 0.85);
-    if (view === 'top') this.camera.position.set(0, 21 * zoom, 0.01);
-    else if (view === 'side') this.camera.position.set(0, ty + 3, 15 * zoom);
-    else if (mirrored) this.camera.position.set(-4 * zoom, 3.5, 17 * zoom);
-    else this.camera.position.set(-2.5 * zoom, 10.5 * zoom, 15.5 * zoom);
+    if (this.iso) {
+      // same framing through a narrow lens: push the camera back by the ratio of the lens widths
+      const dist = pos.distanceTo(target) * (Math.tan((21 * Math.PI) / 180) / Math.tan((3.9 * Math.PI) / 180));
+      const dir = view === 'perspective' ? new THREE.Vector3(-1, 0.85, 1).normalize() : pos.clone().sub(target).normalize();
+      pos.copy(target).addScaledVector(dir, dist);
+    }
+    this.controls.target.copy(target);
+    this.camera.position.copy(pos);
   }
 
   private frame() {
@@ -1753,6 +2050,15 @@ export class SpectroView {
       fog.near = dist * 0.75;
       fog.far = dist * 2.6;
     }
+    const sy = this.axis.a;
+    const A = VIZ.atmosphere;
+    this.fogSheets.update({
+      color: this.theme.fog,
+      bottom: this.mode === 'symmetry' ? -WORLD_H * sy * 1.2 : this.mode === 'skyline' ? -VIZ.skyline.depth * WORLD_H * sy : -0.3,
+      top: Math.max(0.4, A.height * WORLD_H * sy * 1.6),
+      density: this.walker.active ? A.fog * 0.35 : A.fog,
+      time: U.time.value,
+    });
     this.renderer.render(this.scene, this.camera);
     this.labels.render(this.scene, this.camera);
   }
