@@ -422,14 +422,38 @@ def build_ui() -> gr.Blocks:
     return ui
 
 
+def free_port(start: int, tries: int = 20, host: str = "127.0.0.1") -> int:
+    """First port from `start` upward that nothing is listening on."""
+    import socket
+
+    for port in range(start, start + tries):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind((host, port))
+                return port
+            except OSError:
+                continue
+    raise OSError(f"no free port in {start}-{start + tries - 1}. Stop the other bench or pass --port.")
+
+
 def main() -> None:
+    import argparse
+
+    ap = argparse.ArgumentParser(description="BioSpectra Phase 0 model test bench")
+    ap.add_argument("--port", type=int, default=int(os.environ.get("GRADIO_SERVER_PORT", 7860)),
+                    help="preferred port. If it is busy, the next free one is used")
+    args = ap.parse_args()
     try:
         check_ffmpeg()
     except RuntimeError as e:
         print(f"\n[BioSpectra] {e}\n", file=sys.stderr)
         sys.exit(1)
+    port = free_port(args.port)
+    if port != args.port:
+        print(f"[BioSpectra] port {args.port} is busy (another bench running?), using {port}", file=sys.stderr)
+    print(f"[BioSpectra] bench at http://127.0.0.1:{port}", flush=True)
     ui = build_ui()
-    ui.queue().launch(server_name="127.0.0.1", server_port=7860, allowed_paths=[str(ROOT / "data"), str(ROOT / "public")])
+    ui.queue().launch(server_name="127.0.0.1", server_port=port, allowed_paths=[str(ROOT / "data"), str(ROOT / "public")])
 
 
 if __name__ == "__main__":

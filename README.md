@@ -161,7 +161,7 @@ Models download on first use: YAMNet from Kaggle (no account needed), BirdNET 2.
 
 | What | Command |
 |---|---|
-| Phase 0 bench (Gradio, http://127.0.0.1:7860) | `.venv/bin/python -m bench.app` |
+| Phase 0 bench (Gradio, http://127.0.0.1:7860, moves to the next free port if busy) | `.venv/bin/python -m bench.app` (or `--port 7870`) |
 | Measure one model in a fresh process | `.venv/bin/python -m core.measure --model birdnet-2.4 --threads 4` |
 | Mix a call into noise with ground truth | `.venv/bin/python -m tools.mixer --call call.wav --noise rain.ogg --label green_treefrog --snr 0` |
 | Cut long recordings into a test set | `.venv/bin/python -m tools.make_test_set --src data/raw --out data/testset` |
