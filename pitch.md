@@ -6,7 +6,7 @@ This file collects everything for the pitch. It is updated whenever the team men
 - **Part 2** holds proposed additions and corrections. The team goes through them one by one and marks each one as accepted, changed or dropped.
 - **Part 3** lists open questions.
 
-Last updated: 2026-11-14
+Last updated: 2026-11-15
 
 ---
 
@@ -23,6 +23,13 @@ Last updated: 2026-11-14
 - The game turns the snippet into a 3D landscape that players explore and label.
 - The community is the peer review system. Players map the sounds to species.
 - Their labels raise the certainty of the edge AI. The improvement goes back onto the board, so the system learns over time.
+
+### Why a human and not just another algorithm
+- Pattern recognition picks the most likely pattern, the one that sticks out the most.
+- A human can actually hear the sound, so they have context. They don't just search for the obvious thing that sticks out.
+- Instead they solve the problem step by step. For example: "Is the sound I'm looking for high or low in frequency?" Then they search there and switch between tools, like unfold, which opens up the whole landscape. (The recording said "Haiku tool". To be checked which tool was meant.)
+- Different views suit different sounds. The voxel view is perfect for quick, repetitive sounds like crickets.
+- That is the whole point of a rotatable 3D landscape. From the top view you see the pattern in time. From the side you see the shape of the peaks. Players can rotate freely until the sound "clicks".
 
 ### Community and awareness
 - Players could see on the forest map where a sound came from. For example: "this is close to my house" or "this is the forest where I grew up".
@@ -154,6 +161,16 @@ All measured with the real board and recordings.
 | Demo runs in a row without restart | 3 of 3 |
 | Accuracy with 5 examples per class (ESC-50) | 86% |
 | Uncertain snippets merged into events (soundscape test) | 79 into 7 |
+
+### A12. Humans and AI fail in different places, and that is the point · open
+Framing for the "why a human" argument:
+- The board only sends the sounds where its own pattern recognition failed.
+- So these are exactly the cases where a second algorithm of the same kind would likely fail too.
+- Humans bring what the model lacks: they listen, use context and test hypotheses with different views and tools. The two strategies complement each other.
+
+Suggested sentence: "The AI sends us exactly what it can't solve, and people solve it differently than a machine would."
+
+Extra idea: the game can log which view and tool solved which kind of sound, for example voxels and the top view for crickets. That data improves the game itself, because it can suggest the best starting view for each new puzzle.
 
 ---
 
