@@ -316,3 +316,18 @@ Noise uses a lower bar (`t_noise` 0.65): a missed gust costs nothing, a false al
 | wind | quiet (`noise:wind` 0.76) |
 
 8/8 as expected. About 100 ms per 5 s clip and 165 MB RAM on the board. A test backend's newer prototypes swapped in within 5 s, and queued clips uploaded. Live on the camera mic, the venue's chatter is dropped as speech. The mic gain is lowered to 60 % at start, because 100 % clipped.
+
+### Developer console (`device/console.py`)
+
+One web page to control the listening post:
+
+```bash
+ssh arduino@10.0.41.141 'bash ~/spetrum/tools/device_ctl.sh start'   # console, idle
+ssh arduino@10.0.41.141 'bash ~/spetrum/tools/device_ctl.sh url'     # address with access token
+```
+
+* **Live:** start the mic listener or the demo playlist, stop it, move the trust knob, watch the light and every decision stream in.
+* **Analyze files on the board:** drop wav, mp3, m4a, mp4, ogg or flac files. The browser converts them to 48 kHz WAV (the board has no ffmpeg) and the board's models analyze every 5 s segment exactly like live audio: gates, YAMNet top labels per window, prototype similarities and the resulting light. Optional BirdNET labels. Nothing is queued and the light does not change.
+* **Clips on the board:** play, download one clip or all as a zip (with `clips.json` metadata), delete.
+
+The API needs the token from `data/console_token` on the board, because the board sits on a shared network and queued clips are recordings. Standard library only (http.server and Server-Sent Events). Locally: `python -m device.console --port 8766 --no-token`.
