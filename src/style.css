@@ -288,3 +288,17 @@ kbd { font-family: var(--mono); font-size: 11px; border: 1px solid var(--line-2)
 /* axis labels on light (pastel) backdrops */
 .light-theme .axis-label { color: #44585f; }
 .light-theme .axis-title { color: #5d6f74; }
+
+/* ---------- forest device puzzles ---------- */
+.puzzle-card { display: flex; flex-direction: column; gap: 8px; }
+.puzzle-card .card-head { margin-bottom: 2px; }
+.pz-status { display: flex; align-items: center; gap: 6px; }
+.pz-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+.pz-dot.on { background: var(--accent-2); box-shadow: 0 0 6px var(--accent-2); }
+.pz-wins { display: flex; flex-wrap: wrap; gap: 4px; }
+.pz-win { border: 1px solid var(--line-2); background: transparent; color: var(--muted); border-radius: 6px; padding: 2px 7px; font: inherit; font-size: 11px; cursor: pointer; }
+.pz-win.on { border-color: var(--accent-2); color: var(--accent-2); }
+.pz-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.pz-row select { flex: 1; background: var(--panel); color: var(--text); border: 1px solid var(--line-2); border-radius: 6px; padding: 4px 6px; font: inherit; }
+.pz-row .btn { flex: 1; }
+.pz-log { margin: 0; padding-left: 16px; font-size: 11px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }

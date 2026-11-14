@@ -16,6 +16,7 @@ import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
 import { showIntro } from './ui/intro';
 import { mountVizPanel } from './ui/vizpanel';
+import { mountPuzzles } from './ui/puzzle';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const fmt = (v: number, d = 1) => {
@@ -44,6 +45,7 @@ const opts = {
 };
 
 let uploadName: string | null = null;
+let fromDevice = false; // the clip is a puzzle from the forest listening post
 let nmfResult: NmfResult | null = null;
 let contributedThisSession = false;
 
@@ -70,6 +72,7 @@ async function loadLevel(idx: number) {
   player.stop();
   state.levelIdx = idx;
   uploadName = null;
+  fromDevice = false;
   const level = LEVELS[idx];
   const mixture = await mixLevel(level);
   startSession(new Session(level, mixture));
@@ -81,7 +84,8 @@ function startSession(s: Session) {
   contributedThisSession = false;
   undoStack.length = 0;
   const first = s.level?.targets[0] ?? 'unknown';
-  s.addLayer(first);
+  // a puzzle window comes back with its painting when the player switches windows
+  if (!s.layers.length) s.addLayer(first);
   view.setSession(s);
   $('#strands').innerHTML = '';
   renderNodes();
@@ -111,9 +115,9 @@ function renderNodeCard() {
   const s = state.session!;
   const card = $('#node-card');
   if (!s.level) {
-    card.innerHTML = `<div class="site"><span class="blink"></span>Field upload</div>
+    card.innerHTML = `<div class="site"><span class="blink"></span>${fromDevice ? 'Forest listening post · needs help' : 'Field upload'}</div>
       <h2>${uploadName}</h2>
-      <div class="muted small">No ground truth exists for this clip. Your separation <b>is</b> the label.</div>
+      <div class="muted small">${fromDevice ? 'The post could not recognize this sound. Your carving and label teach it.' : 'No ground truth exists for this clip. Your separation <b>is</b> the label.'}</div>
       <div class="chips"><span class="chip">16 kHz mono</span><span class="chip">5.0 s</span></div>`;
     return;
   }
@@ -134,7 +138,9 @@ function renderBrief() {
   const s = state.session!;
   const box = $('#brief');
   if (!s.level) {
-    box.innerHTML = `<h3>Field clip</h3><p>Untangle what you hear. Pick a class for each layer, then contribute. Field labels are exactly the edge cases the node needs.</p>`;
+    box.innerHTML = fromDevice
+      ? `<h3>Device puzzle</h3><p>Paint the unknown sound with the brush, fork or knife. Switch windows to see the whole event. Then pick a label and press <b>Send label</b> in the puzzle card.</p>`
+      : `<h3>Field clip</h3><p>Untangle what you hear. Pick a class for each layer, then contribute. Field labels are exactly the edge cases the node needs.</p>`;
     return;
   }
   const t = s.level.targets
@@ -673,6 +679,7 @@ function deployToCurrent() {
     const x = await decodeUpload(f);
     player.stop();
     uploadName = f.name;
+    fromDevice = false;
     const mixture: Mixture = { mix: x, stems: [], refs: {} };
     startSession(new Session(null, mixture));
     toast(`Loaded ${f.name}: first 5 s, resampled to 16 kHz mono like the edge node.`, 'info');
@@ -685,6 +692,16 @@ function deployToCurrent() {
 setLabHooks({ deploy: deployToCurrent, refresh: () => renderNodes() });
 $('#btn-lab').onclick = () => openLab();
 $('#btn-eco').onclick = () => openEco();
+// puzzles from the forest listening post (Python backend on port 8000)
+mountPuzzles($('#panel'), {
+  start: (s, name) => {
+    player.stop();
+    uploadName = name;
+    fromDevice = true;
+    startSession(s);
+  },
+});
+
 // the 3D view changed theme, so layer colours may have changed
 window.addEventListener('viz-theme', () => {
   if (!state.session) return;
