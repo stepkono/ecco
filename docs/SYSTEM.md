@@ -57,9 +57,26 @@ One decision per 5 s of audio (`device.decision_hop_s`). Measured on the UNO Q: 
    * An animal class with similarity ≥ `T_known` (0.80) and a lead of ≥ 0.05 over the second class is **recognized** (green).
    * A noise class (`noise:*`) with similarity ≥ `t_noise` (0.65) is **quiet**. A missed gust costs nothing. A false alarm costs player time.
    * Anything else is **needs help** (amber).
-8. **Queue.** A "needs help" clip is saved as WAV with its embedding, best guess and similarities (at most one per 10 s of audio).
+8. **Events, not snippets.** "Needs help" segments become sound events (see below). Recognized sounds are only counted (for example `frog × 37` in the last hour). Nothing is sent for them.
 9. **Light.** A 2 s hold stops flicker. The state goes to RGB LED 1 on the board and to the console page.
 10. **Sync.** Every 5 s, the post tries to upload queued clips and fetch newer prototypes. Without a backend it stays offline, and the queue keeps growing.
+
+### From uncertain segments to puzzles
+
+Sending every uncertain 5 s segment would flood players with short, cut-off, repetitive snippets. The post therefore builds **events** (`device/events.py`, settings under `events:` in `config.yaml`):
+
+* **Merge.** Consecutive "needs help" segments form one event. One quiet or recognized segment in between does not split it (`gap_tolerance` 1). Two in a row end it.
+* **Context.** The saved audio starts 2 s before the first uncertain segment and ends 2 s after the last one. The audio comes from a rolling 49 s history buffer.
+* **Length cap.** An event is cut after 30 s. The rest continues as a new event.
+* **Privacy.** A speech segment ends an event at once, with no context after it. The context before an event never reaches back into a speech segment.
+* **Repeats.** Before saving, every 5 s segment of the new event is compared with the segments of events saved in the last 24 h. If at least 80 % of its segments have a twin with similarity ≥ 0.90 in one saved event, it is a **repeat**: the saved event's `heard_count` goes up, and its audio is replaced only if the new recording is louder (clearer) and not uploaded yet. An event with even one or two new sounds in it is saved.
+* **Budget.** At most 20 new events per hour. When the budget is used up, a new event replaces the least novel waiting event only if it is more novel (novelty = 1 − mean best prototype similarity). Otherwise it is dropped and counted.
+
+Each saved event carries its length, heard count, novelty, quality (mean level in dBFS), the best guess and a timeline of its uncertain segments.
+
+**Measured on 24 minutes of real soundscapes** (the 8 excerpts, Amazon and Sapsucker Woods): the old approach would have produced about 79 separate 5 s snippets. The event approach saved 7 events of about 24 s and counted 34 repeats. On the UNO Q, the demo playlist played 11 times gave exactly 2 events (crickets 7 s, insects 9 s), each heard 11 times, and speech was never saved.
+
+**Limit:** YAMNet fingerprints describe the overall sound of 5 s. In a dense dawn chorus, two segments with different bird species can still look alike, so some new species inside a chorus may be counted as a repeat. The thresholds favour saving too much over losing a new sound.
 
 The **trust knob** (console slider now, Modulino knob later) maps 0..1 onto `T_known` 0.40 to 0.95. Higher means more cautious: fewer sounds are called recognized, more go to players.
 
@@ -131,7 +148,7 @@ First-time setup of a board: `git clone https://github.com/stepkono/spetrum.git 
 ```bash
 .venv/bin/python -m device.console --port 8766 --no-token    # console with the Mac's microphone
 .venv/bin/python -m bench.app                                # Phase 0 model bench
-.venv/bin/python -m pytest -q tests                          # 15 tests
+.venv/bin/python -m pytest -q tests                          # 24 tests
 ```
 
 ### Returning the board
@@ -154,7 +171,7 @@ All `/api` routes need the token (`X-Token` header or `?token=`).
 | `POST /api/mode` | `{"mode": "mic" \| "playlist" \| "idle", "path", "speed"}` |
 | `POST /api/knob` | `{"value": 0..1}` sets `T_known` |
 | `POST /api/analyze?name=&birdnet=1` | Body: WAV. Returns per-segment light, labels, similarities, spectrogram |
-| `GET /api/clips` | Queued clips |
+| `GET /api/clips` | Queued events (length, heard count, novelty, timeline) |
 | `GET /api/clips/<id>.wav` | One clip (`?download=1` to save) |
 | `GET /api/clips.zip` | All clips plus `clips.json` |
 | `POST /api/clips/delete` | `{"ids": [...]}`, or all when empty |
@@ -163,7 +180,7 @@ All `/api` routes need the token (`X-Token` header or `?token=`).
 
 The sync client already uses these:
 
-* `POST /devices/{device_id}/clips`: multipart with `audio` (WAV) and `metadata` (JSON: clip id, model id, time, best guess, similarities, embedding)
+* `POST /devices/{device_id}/clips`: multipart with `audio` (WAV, one event) and `metadata` (JSON: clip id, model id, time, best guess, similarities, embedding, duration, heard count, last heard, novelty, quality, timeline of uncertain segments)
 * `GET /prototypes/latest?model_id=...`: the prototype JSON, or 204/404 when there is none
 
 ## Configuration
@@ -182,14 +199,19 @@ Everything is in `config.yaml`. The most important keys:
 | `head.knob_range` | 0.40 to 0.95 | Range of the trust knob |
 | `gates.energy_dbfs` | −55 | Silence threshold |
 | `gates.privacy.*` | 0.5, 2 windows, 0.8 | Speech rule |
-| `runtime.clip_seconds` | 5 | Clip length |
+| `runtime.clip_seconds` | 5 | Segment length per decision |
+| `events.pre_roll_s` / `post_roll_s` | 2 / 2 | Context around an event |
+| `events.gap_tolerance` | 1 | Segments allowed between uncertain segments of one event |
+| `events.max_event_s` | 30 | Longest event |
+| `events.dedup_similarity` / `dedup_coverage` | 0.90 / 0.8 | When an event counts as a repeat |
+| `events.budget_per_hour` | 20 | New events per hour |
 
 ## Where data lives
 
 | What | Path |
 |---|---|
 | Prototypes | `data/prototypes/<model>.prototype.json` |
-| Queued clips | `data/queue/` (WAV files + `queue.db`) |
+| Queued events | `data/queue/` (WAV files + `queue.db`, older databases are migrated automatically) |
 | Decision log | `data/device_events.jsonl` |
 | Console log, process id, token | `data/device.log`, `data/device.pid`, `data/console_token` |
 | Demo playlist | `data/playlist/` (+ `expected.json`) |
@@ -203,19 +225,19 @@ Everything is in `config.yaml`. The most important keys:
 
 ```
 core/      audio, models (YAMNet, BirdNET, Perch adapters), gates, heads, state, queue, measure
-device/    runtime (listener), sources (mic, file, playlist), hardware (LED, web light),
+device/    runtime (listener), events (merging, context), sources (mic, file, playlist), hardware (LED, web light),
            sync client, console (server + web/console.html), main (CLI without console)
 bench/     Phase 0 Gradio bench
 tools/     board setup/cleanup, device_ctl, mixer, test sets, ESC-50 import,
            threshold calibration, prototypes, playlists, soundscape download and excerpts
-tests/     core, device acceptance, console API
+tests/     core, events, device acceptance, console API
 src/       web game prototype (TypeScript)
 docs/      this document
 ```
 
 ## Verified results
 
-* **Tests:** 15 pass on the Mac (`pytest -q tests`).
+* **Tests:** 24 pass on the Mac (`pytest -q tests`).
 * **Phase 1 acceptance on the UNO Q:** the 8-clip demo playlist produced the expected light for 8 of 8 clips. Unknown sounds were queued, speech was not. Newer backend prototypes swapped in within 5 s (test backend).
 * **Console on the UNO Q:** live mic start and stop, upload analysis (about 0.1 s per segment), clip download, zip and delete.
 * **First real soundscapes** (device pipeline on the Mac, same model and prototypes as the board): a busy frog minute from a Brazilian wetland (AnuraSet) was recognized as frog in 12 of 12 segments. Three minutes of Amazon rainforest gave 11 segments "chirping birds" and 25 "needs help". The bird prototype comes from ESC-50 and only partly matches rainforest birds. These are the clips players should label.
@@ -235,6 +257,7 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 * **No autostart.** After a reboot, start the console again with `device_ctl.sh start`.
 * **Power.** The board restarted once while the hub was powered from the Mac. Use a proper charger.
 * **Queued venue clips.** The board holds ambient clips from the venue that may contain voices.
+* **Dense choruses.** Some new species inside a dawn chorus may be counted as a repeat (see the limit above).
 * **No ffmpeg on the board** (needs sudo). WAV, FLAC, OGG and AIFF load without it. The console converts everything else in the browser.
 * **Knob and buzzer.** The Modulino knob and buzzer are not connected yet. They need the App Lab bridge to the microcontroller.
 * **Speech filter.** It was calibrated on synthetic speech only.
@@ -244,6 +267,7 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 
 ## Change log
 
+* **2026-11-14** Uncertain segments become events with 2 s context, speech-safe, repeats counted per segment, hourly budget. Recognized sounds are counted. Verified on soundscapes and the UNO Q.
 * **2026-11-14** Real soundscapes downloaded (Amazon, Northeastern US, AnuraSet subset), with tools to fetch and cut them. First field-audio results.
 * **2026-11-14** Developer console on the board: live control, file analysis, clip offload. Board reboot traced to power. This document created.
 * **2026-11-14** Phase 1 listening post, verified 8/8 on the UNO Q. Thresholds calibrated. Noise prototypes split per type.
