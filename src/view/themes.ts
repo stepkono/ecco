@@ -60,7 +60,7 @@ export const THEMES: Theme[] = [
     // a glowing sky, electric blue above melting into orange, with ink-navy hills
     // that rise into white peaks, like white type on the orange card of the reference
     id: 'horizon', name: 'Horizon',
-    ramp: ['#16163a', '#2a2c66', '#55569a', '#c9c3ea', '#ffffff'],
+    ramp: ['#33377a', '#454a96', '#6668b2', '#cbc6ee', '#ffffff'],
     bg: '#4a63ff', fog: '#ff8c55', accent: '#ff8a4c', accent2: '#6f86ff',
     sky: [[0, '#4a63ff'], [0.3, '#9a78d8'], [0.6, '#ff9a6a'], [1, '#ff6b1f']],
     paint: ['#3fe0ff', '#ffd23f', '#ff4fa0', '#b6ff5c', '#b48cff', '#5cf2c0', '#ff7a2f'],

@@ -3,6 +3,8 @@ import { BIN_HZ, N_BINS, FRAME_SEC } from './dsp/stft';
 import { melFilterbank, melToMask, N_MELS } from './dsp/analysis';
 import { CLASSES, MODEL_CLASSES, SOURCES, type ClassId, type SourceId } from './game/catalog';
 import { LEVELS, decodeUpload, mixLevel, type Mixture } from './game/levels';
+import { CHALLENGES, whenRecorded } from './game/challenges';
+import { Backend } from './game/backend';
 import { Session, stars, type Layer, type ClassScore } from './game/session';
 import { applyComb, brush, echo, eraseAll, trackPitch, type PaintOpts } from './game/tools';
 import { SpectroView, type Pick } from './view/scene';
@@ -13,7 +15,7 @@ import { load, save, state } from './state';
 import { openLab, renderLabIfOpen, setLabHooks } from './ui/lab';
 import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
-import { showIntro } from './ui/intro';
+import { brandMark, mountWelcome } from './ui/welcome';
 import { mountVizPanel } from './ui/vizpanel';
 import { mountPuzzles } from './ui/puzzle';
 import { Timeline } from './ui/timeline';
@@ -26,7 +28,7 @@ const fmt = (v: number, d = 1) => {
 
 // ---------------- core objects ----------------
 const view = new SpectroView($('#canvas-wrap'));
-const vizPanel = mountVizPanel(view, $('#stage'));
+const vizPanel = mountVizPanel(view, $('.dock-left'));
 const transport = new Transport();
 const timeline = new Timeline($('#timeline'), transport);
 
@@ -70,6 +72,13 @@ async function loadLevel(idx: number) {
   const level = LEVELS[idx];
   const mixture = await mixLevel(level);
   startSession(new Session(level, mixture));
+  const c = CHALLENGES[idx];
+  setCrumbs(level.title, `${c.place} · ${whenRecorded(c.recorded)}`);
+}
+
+function setCrumbs(title: string, place: string) {
+  $('#crumb-title').textContent = title;
+  $('#crumb-place').textContent = place;
 }
 
 function startSession(s: Session) {
@@ -81,23 +90,14 @@ function startSession(s: Session) {
   view.setSession(s);
   transport.pause();
   refreshAudio(true);
-  renderNodes();
+  renderCounts();
   renderLayerFilter();
   renderScores();
   renderToolOptions();
 }
 
 // ---------------- header ----------------
-function renderNodes() {
-  const nav = $('#nodes');
-  nav.innerHTML = '';
-  LEVELS.forEach((l, i) => {
-    const b = document.createElement('button');
-    b.className = 'node-chip' + (i === state.levelIdx && !uploadName ? ' active' : '') + (state.completed.has(l.id) ? ' done' : '');
-    b.innerHTML = `<span class="led"></span><span class="id">${l.node}</span>${l.title}<span class="diff">${'●'.repeat(l.difficulty)}</span>`;
-    b.onclick = () => loadLevel(i);
-    nav.appendChild(b);
-  });
+function renderCounts() {
   $('#eco-count').textContent = ecoCount();
   $('#ds-count').textContent = String(state.dataset.length);
 }
@@ -121,7 +121,7 @@ function renderLayerFilter() {
       </li>`;
     })
     .join('');
-  box.innerHTML = `<div class="lf-head"><span>Layers</span>
+  box.innerHTML = `<div class="lf-head"><h6>Layers</h6>
       <select id="lf-add" title="Add a layer for another sound" aria-label="Add layer"><option value="">+ Add</option>
         ${classes.map((c) => `<option value="${c}">${CLASSES[c].label}</option>`).join('')}</select></div>
     <ul>${rows || '<li class="empty">No layers yet</li>'}</ul>`;
@@ -219,7 +219,7 @@ function checkUnlocks(sc: ClassScore[]) {
   }
   if (changed) {
     save();
-    renderNodes();
+    renderCounts();
   }
 }
 
@@ -289,7 +289,13 @@ function renderToolOptions() {
   bind('o-steady', 'forkSteady');
   bind('o-thr', 'echoThreshold');
   bind('o-excl', 'exclusive');
-  document.querySelectorAll('.tool[data-tool]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tool') === opts.tool));
+  document.querySelectorAll('.tool[data-tool]').forEach((b) => {
+    const on = b.getAttribute('data-tool') === opts.tool;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+    // the options sit right under the tool they belong to
+    if (on) b.after(box);
+  });
   view.setViewMode(opts.tool === 'view');
   $('#canvas-wrap').classList.toggle('cursor-tool', opts.tool !== 'view');
   view.clearOverlays();
@@ -518,7 +524,13 @@ document.querySelectorAll<HTMLElement>('[data-pm]').forEach((b) => (b.onclick = 
   view.markHeightsDirty();
   view.refresh();
 };
-document.querySelectorAll<HTMLElement>('[data-cam]').forEach((b) => (b.onclick = () => view.resetCamera(b.dataset.cam as 'top')));
+const camButtons = document.querySelectorAll<HTMLElement>('[data-cam]');
+function setCam(cam: 'perspective' | 'top' | 'side') {
+  view.resetCamera(cam);
+  camButtons.forEach((b) => b.classList.toggle('on', b.dataset.cam === cam));
+}
+camButtons.forEach((b) => (b.onclick = () => setCam(b.dataset.cam as 'top')));
+camButtons[0].classList.add('on');
 document.querySelectorAll<HTMLElement>('.tool[data-tool]').forEach((b) => (b.onclick = () => setTool(b.dataset.tool as Tool)));
 $('#btn-undo').onclick = undo;
 
@@ -536,7 +548,7 @@ $('#btn-contribute').onclick = () => {
   state.dataset.push(makeItem(s.spec.mag, s.frames, masks, 'player', label));
   contributedThisSession = true;
   save();
-  renderNodes();
+  renderCounts();
   renderLabIfOpen();
   toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b>. Open the Edge AI Lab to retrain.`);
 };
@@ -578,6 +590,7 @@ function deployToCurrent() {
     uploadName = f.name;
     const mixture: Mixture = { mix: x, stems: [], refs: {} };
     startSession(new Session(null, mixture));
+    setCrumbs('Your recording', f.name);
     toast(`Loaded ${f.name}: the first 5 s.`, 'info');
   } catch (err) {
     toast('Could not decode that file: ' + String(err), 'warn');
@@ -585,16 +598,47 @@ function deployToCurrent() {
   (e.target as HTMLInputElement).value = '';
 };
 
-setLabHooks({ deploy: deployToCurrent, refresh: () => renderNodes() });
+setLabHooks({ deploy: deployToCurrent, refresh: () => renderCounts() });
 $('#btn-lab').onclick = () => openLab();
 $('#btn-eco').onclick = () => openEco();
 // recordings from the listening posts (Python backend on port 8000)
-mountPuzzles($('#labeling'), {
+const puzzles = mountPuzzles($('#labeling'), {
   start: (s, name) => {
     uploadName = name;
     startSession(s);
+    setCrumbs('Live recording', name);
   },
 });
+
+// ---------------- welcome screen ----------------
+$('#brand-mark').innerHTML = brandMark();
+const backend = new Backend();
+const welcome = mountWelcome($('#welcome'), {
+  pick: (c) => {
+    enterWorkspace();
+    void loadLevel(c.index);
+  },
+  live: () => {
+    enterWorkspace();
+    puzzles.next();
+  },
+  liveCount: async () => {
+    const st = (await backend.stats()) as { clips?: { open?: number } };
+    return st.clips?.open ?? 0;
+  },
+});
+function enterWorkspace() {
+  welcome.hide();
+  view.controls.autoRotate = false;
+}
+function showWelcome() {
+  transport.pause();
+  view.controls.autoRotate = true;
+  view.controls.autoRotateSpeed = 0.35;
+  welcome.show();
+}
+$('#btn-home').onclick = showWelcome;
+$('#crumb-home').onclick = showWelcome;
 
 // the 3D view changed theme, so layer colours may have changed
 function themeTimeline() {
@@ -615,10 +659,11 @@ function typing(e: KeyboardEvent) {
 }
 window.addEventListener('keydown', (e) => {
   if (typing(e)) return;
-  if (!$('#lab').hidden || !$('#eco').hidden || !$('#intro').hidden) {
-    if (e.key === 'Escape') ['#lab', '#eco', '#intro'].forEach((s) => ($(s).hidden = true));
+  if (!$('#lab').hidden || !$('#eco').hidden) {
+    if (e.key === 'Escape') ['#lab', '#eco'].forEach((s) => ($(s).hidden = true));
     return;
   }
+  if (welcome.visible) return;
   const s = state.session;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault();
@@ -662,13 +707,13 @@ if (import.meta.env.DEV) Object.assign(window, { __bs: { state, view, transport 
 
 // ---------------- boot ----------------
 async function boot() {
-  const returning = load();
+  load();
   await loadLevel(0);
   setTool('brush');
   view.setIso(true);
   vizPanel.render();
   themeTimeline();
-  if (!returning) showIntro();
+  showWelcome();
 }
 boot().catch((err) => {
   console.error(err);

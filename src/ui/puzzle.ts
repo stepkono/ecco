@@ -229,4 +229,8 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
   };
   render();
   void connect();
+  return {
+    /** load the next live recording (used by the welcome screen) */
+    next: () => void load(),
+  };
 }

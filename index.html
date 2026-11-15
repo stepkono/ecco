@@ -4,88 +4,92 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="BioSpectra: untangle noisy bioacoustic spectrograms in 3D to train TinyML models for edge sensors." />
-    <title>BioSpectra</title>
+    <meta name="description" content="ecco: listen to forest recordings as 3D landscapes, paint what you hear and teach the listening posts in the field." />
+    <title>ecco</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div id="app">
-      <header class="topbar">
-        <div class="brand">
-          <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true">
-            <path d="M2 22 Q8 6 12 18 T22 12 T30 16" fill="none" stroke="#9be15d" stroke-width="2.4" stroke-linecap="round" />
-            <path d="M2 26 Q9 16 14 23 T30 22" fill="none" stroke="#56c8ff" stroke-width="2" stroke-linecap="round" opacity=".8" />
-          </svg>
-          <span>Bio<b>Spectra</b></span>
-        </div>
-        <nav id="nodes" class="nodes" aria-label="Edge nodes"></nav>
+      <div id="canvas-wrap" class="canvas-wrap"></div>
+
+      <header class="topbar glass">
+        <button class="brand" id="btn-home" title="Back to the challenges"><span id="brand-mark"></span><span>ecco</span></button>
+        <nav class="crumbs" aria-label="Where you are">
+          <button class="crumb" id="crumb-home">Challenges</button>
+          <span class="crumb-sep" aria-hidden="true">/</span>
+          <span class="crumb-here" id="crumb-title"></span>
+          <span class="crumb-place" id="crumb-place"></span>
+        </nav>
         <div class="top-actions">
-          <label class="btn ghost" title="Load your own field recording (any audio file)">
+          <label class="btn ghost" title="Label your own field recording (any audio file)">
             <input id="upload" type="file" accept="audio/*" hidden />
-            Upload clip
+            Upload recording
           </label>
-          <button id="btn-eco" class="btn ghost">Ecosystem <span id="eco-count" class="pill">0/6</span></button>
-          <button id="btn-lab" class="btn primary">Edge AI Lab <span id="ds-count" class="pill">0</span></button>
+          <button id="btn-eco" class="btn ghost">Species <span id="eco-count" class="pill">0/6</span></button>
+          <button id="btn-lab" class="btn ghost">Model lab <span id="ds-count" class="pill">0</span></button>
         </div>
       </header>
 
-      <aside class="tools" aria-label="Tools">
-        <button class="tool" data-tool="view" title="Orbit (V). Left-drag rotates the landscape"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><ellipse cx="12" cy="12" rx="8" ry="3" /></svg><span>View</span></button>
-        <button class="tool" data-tool="brush" title="Brush (B). Paint a sound into the active layer"><svg viewBox="0 0 24 24"><path d="M4 20c3 0 5-2 5-4.5S7 12 5.5 13 4 17 4 20z" /><path d="M9 15 20 4" /></svg><span>Brush</span></button>
-        <button class="tool" data-tool="echo" title="Echo (E). Box one call, Echo finds its repeats"><svg viewBox="0 0 24 24"><path d="M4 12h2M9 7v10M14 9v6M19 6v12" /></svg><span>Echo</span></button>
-        <button class="tool" data-tool="fork" title="Fork (F). Click the lowest line of a call to select it with its harmonics"><svg viewBox="0 0 24 24"><path d="M8 3v8a4 4 0 0 0 8 0V3" /><path d="M12 15v6" /></svg><span>Fork</span></button>
-        <button class="tool" data-tool="eraser" title="Eraser (X). Brings painted cells back to the untouched recording"><svg viewBox="0 0 24 24"><path d="M15 4 21 10 11 20H6l-3-3z" /><path d="M9 10l6 6" /><path d="M11 20h10" /></svg><span>Eraser</span></button>
-        <div class="tool-sep"></div>
-        <button class="tool small" id="btn-undo" title="Undo (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></svg><span>Undo</span></button>
+      <aside class="dock dock-left" aria-label="Tools and layers">
+        <section class="glass panel tools-panel">
+          <h6>Tools</h6>
+          <div class="tool-list" role="radiogroup" aria-label="Tool">
+            <button class="tool" data-tool="view" title="Drag to rotate the landscape"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" /><ellipse cx="12" cy="12" rx="8" ry="3" /></svg><span>Orbit</span><kbd>V</kbd></button>
+            <button class="tool" data-tool="brush" title="Paint a sound into the active layer"><svg viewBox="0 0 24 24"><path d="M4 20c3 0 5-2 5-4.5S7 12 5.5 13 4 17 4 20z" /><path d="M9 15 20 4" /></svg><span>Brush</span><kbd>B</kbd></button>
+            <button class="tool" data-tool="echo" title="Box one call, Echo finds its repeats"><svg viewBox="0 0 24 24"><path d="M4 12h2M9 7v10M14 9v6M19 6v12" /></svg><span>Echo</span><kbd>E</kbd></button>
+            <button class="tool" data-tool="fork" title="Click the lowest line of a call to select it with its harmonics"><svg viewBox="0 0 24 24"><path d="M8 3v8a4 4 0 0 0 8 0V3" /><path d="M12 15v6" /></svg><span>Fork</span><kbd>F</kbd></button>
+            <button class="tool" data-tool="eraser" title="Bring painted cells back to the untouched recording"><svg viewBox="0 0 24 24"><path d="M15 4 21 10 11 20H6l-3-3z" /><path d="M9 10l6 6" /><path d="M11 20h10" /></svg><span>Eraser</span><kbd>X</kbd></button>
+          </div>
+          <div class="tool-options" id="tool-options"></div>
+          <button class="tool undo" id="btn-undo" title="Undo the last change"><svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10a6 6 0 0 1 0 12h-3" /></svg><span>Undo</span><kbd>⌘Z</kbd></button>
+        </section>
+        <section class="glass panel layer-filter" id="layer-filter" aria-label="Layers"></section>
       </aside>
 
-      <main id="stage" class="stage">
-        <div id="canvas-wrap" class="canvas-wrap"></div>
-        <div class="layer-filter" id="layer-filter" aria-label="Layers"></div>
-        <div class="top-right">
-        <div class="tool-options" id="tool-options"></div>
-        <div class="view-bar">
-          <label class="toggle" title="Removes the steady background hum of every frequency band, so calls stand out"><input type="checkbox" id="whiten" /> Hide background</label>
-          <label class="slider" title="Lifts the painted layers up out of the landscape">Boost <input type="range" id="unfold" min="0" max="1" step="0.05" value="0" /></label>
-          <span class="t-sep"></span>
-          <button class="btn ghost tiny" data-cam="perspective" title="Default view">3D</button>
-          <button class="btn ghost tiny" data-cam="top" title="From above: rhythm and patterns in time">Top</button>
-          <button class="btn ghost tiny" data-cam="side" title="From the side: shape of the peaks">Side</button>
-          <span class="t-sep"></span>
-          <span class="keys" title="W A S D: move · arrows: orbit · Shift+drag: slide · Shift+Cmd+drag: up and down · right-drag: orbit · wheel: zoom"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>
+      <div class="view-bar glass" role="toolbar" aria-label="View">
+        <div class="seg cams" aria-label="Camera">
+          <button data-cam="perspective" title="Default view">3D</button>
+          <button data-cam="top" title="From above: rhythm and patterns in time">Top</button>
+          <button data-cam="side" title="From the side: shape of the peaks">Side</button>
         </div>
-        </div>
-        <div class="hint" id="hint"></div>
-        <div class="player" id="player">
-          <button class="btn icon" id="to-start" title="Back to the beginning (Home)"><svg viewBox="0 0 24 24"><path d="M6 5v14" /><path d="M19 5 9 12l10 7z" /></svg></button>
-          <button class="btn icon play-btn" id="play" title="Play / pause (Space)"><svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" /></svg><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg></button>
-          <div class="seg play-mode" id="play-mode" role="radiogroup" aria-label="What to play">
-            <button data-pm="mix" class="on" title="The whole recording">Full</button>
-            <button data-pm="layer" title="Only the active layer (L)">Layer</button>
-            <button data-pm="res" title="Everything that is not painted yet (R)">Rest</button>
-          </div>
-          <div class="timeline" id="timeline"></div>
-          <span class="time mono" id="time">0.00 s</span>
-        </div>
-      </main>
+        <span class="vb-sep"></span>
+        <label class="switch" title="Removes the steady background hum of every frequency band, so calls stand out"><input type="checkbox" id="whiten" /><span class="track"></span>Hide background</label>
+        <label class="slider" title="Lifts the painted layers up out of the landscape">Boost <input type="range" id="unfold" min="0" max="1" step="0.05" value="0" /></label>
+        <span class="vb-sep"></span>
+        <span class="keys" title="W A S D: move · arrows: orbit · Shift+drag: slide · Shift+Cmd+drag: up and down · right-drag: orbit · wheel: zoom"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span>
+      </div>
 
-      <aside class="panel" id="panel">
-        <section class="card labeling-card">
+      <aside class="dock dock-right" aria-label="Labeling">
+        <section class="glass panel labeling-card">
           <div id="labeling"></div>
           <button class="btn wide" id="btn-contribute" title="Your painted layers become training examples for the model">Contribute to training set</button>
         </section>
-        <section class="card">
-          <div class="card-head"><h3>Separation score</h3><span class="muted small">SI-SDR, dB</span></div>
+        <section class="glass panel">
+          <div class="card-head"><h6>Separation score</h6><span class="muted small">SI-SDR, dB</span></div>
           <div id="scores"></div>
         </section>
       </aside>
+
+      <div class="hint" id="hint" aria-live="polite"></div>
+
+      <div class="player glass" id="player">
+        <button class="btn icon" id="to-start" title="Back to the beginning (Home)"><svg viewBox="0 0 24 24"><path d="M6 5v14" /><path d="M19 5 9 12l10 7z" /></svg></button>
+        <button class="btn icon play-btn" id="play" title="Play / pause (Space)"><svg class="i-play" viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z" /></svg><svg class="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg></button>
+        <div class="seg play-mode" id="play-mode" role="radiogroup" aria-label="What to play">
+          <button data-pm="mix" class="on" title="The whole recording">Full</button>
+          <button data-pm="layer" title="Only the active layer (L)">Layer</button>
+          <button data-pm="res" title="Everything that is not painted yet (R)">Rest</button>
+        </div>
+        <div class="timeline" id="timeline"></div>
+        <span class="time mono" id="time">0.00 s</span>
+      </div>
     </div>
 
+    <div id="welcome" class="welcome" hidden></div>
     <div id="lab" class="drawer" hidden></div>
     <div id="eco" class="modal" hidden></div>
-    <div id="intro" class="modal" hidden></div>
     <div id="toasts" class="toasts" aria-live="polite"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

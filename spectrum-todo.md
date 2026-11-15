@@ -11,13 +11,13 @@ Status: **open**, **in progress**, **done**.
 
 ## User flow
 
-- **open** · Landing page: greet the user with the mission and what they take part in, then invite them to participate.
-- **open** · Challenge selection with four categories:
+- **done** · Landing page: greet the user with the mission and what they take part in, then invite them to participate.
+- **done** · Challenge selection with four categories:
   - **Newest**: the latest recordings
   - **Hottest**: recordings where users disagree more than usual on what they hear
   - **Most viewed**
   - **Least viewed**
-- **open** · Challenge cards show where the recording was made (location on a map) and the date and time of the recording. These are the facts the user picks a challenge by.
+- **done** · Challenge cards show where the recording was made (location on a map) and the date and time of the recording. These are the facts the user picks a challenge by.
 - **open** · Grade challenges by difficulty. First idea:
   - **Easy**: a steady, even background with a few distinct peaks.
   - **Hard**: an uneven, changing background where many things happen at once.
@@ -39,6 +39,23 @@ Status: **open**, **in progress**, **done**.
 ## Player
 
 - **open** · DJ timeline: adjust to the reference images once they arrive. The jog direction can be flipped with one constant (`JOG_DIRECTION` in `src/ui/timeline.ts`).
+
+## Open after round 2
+
+- **open** · In a practice challenge, "Next recording" is the orange primary button, although the task there is to contribute. Make the primary action follow the context: Contribute for practice, Send label for live recordings.
+- **open** · The brand mark in the top bar is a placeholder until a logo is chosen.
+- **open** · Challenge places, times, views and disagreement are demo data. Connect them to real post locations and real statistics.
+- **open** · The difficulty grade is fixed per sample. Compute it from the recording (see "User flow").
+
+## Done in the UI overhaul, round 2
+
+- **done** · Frosted glass panels with a bright solid border, floating over a full-bleed 3D view.
+- **done** · Level tabs removed from the top bar. The top bar shows where you are: Challenges / title, place and time.
+- **done** · Tools as labelled rows with their shortcut. The active tool is an inverted pill, and its options unfold right below it.
+- **done** · Thin line sliders, switches and segmented controls. Camera buttons show the active view.
+- **done** · Smooth animations: panels slide in, cards stagger in and glide when the category changes, the play button pops, toasts and dialogs rise. All motion turns off with "reduce motion".
+- **done** · Welcome screen with the mission, the three steps (Listen, Paint, Label), a live recordings button, the four challenge categories and a map of Finland (Natural Earth, public domain) whose pins highlight together with the cards.
+- **done** · Horizon theme: brighter low tones.
 
 ## Done in the UI overhaul, round 1
 
