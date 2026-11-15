@@ -4,11 +4,15 @@
 #
 #   ssh arduino@<board-ip> 'bash -s' < tools/board_cleanup.sh
 #
-# Removes: our code and Python environment, uv, model caches, recorded clips,
+# Removes: the autostart entries in the user crontab, our code and Python environment, uv, model caches, recorded clips,
 # the Wi-Fi priority change, and the `biospectra-dev` SSH key (last, so an SSH
 # session that runs this script still finishes). A full reflash with Arduino's
 # flashing tool is still the cleanest way to hand a board over.
 set -uo pipefail
+
+echo "[cleanup] removing the autostart entries"
+{ crontab -l 2>/dev/null | grep -v "biospectra-autostart"; } | crontab - 2>/dev/null || true
+pkill -u "$USER" -f "[d]evice.console" 2>/dev/null || true
 
 echo "[cleanup] removing code, environment, caches and recordings"
 rm -rf "$HOME/spetrum" "$HOME/.local/bin/uv" "$HOME/.local/bin/uvx" \
