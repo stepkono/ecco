@@ -206,3 +206,29 @@ def test_reset_and_forget_learned_sounds(tmp_path):
     r = client.post("/prototypes/reset").json()
     assert r["classes"] == start and r["version"] == v0 + 2
     assert client.get("/stats").json()["prototype_version"] == v0 + 2
+
+
+def test_learning_switch(tmp_path):
+    """With learning paused, an accepted label is stored but the known sounds stay the same."""
+    from fastapi.testclient import TestClient
+
+    from backend.app import create_app
+
+    client = TestClient(create_app(cfg_copy(gold_rate=0.0, demo_mode=True, labels=["frog", "crickets"]), data_dir=tmp_path / "backend"))
+    buf = io.BytesIO()
+    t = np.arange(16000 * 3) / 16000
+    sf.write(buf, (0.3 * np.sin(2 * np.pi * 3000 * t) * (np.sin(2 * np.pi * 5 * t) > 0)).astype(np.float32), 16000, format="WAV")
+    for cid in ("a", "b"):
+        assert client.post("/devices/post-01/clips", files={"audio": ("a.wav", buf.getvalue(), "audio/wav")},
+                           data={"metadata": json.dumps({"clip_id": cid, "duration_s": 3.0})}).status_code == 201
+    pid = client.post("/players", json={"nickname": "t"}).json()["player_id"]
+    v0 = client.get("/stats").json()["prototype_version"]
+    assert client.post("/learning", json={"enabled": False}).json() == {"learning": False}
+    r = client.post("/clips/a/labels", json={"player_id": pid, "label": "crickets"}).json()
+    st = client.get("/stats").json()
+    assert r.get("learning_paused") and st["prototype_version"] == v0 and "crickets" not in st["prototype_classes"]
+    assert st["learning"] is False and client.get("/clips/a").json()["status"] == "solved"
+    client.post("/learning", json={"enabled": True})
+    client.post("/clips/b/labels", json={"player_id": pid, "label": "crickets"})
+    st = client.get("/stats").json()
+    assert st["prototype_version"] == v0 + 1 and "crickets" in st["prototype_classes"]

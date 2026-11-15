@@ -33,6 +33,7 @@ export interface LabelResult {
   votes?: Record<string, number>;
   needed?: number;
   learned?: boolean;
+  learning_paused?: boolean;
   prototype_version?: number;
 }
 

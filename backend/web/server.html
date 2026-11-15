@@ -32,6 +32,9 @@
   td.r { text-align: right; white-space: nowrap; }
   audio { height: 30px; width: 190px; }
   .scroll { max-height: 460px; overflow-y: auto; }
+  .switchrow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--edge); border-radius: 5px; cursor: pointer; }
+  .switchrow input { margin-top: 4px; }
+  .switchrow.off { border-color: #f5a623; background: rgba(245, 166, 35, .08); }
   #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #222738; border: 1px solid var(--edge); border-radius: 6px; padding: 10px 16px; opacity: 0; transition: opacity .2s; pointer-events: none; }
   #toast.on { opacity: 1; }
 </style>
@@ -59,6 +62,10 @@
       <button class="danger" id="reset" title="Forget everything the posts learned from labels. Older versions stay stored.">Reset to the starting sounds</button>
     </div>
     <p class="small">What the listening posts recognize. Sounds marked "learned" came from labels. The posts follow every change within a few seconds.</p>
+    <label class="switchrow" id="learn-row" title="Debug: keep the known sounds fixed, for a predictable presentation">
+      <input type="checkbox" id="learning">
+      <span><b>Learning from labels</b><br><span class="small muted" id="learn-note">On: every accepted label teaches the posts.</span></span>
+    </label>
     <div id="classes">–</div>
   </section>
 
@@ -110,6 +117,11 @@ async function loadStats() {
     });
     $('classes').innerHTML = rows.join('') || '<p>No known sounds.</p>';
     $('reset').disabled = JSON.stringify(start) === JSON.stringify(d.prototype_classes);
+    const learning = d.learning !== false;
+    $('learning').checked = learning;
+    $('learn-row').classList.toggle('off', !learning);
+    $('learn-note').textContent = learning ? 'On: every accepted label teaches the posts.'
+      : 'Paused (debug): labels are stored, but no new sounds are learned. The posts keep what they know.';
   } catch {
     $('posts').textContent = 'Could not read the server status.';
   }
@@ -159,6 +171,14 @@ document.addEventListener('click', async (e) => {
     toast('That did not work: ' + err.message);
   }
 });
+
+$('learning').onchange = async (e) => {
+  try {
+    await fetch('/learning', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: e.target.checked }) });
+    toast(e.target.checked ? 'Learning from labels is on.' : 'Learning paused. Labels are stored, nothing new is learned.');
+    loadStats();
+  } catch { e.target.checked = !e.target.checked; toast('That did not work.'); }
+};
 
 loadStats(); loadClips();
 setInterval(loadStats, 3000);

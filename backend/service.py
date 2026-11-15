@@ -246,7 +246,35 @@ class Backend:
             return {"accepted": False, "votes": counts, "needed": need}
         return {"accepted": True, "label": label, "votes": counts, "needed": need, **self._accept(cid, label, masks)}
 
+    # ------------------------------------------------------------ learning switch (debug, for predictable demos)
+    def _settings_path(self) -> Path:
+        return self.store.folder / "settings.json"
+
+    @property
+    def learning(self) -> bool:
+        """True: accepted labels teach the posts. False: labels are stored, but nothing new is learned."""
+        try:
+            return bool(json.loads(self._settings_path().read_text(encoding="utf-8")).get("learning", True))
+        except (OSError, ValueError):
+            return True
+
+    def set_learning(self, on: bool) -> dict:
+        p = self._settings_path()
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            d = {}
+        d["learning"] = bool(on)
+        p.write_text(json.dumps(d), encoding="utf-8")
+        log.warning("learning from labels %s", "ON" if on else "PAUSED")
+        self.emit("learning_changed", {"learning": bool(on)})
+        return {"learning": bool(on)}
+
     def _accept(self, cid: str, label: str, masks: list) -> dict:
+        if not self.learning:  # debug switch: keep the label, learn nothing, publish nothing
+            self.store.run("UPDATE clips SET status='solved', accepted_label=? WHERE id=?", (label, cid))
+            self.emit("label_accepted", {"clip_id": cid, "label": label, "learned": False, "learning_paused": True})
+            return {"learned": False, "learning_paused": True, "prototype_version": self.head.version}
         if label == OTHER:  # an unknown animal nobody could name: keep it out of the prototypes
             self.store.run("UPDATE clips SET status='rejected', accepted_label=? WHERE id=?", (label, cid))
             self.emit("label_accepted", {"clip_id": cid, "label": label, "learned": False})
@@ -412,6 +440,7 @@ class Backend:
             "prototype_version": self.head.version, "prototype_classes": self.head.classes, "model_id": self.model_id,
             "consensus_needed": 1 if self.b.get("demo_mode") else int(self.b.get("consensus_n", 2)),
             "label_options": self.labels,
+            "learning": self.learning,
             "starting_classes": self.starting_classes(),
             "time": time.time(),
         }

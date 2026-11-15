@@ -204,6 +204,7 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
       // the landscape on screen goes into the archive as a sound stamp
       if (wins[active]) hooks.labelled(puzzle.clip_id, label, wins[active].session);
       if (r.gold) toast(r.correct ? `Well done. It was <b>${r.true_label}</b>.` : `Good try. This one was <b>${r.true_label}</b>.`, 'info');
+      else if (r.accepted && r.learning_paused) toast(`Thank you. Your label <b>${label}</b> was saved. Learning is paused on the server.`, 'info');
       else if (r.accepted) toast(`Thank you. Your label <b>${label}</b> was accepted.`, 'info');
       else toast('Thank you. Your label counts once a few more people agree.', 'info');
       if (!mask) toast('No painting found, so the whole event was sent.', 'info');

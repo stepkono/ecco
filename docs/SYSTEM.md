@@ -215,6 +215,7 @@ Runs on the laptop: `python -m backend.app` (port 8000). Storage: `data/backend/
 | `GET /clips` | waiting recordings with post location, views and disagreement |
 | `GET /clips/{id}` | one recording's details |
 | `DELETE /clips/{id}`, `DELETE /clips` | delete one waiting recording, or all of them (labelled and gold clips stay) |
+| `POST /learning` | debug switch: `{"enabled": false}` stores accepted labels without learning new sounds (kept in `settings.json`, survives restarts) |
 | `POST /prototypes/reset` | forget everything learned: publish the starting sounds as a new version (older versions stay) |
 | `POST /prototypes/forget/{label}` | forget one sound class and publish that as a new version |
 | `GET /events`, `GET /stats` | recent events, counts, players, prototype version, label options |

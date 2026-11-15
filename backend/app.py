@@ -10,6 +10,7 @@ Endpoints (see docs/SYSTEM.md):
   GET  /clips                          waiting recordings (time, post, views, disagreement)
   DELETE /clips/{id}                   remove one recording for good (audio, labels)
   DELETE /clips                        remove every waiting recording
+  POST /learning                       {"enabled": false} stores labels without learning (debug, predictable demos)
   POST /prototypes/reset               forget everything learned (back to the starting sounds)
   POST /prototypes/forget/{label}      forget one sound class
   GET  /clips/{id}/audio               WAV
@@ -44,6 +45,10 @@ from .store import Store
 
 log = logging.getLogger("biospectra.backend")
 WEB = Path(__file__).parent / "web"
+
+
+class LearningIn(BaseModel):
+    enabled: bool
 
 
 class PlayerIn(BaseModel):
@@ -120,6 +125,11 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
     def delete_open_clips():
         """Remove every waiting recording (not the labelled ones, not gold test clips)."""
         return be.delete_clips(None)
+
+    @app.post("/learning")
+    def set_learning(body: LearningIn):
+        """Debug switch: false keeps the known sounds fixed, accepted labels are only stored."""
+        return be.set_learning(body.enabled)
 
     @app.post("/prototypes/reset")
     def reset_prototypes():
