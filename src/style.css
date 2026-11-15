@@ -124,8 +124,11 @@ select option { background: #171a2a; }
 }
 .brand { display: flex; align-items: center; gap: 8px; border: 0; background: none; cursor: pointer; padding: 4px 6px; border-radius: 5px; font-size: 19px; font-weight: 700; letter-spacing: -0.03em; transition: background var(--fast); }
 .brand:hover { background: var(--glass-hover); }
-.brand-mark { width: 22px; height: 22px; fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; display: block; }
-.brand-mark circle { fill: var(--accent); stroke: none; }
+/* ecco logo: rays take --brand-mark, the word takes currentColor */
+#brand-logo { display: flex; }
+.brand-logo, .brand-mark { display: block; height: 26px; width: auto; color: var(--text); --brand-mark: var(--accent); }
+.brand-logo .brand-rays, .brand-mark { fill: none; stroke: var(--brand-mark, currentColor); stroke-width: 3.4; stroke-linecap: round; }
+.brand-logo .brand-word { fill: currentColor; }
 .crumbs { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; font-size: 13px; }
 .crumb { border: 0; background: none; color: var(--muted); cursor: pointer; padding: 2px 4px; border-radius: 6px; transition: color var(--fast); }
 .crumb:hover { color: var(--text); }
@@ -330,7 +333,7 @@ table.eval th.num { text-align: right; }
 .welcome.open .wl-hero > :nth-child(5) { transition-delay: 220ms; }
 .welcome.open .wl-hero > :nth-child(6) { transition-delay: 280ms; }
 .wl-brand { display: flex; align-items: center; gap: 10px; font-size: 22px; font-weight: 700; letter-spacing: -0.03em; margin-bottom: 40px; }
-.wl-brand .brand-mark { width: 28px; height: 28px; }
+.wl-brand .brand-logo { height: 40px; }
 .eyebrow { margin: 0 0 10px; font-size: 12px; font-weight: 500; color: var(--accent); letter-spacing: 0.02em; }
 .wl-hero h1 { margin: 0; font-size: clamp(38px, 4.2vw, 60px); line-height: 1.02; letter-spacing: -0.04em; font-weight: 600; }
 .wl-hero .lead { margin: 18px 0 26px; font-size: 16px; line-height: 1.55; color: var(--muted); max-width: 420px; }

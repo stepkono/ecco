@@ -15,7 +15,8 @@ import { load, save, state } from './state';
 import { openLab, renderLabIfOpen, setLabHooks } from './ui/lab';
 import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
-import { brandMark, mountWelcome } from './ui/welcome';
+import { brandLogo } from './ui/brand';
+import { mountWelcome } from './ui/welcome';
 import { mountVizPanel } from './ui/vizpanel';
 import { mountPuzzles } from './ui/puzzle';
 import { Timeline } from './ui/timeline';
@@ -641,7 +642,7 @@ const puzzles = mountPuzzles($('#labeling'), {
 });
 
 // ---------------- welcome screen ----------------
-$('#brand-mark').innerHTML = brandMark();
+$('#brand-logo').innerHTML = brandLogo();
 const backend = new Backend();
 const welcome = mountWelcome($('#welcome'), {
   pick: (c) => {

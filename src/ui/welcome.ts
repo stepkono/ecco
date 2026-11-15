@@ -1,4 +1,5 @@
 import { CATEGORIES, DIFFICULTY, coords, partOfDay, sortChallenges, whenRecorded, type Category, type Challenge } from '../game/challenges';
+import { brandLogo } from './brand';
 import { FINLAND, LAKES, MAP_H, MAP_W, NEIGHBOURS, project } from './finland-map';
 
 /**
@@ -24,7 +25,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   root.innerHTML = `
     <div class="wl-inner">
       <section class="wl-hero">
-        <div class="wl-brand">${brandMark()}<span>ecco</span></div>
+        <div class="wl-brand">${brandLogo()}</div>
         <p class="eyebrow">Community sound labeling</p>
         <h1>Help the forest listen.</h1>
         <p class="lead">Listening posts in Finnish forests hear sounds they cannot name yet. You explore each sound as a 3D landscape, paint what you hear and give it a name. Every label teaches a post in the field.</p>
@@ -217,7 +218,3 @@ function graticule() {
   return g;
 }
 
-/** Temporary mark until the logo is chosen: two echoing arcs around a dot. */
-export function brandMark() {
-  return `<svg class="brand-mark" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="2.4" /><path d="M12 7a6 6 0 0 1 0 10" /><path d="M15.5 4a10 10 0 0 1 0 16" /></svg>`;
-}
