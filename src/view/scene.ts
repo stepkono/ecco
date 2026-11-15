@@ -435,9 +435,17 @@ export class SpectroView {
     this.buildAmpAxis();
   }
 
-  /** Vertical amplitude scale at the far corner. It follows the height curve of the landscape. */
+  /**
+   * Amplitude scale at the far corner. Seen from the side it stands upright. The more the
+   * camera looks down, the more it leans outward, so from above it lies flat like a ruler
+   * and the dB values stay readable.
+   */
   private ampAxis = new THREE.Group();
   private ampAxisWhiten: boolean | null = null;
+  private ampTicks: { h: number; label: CSS2DObject }[] = [];
+  private ampTitle: CSS2DObject | null = null;
+  private ampLine: THREE.LineSegments | null = null;
+  private ampLean = -1;
   private buildAmpAxis() {
     if (this.ampAxisWhiten === this.whiten) return;
     this.ampAxisWhiten = this.whiten;
@@ -446,31 +454,53 @@ export class SpectroView {
       if (c instanceof CSS2DObject) c.element.remove();
       if (c instanceof THREE.LineSegments) c.geometry.dispose();
     }
-    // far corner (end of the time axis, highest frequency): it stands behind the landscape, clear of the panels
-    const x0 = WORLD_W / 2;
-    const z0 = -WORLD_D / 2;
-    const pts = [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x0, WORLD_H, z0)];
     // the same mapping as the heights: v = share of the scale, height = v^1.6 of the full height
     const ticks: [number, string][] = this.whiten
       ? [0, 8, 16, 24, 32].map((d) => [(d + 2) / 34, d === 0 ? 'background' : `+${d} dB`])
       : [0, 12, 24, 36, 48].map((d) => [1 - d / 66, d === 0 ? '0 dB' : `-${d} dB`]);
-    for (const [v, text] of ticks) {
-      const y = Math.max(0, v) ** 1.6 * WORLD_H;
-      pts.push(new THREE.Vector3(x0, y, z0), new THREE.Vector3(x0 + 0.25, y, z0));
+    const mk = (text: string, cls: string) => {
       const el = document.createElement('div');
-      el.className = 'axis-label';
+      el.className = cls;
       el.textContent = text;
       const o = new CSS2DObject(el);
-      o.position.set(x0 + 0.85, y, z0);
       this.ampAxis.add(o);
+      return o;
+    };
+    this.ampTicks = ticks.map(([v, text]) => ({ h: Math.max(0, v) ** 1.6 * WORLD_H, label: mk(text, 'axis-label') }));
+    this.ampTitle = mk(this.whiten ? 'above background' : 'amplitude', 'axis-title');
+    this.ampLine = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0x4a6b78 }));
+    this.ampAxis.add(this.ampLine);
+    this.ampLean = -1;
+    this.placeAmpAxis(this.lastLean);
+  }
+
+  private lastLean = 0;
+  /** lean 0 = upright, 1 = lying flat and pointing away from the landscape */
+  private placeAmpAxis(lean: number) {
+    if (!this.ampLine || Math.abs(lean - this.ampLean) < 0.005) return;
+    this.ampLean = lean;
+    const x0 = WORLD_W / 2;
+    const z0 = -WORLD_D / 2;
+    const out = new THREE.Vector3(1, 0, -1).normalize();
+    const at = (h: number) => new THREE.Vector3(x0, h * (1 - lean), z0).addScaledVector(out, h * lean * 1.25);
+    const pts = [at(0), at(WORLD_H)];
+    // tick marks and labels sit beside the axis, on the side away from the landscape
+    const side = new THREE.Vector3(1, 0, 1).normalize().multiplyScalar(lean).add(new THREE.Vector3(1 - lean, 0, 0));
+    for (const t of this.ampTicks) {
+      const p = at(t.h);
+      pts.push(p, p.clone().addScaledVector(side, 0.25));
+      t.label.position.copy(p).addScaledVector(side, 0.85);
     }
-    const el = document.createElement('div');
-    el.className = 'axis-title';
-    el.textContent = this.whiten ? 'above background' : 'amplitude';
-    const t = new CSS2DObject(el);
-    t.position.set(x0, WORLD_H + 0.45, z0);
-    this.ampAxis.add(t);
-    this.ampAxis.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x4a6b78 })));
+    this.ampTitle!.position.copy(at(WORLD_H)).addScaledVector(out, 0.5).add(new THREE.Vector3(0, 0.45 * (1 - lean), 0));
+    this.ampLine.geometry.setFromPoints(pts);
+  }
+
+  /** Called every frame: lean the amplitude axis by how much the camera looks down. */
+  private updateAmpLean() {
+    const d = tmpV.copy(this.camera.position).sub(this.controls.target).normalize();
+    const l = THREE.MathUtils.smoothstep(d.y, 0.72, 0.97);
+    this.lastLean = l;
+    this.placeAmpAxis(l);
   }
 
   // ---------------- theme ----------------
@@ -2096,6 +2126,7 @@ export class SpectroView {
     // distance fog follows the zoom, so depth reads the same at every distance
     const fog = this.scene.fog as THREE.Fog;
     this.stepKeys(dt);
+    this.updateAmpLean();
     U.hfog.value.z = this.hfogDensity;
     this.controls.update();
     const dist = this.camera.position.distanceTo(this.controls.target);

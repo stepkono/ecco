@@ -22,6 +22,8 @@ import { mountPuzzles } from './ui/puzzle';
 import { Timeline } from './ui/timeline';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
+// the stylesheet is in place now (imported above), so the page may appear
+document.documentElement.classList.add('ready');
 const fmt = (v: number, d = 1) => {
   const r = v.toFixed(d);
   return (r.startsWith('-') && +r !== 0 ? '' : '+') + (+r === 0 ? (0).toFixed(d) : r);
@@ -171,7 +173,11 @@ function scoreRow(sc: ClassScore, aiScore?: ClassScore) {
     <div class="bar"><div class="fill" style="width:${pos(you)};background:${c.color}"></div>
       <div class="tick" style="left:${pos(sc.baseline)}" title="raw mixture"></div>
       <div class="tick" style="left:${pos(sc.oracle)};background:#ffe08a" title="ideal ratio mask ceiling"></div></div>
-    <div class="score-nums"><span>mix ${sc.baseline.toFixed(1)}</span><span>you <b>${sc.player === null ? '–' : sc.player.toFixed(1)}</b> ${sc.player === null ? '' : `(${fmt(sc.player - sc.baseline)})`}</span><span>ceiling ${sc.oracle.toFixed(1)}</span></div>
+    <div class="score-nums">
+      <span><small>mix</small><b>${sc.baseline.toFixed(1)}</b></span>
+      <span class="you"><small>you</small><b>${sc.player === null ? '–' : sc.player.toFixed(1)}</b>${sc.player === null ? '' : `<em>${fmt(sc.player - sc.baseline)}</em>`}</span>
+      <span class="ceil"><small>ceiling</small><b>${sc.oracle.toFixed(1)}</b></span>
+    </div>
     ${ai}
   </div>`;
 }
@@ -188,7 +194,7 @@ function renderScores() {
   const ai = hasAi ? s.scores((l) => l.origin === 'ai') : [];
   box.innerHTML =
     sc.map((x, i) => scoreRow(x, ai[i])).join('') +
-    `<p class="muted small" style="margin:8px 0 0">Ceiling = ideal ratio mask: the best any mask can do on this clip.</p>`;
+    `<p class="score-note">Ceiling: the best result any painting can reach on this clip.</p>`;
   checkUnlocks(sc);
 }
 
@@ -739,12 +745,13 @@ if (import.meta.env.DEV) Object.assign(window, { __bs: { state, view, transport 
 // ---------------- boot ----------------
 async function boot() {
   load();
+  // the welcome screen does not need a recording, so it appears at once
+  showWelcome();
   await loadLevel(0);
   setTool('brush');
   view.setIso(true);
   vizPanel.render();
   themeTimeline();
-  showWelcome();
 }
 boot().catch((err) => {
   console.error(err);
