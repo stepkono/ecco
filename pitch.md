@@ -5,6 +5,7 @@ This file collects everything for the pitch. It is updated whenever the team men
 - **Part 1** is the team's own framing, written down as it was said, only cleaned up.
 - **Part 2** holds proposed additions and corrections. The team goes through them one by one and marks each one as accepted, changed or dropped.
 - **Part 3** lists open questions.
+- **Part 4** is the 3-minute pitch script with the live demo and the Q&A preparation.
 
 Last updated: 2026-11-15
 
@@ -200,3 +201,53 @@ Suggested opening for the pitch: "AI needs labeled data, and labeling is the mos
 - Who are the experts that verify new fingerprints?
 - Who pays in the long run? Options: national parks, research institutes, nature NGOs, data licensing.
 - What is the name of the game suite?
+
+---
+
+## Part 4: Pitch script (3 min) and Q&A (3 min)
+
+### What really runs (verified on 2026-11-15)
+- **The full loop works**, including the new 3D interface:
+  1. The listening post hears an unknown sound.
+  2. The post sends it to the backend.
+  3. A player labels it in ecco.
+  4. The backend turns the label into new prototypes.
+  5. The post installs them within about 2 s.
+  6. The post recognizes the sound, and even a second recording it never heard before.
+- **"Retraining" means few-shot learning.** The audio model on the post stays fixed. Each accepted label adds a reference fingerprint (a prototype). This is the honest wording (see A3).
+- **The "Model lab" in the web app is a separate browser demo.** It trains a small model from practice masks and is not connected to the post. Leave it out of the pitch.
+- **The challenge places and numbers on the welcome screen are demo data.** The live recordings are real events from the post.
+
+### Before going on stage
+1. Start the demo: `NO_OPEN=1 bash demo/run_demo.sh`. For the real board: `bash demo/run_demo.sh --board` (needs Wi-Fi between laptop and board).
+2. Start ecco: `npm run dev` and open the welcome screen.
+3. Open the event screen in a second window: `http://localhost:8000/screen?device=http://localhost:8766`.
+4. Run `bash demo/pitch.sh reset`, then `bash demo/pitch.sh before`. After about 20 s, two live recordings wait in ecco.
+5. Do one full rehearsal, then reset and run `before` again.
+6. Fallback: record a screen video of one full run in case the network fails.
+
+### The 3 minutes
+| Time | Say | Show |
+|---|---|---|
+| 0:00 to 0:25 | Biodiversity monitoring needs labeled data. Cloud microphones stream everything, cost bandwidth and record people. Labeling is the most boring job in tech. | Title, the board in your hand |
+| 0:25 to 0:50 | ecco puts small AI listening posts into the forest. They decide on the spot, in 9 ms. Only when a post is unsure does it ask the community. | Event screen: the post's lamp is amber, "needs help" |
+| 0:50 to 1:50 | Live: open ecco, pick the live recording. The sound becomes a landscape. Press play, the playhead colours what you heard. Paint the call with the brush, choose "crickets", press Send label. | ecco: welcome, reveal, play, brush, Send label |
+| 1:50 to 2:15 | In about 2 seconds the post has learned it. Now it hears the sound again, plus a recording it never heard. Start `bash demo/pitch.sh after` while you talk. | Event screen: "installed", lamp turns green "crickets", twice |
+| 2:15 to 2:45 | Why it matters: speech never leaves the board, it works offline, one label is enough, and the community owns the data. | Numbers from A11 |
+| 2:45 to 3:00 | Outlook: a suite of games that turn labeling into play, for sound, images and more. | Closing line |
+
+Tips:
+- Talk while the audio plays. The `after` playback takes about 15 s.
+- Label the rain recording "noise" before the pitch, or skip it. It only adds time.
+- Keep one hand on the board when you say "the post learned it". The judges should see the hero.
+
+### Likely questions and short answers
+- **What if someone labels wrong?** Test clips with known answers give every player a reliability score. Several reliable players must agree before a label counts.
+- **Does the board retrain?** No weights change. A label adds a prototype, so it learns in seconds and needs no GPU (A3).
+- **What runs on the Arduino?** The UNO Q's Linux processor runs an int8 YAMNet model in about 95 MB of memory, at about 9 ms per sound window (A4).
+- **How do you find new species?** Clips that match nothing known and form a cluster across posts and players go to experts (A8).
+- **Privacy?** The post detects human speech on the board and never sends it (A1).
+- **Connectivity and power?** The post works offline and queues events. Only uncertain events travel, for example 79 snippets became 7 events (A2).
+- **Why 3D?** People spot patterns by rotating and switching views. The top view shows rhythm, the side view the shape of a call (Part 1, "Why a human").
+- **What is real and what is mocked?** The loop, the post and the live recordings are real. The challenge locations and statistics are demo data.
+
