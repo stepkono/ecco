@@ -373,6 +373,7 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 
 ## Change log
 
+* **2026-11-15** New hackathon README (idea, how it works, stack, models, setup, history, outlook). The old technical README moved to `docs/TECHNICAL.md`.
 * **2026-11-15** Community archive is a full-screen page with filters by kind of sound. Each stamp is the real 3D landscape rendered from straight above (JPEG, about 45 KB). Stamps live on the server and everyone sees them. An empty archive offers to add the 5 practice landscapes as examples, and the server page can delete all stamps (`DELETE /archive`). A landscape now plays its reveal once when it opens, not twice.
 * **2026-11-15** Archive: labelled recordings and contributed challenges become sound stamps (abstract top views, own gradient) in a personal archive in the browser. A stamp opens its landscape again.
 * **2026-11-15** Server page at `/` lists waiting recordings (listen, delete one or all) and the known sounds (forget one, reset to the starting sounds). Devices now follow the server's prototype version also downward.

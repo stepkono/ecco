@@ -43,3 +43,10 @@ config.local.yaml
 # screen recordings and screenshots for the pitch video
 footage/
 footage.zip
+
+# pitch video: dependencies, renders and media
+video/node_modules
+video/out
+video/public/footage
+video/clips
+video/audio
