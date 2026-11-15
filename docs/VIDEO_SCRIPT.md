@@ -1,6 +1,6 @@
 # ecco: voice script for the 1:30 pitch video
 
-About 190 words. That fits 90 seconds at a calm pace, with short pauses. Clip names refer to `footage/`.
+About 175 words. That fits 90 seconds at a calm pace, with short pauses. Clip names refer to `footage/`.
 
 | Time | Voice | Picture |
 |---|---|---|
