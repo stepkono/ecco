@@ -132,7 +132,9 @@ class SyncClient:
                 return
             raise
         version = int(json.loads(text).get("version", 0))
-        if version > self.current_version():
+        # the server is the source of truth: take its version whenever it differs, also a lower one
+        # (a device that once talked to another server, e.g. the demo one, would otherwise ignore it forever)
+        if version != self.current_version():
             if self.on_prototypes(text, "backend"):
                 # keep a local copy so a restart offline starts with the newest prototypes
                 self.local.parent.mkdir(parents=True, exist_ok=True)

@@ -277,7 +277,7 @@ class Backend:
         if device_id and have is not None:
             self.store.touch_device(device_id)
             row = self.store.one("SELECT proto_version FROM devices WHERE id=?", (device_id,))
-            if row["proto_version"] is None or have > row["proto_version"]:
+            if row["proto_version"] is None or have != row["proto_version"]:
                 first = row["proto_version"] is None
                 self.store.run("UPDATE devices SET proto_version=? WHERE id=?", (have, device_id))
                 if not first:
