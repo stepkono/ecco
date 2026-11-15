@@ -29,7 +29,7 @@ trap cleanup EXIT INT TERM
 
 $PY -m backend.app > data/demo/backend.log 2>&1 & pids+=($!)
 until curl -s -o /dev/null http://localhost:8000/stats; do sleep 0.5; done
-echo "backend:        http://localhost:8000  (labeling page)"
+echo "server:         http://localhost:8000  (status), labeling page: http://localhost:8000/play"
 
 if [ "$BOARD" = 1 ]; then
   BOARD_IP=${BOARD_IP:-10.0.41.141}
@@ -50,7 +50,7 @@ else
 fi
 SCREEN="http://localhost:8000/screen?device=$DEVICE&token=$TOKEN"
 echo "event screen:   $SCREEN"
-if [ -z "${NO_OPEN:-}" ] && command -v open >/dev/null; then open "$SCREEN"; open "http://localhost:8000/"; fi
+if [ -z "${NO_OPEN:-}" ] && command -v open >/dev/null; then open "$SCREEN"; open "http://localhost:8000/play"; fi
 
 if [ "$AUTO" = 1 ]; then
   sleep 2

@@ -67,6 +67,11 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
         raise HTTPException(404, str(e).strip("'"))
 
     @app.get("/", response_class=HTMLResponse)
+    def server_page():
+        # what this address is: the server, its state, and where to go from here
+        return (WEB / "server.html").read_text(encoding="utf-8")
+
+    @app.get("/play", response_class=HTMLResponse)
     def play_page():
         return (WEB / "play.html").read_text(encoding="utf-8")
 
