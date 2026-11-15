@@ -1,6 +1,6 @@
 # BioSpectra: how the system works
 
-**State as of 2026-11-14 (evening).** This document describes what exists and is verified today. It is updated whenever a change is accepted.
+**State as of 2026-11-15.** This document describes what exists and is verified today. It is updated whenever a change is accepted.
 
 ## In one paragraph
 
@@ -10,13 +10,14 @@ A listening post on an Arduino UNO Q listens to nature through a microphone. Eve
 
 | Part | Where | Status |
 |---|---|---|
-| Web game prototype (3D spectrogram, TinyML experiment) | `src/` (TypeScript, Vite, Three.js) | Working demo. Not yet connected to the Python side |
+| Web interface (welcome screen, challenges, 3D labeling) | `src/` (TypeScript, Vite, Three.js) | Working. Fetches live recordings from the backend and sends labels. See [The web interface](#the-web-interface) |
 | Phase 0: model test bench | `bench/` (Gradio) | Done |
 | Phase 1: listening post runtime | `device/` | Done, verified on the UNO Q |
 | Developer console (control the post from one page) | `device/console.py` | Done, running on the UNO Q |
 | Phase 2: backend (clips, labels, prototypes) | `backend/` (FastAPI, SQLite, runs on the laptop) | Done, the full loop verified with the UNO Q |
-| 2D labeling page (stand-in for the game) | `backend/web/play.html`, served at `/` | Done. The 3D game design is still open |
-| Phase 3: game connected to the backend | `game/` | Not started. Waits for the 3D design. The API is ready |
+| 2D labeling page (older stand-in) | `backend/web/play.html`, served at `/play` | Done. The web interface replaces it for players |
+| Server status page | `backend/web/server.html`, served at `/` | Done |
+| Phase 3: game connected to the backend | `src/game/backend.ts`, `src/ui/puzzle.ts` | Done. Live recordings open as puzzles, labels go back to the backend |
 | Phase 4: end-to-end demo | `demo/`, `/screen` | Done. 3 runs in a row pass on the laptop and with the UNO Q |
 | Phase 5: tools (demo set builder, STL sculpture) | `tools/` | Partly: demo set builder, mixer, test sets, prototypes, playlists. STL sculpture missing |
 | Phase 6: port details (autostart, Modulino knob and buzzer) | | Open. The device runs on the board, but by hand |
@@ -39,7 +40,7 @@ flowchart LR
   queue --> sync[Sync client]
   sync -->|events| backend[(Backend on the laptop<br/>FastAPI + SQLite)]
   backend -->|new prototypes| sync
-  backend <--> game[Labeling page now<br/>3D game later]
+  backend <--> game[Web interface<br/>3D labeling]
 ```
 
 Data flows in a loop: the post queues what it does not know, players label it, the backend turns labels into prototypes, and the post downloads them.
@@ -151,7 +152,8 @@ First-time setup of a board: `git clone https://github.com/stepkono/spetrum.git 
 .venv/bin/python -m bench.app                                # Phase 0 model bench
 .venv/bin/python -m backend.app                              # backend + labeling page, http://localhost:8000
 .venv/bin/python -m tools.seed_gold                          # optional: hidden gold clips
-.venv/bin/python -m pytest -q tests                          # 28 tests
+.venv/bin/python -m pytest -q tests                          # 29 tests
+npm install && npm run dev                                   # web interface (Vite), talks to the backend on port 8000
 ```
 
 ### Returning the board
@@ -199,6 +201,8 @@ Runs on the laptop: `python -m backend.app` (port 8000). Storage: `data/backend/
 
 | Route | What it does |
 |---|---|
+| `GET /` | Status page: waiting recordings, posts online, links to the website, `/screen` and `/play` |
+| `GET /play` | The older 2D labeling page |
 | `POST /devices/{device_id}/clips` | multipart `audio` (WAV, one event) + `metadata` (JSON: clip id, model id, time, best guess, similarities, embedding, duration, heard count, novelty, quality, timeline) |
 | `POST /players` | `{"nickname"}` → `{"player_id"}` |
 | `GET /puzzles/next?player_id=` | next puzzle (204 when there is none) |
@@ -208,9 +212,27 @@ Runs on the laptop: `python -m backend.app` (port 8000). Storage: `data/backend/
 | `POST /clips/{id}/labels` | `{"player_id", "label", "mask"?}` → accepted, votes, prototype version, or gold feedback |
 | `GET /prototypes/latest?model_id=&device_id=&have=` | prototype JSON (204 when there is none). `device_id` and `have` confirm installs |
 | `GET /events/stream` | Server-Sent Events: `clip_received`, `label_submitted`, `label_accepted`, `prototype_published`, `device_updated`, `gold_answered` |
-| `GET /events`, `GET /stats` | recent events, counts, players, prototype version |
+| `GET /clips` | waiting recordings with post location, views and disagreement |
+| `GET /clips/{id}` | one recording's details |
+| `DELETE /clips/{id}`, `DELETE /clips` | delete one waiting recording, or all of them (labelled and gold clips stay) |
+| `GET /events`, `GET /stats` | recent events, counts, players, prototype version, label options |
 
-The labeling page at `/` is a 2D stand-in for the game: spectrogram (log frequency), drag boxes, play all or the selection, label buttons, a live feed and keyboard control (`N`, `P`, `S`, `C`, `1`–`5`).
+The labeling page at `/play` is the older 2D stand-in for the game: spectrogram (log frequency), drag boxes, play all or the selection, label buttons, a live feed and keyboard control (`N`, `P`, `S`, `C`, `1`–`5`).
+
+## The web interface
+
+The website in `src/` is where people label recordings. Start it with `npm run dev`. It talks to the backend at the same host on port 8000 (or `?backend=<url>`). `npm run build` makes a static build that runs from any path.
+
+* **Welcome screen.** It states the mission and the task in three steps. Then it shows the challenge list as cards and as pins on a map of Finland. Hovering a card highlights its pin, and the other way round.
+* **Categories.** **Newest** lists the live recordings that the listening posts could not recognize, straight from the backend (`GET /clips`). **Hottest**, **Most viewed** and **Least viewed** list the challenges. Challenges are built-in practice clips with known answers. Their places, times and numbers are demo data. A card shows where and when the sound was recorded. Clicking a card opens exactly that recording. **Next** follows the list on screen.
+* **Delete recordings.** In Newest, one recording or all of them can be deleted from the server. The page asks for confirmation first.
+* **Labeling card.** A live recording is cut into 5 s parts. The player paints the call in the 3D landscape on each part, picks a label and sends it. All parts become one mask on the backend's spectrogram grid. Skip moves on to another recording. When none are left, the card says so in plain words.
+* **Tools.** A navigation bar with the painting tools and an eraser. The landscape is revealed along the time axis when a recording opens. The panels are frosted glass.
+* **DJ timeline.** The waveform at the bottom scrolls past a fixed needle. Press and hold to stop it under the hand. Drag left to play forward and right to rewind. A flick keeps the speed, slows down and then plays on. The played part is coloured.
+* **View lab.** A panel to change the look: the modes Voxels, Drop lines, Spiral and Symmetry, the themes Classic, Glacier, Lagoon, Plum, Horizon and Dawn, sliders for amplitude and resolution, and a switch for the isometric camera.
+* **Brand.** The site uses the ecco logo (Echo Rays concept) from `public/brand/` and `src/ui/brand.ts`. All logo concepts are in `brand/logos/` (open `index.html` there).
+
+Open ideas for the interface are collected in `spectrum-todo.md` (onboarding, difficulty grades, tool tuning), each marked open, in progress or done.
 
 ## The end-to-end demo (Phase 4)
 
@@ -295,18 +317,21 @@ core/      audio, models (YAMNet, BirdNET, Perch adapters), gates, heads, state,
 device/    runtime (listener), events (merging, context), sources (mic, file, playlist), hardware (LED, web light),
            sync client, console (server + web/console.html), main (CLI without console)
 bench/     Phase 0 Gradio bench
-backend/   Phase 2: store (SQLite), service (puzzles, consensus, learning), app (FastAPI), web/play.html, web/screen.html
+backend/   Phase 2: store (SQLite), service (puzzles, consensus, learning), app (FastAPI), web/server.html, web/play.html, web/screen.html
 demo/      Phase 4: run_demo.sh, scenario.py, config overlays for laptop and board
 tools/     board setup/cleanup, device_ctl, mixer, test sets, ESC-50 import,
            threshold calibration, prototypes, playlists, soundscape download and excerpts
 tests/     core, events, device acceptance, console API, backend (full loop)
-src/       web game prototype (TypeScript)
+src/       web interface (TypeScript): ui/ (welcome, puzzle, timeline, View lab), view/ (3D modes, themes), game/ (backend client, challenges)
+public/    static files for the web interface, including the logo
+brand/     logo concepts (brand/logos/)
 docs/      this document
 ```
 
 ## Verified results
 
-* **Tests:** 28 pass on the Mac (`pytest -q tests`).
+* **Tests:** 29 pass on the Mac (`pytest -q tests`). 11 of them need `data/prototypes/` and `data/playlist/` and are skipped without them.
+* **Web build:** `npm run build` passes.
 * **Phase 4 acceptance:** 3 of 3 scripted runs in a row, on the laptop (21 s loop) and with the UNO Q (24 s loop). See [The end-to-end demo](#the-end-to-end-demo-phase-4).
 * **Phase 2 acceptance:** automated with a real backend server: the device's events appear as puzzles, a label with a box selection publishes a new version, the device installs it and recognizes the sound on the next play.
 * **Phase 2 on the real board:** the UNO Q uploaded its 18 queued events to the laptop. The insects event was boxed and labelled `noise` on the labeling page. The board installed prototypes v31 within seconds, and on the next playlist run the insects clip stayed quiet (noise 0.85) instead of asking for help.
@@ -339,12 +364,13 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 * **Repeat counts after upload.** A repeat the post hears after an event was uploaded is counted on the post only. The backend keeps the count from upload time.
 * **Backend access.** The backend has no login. It is meant for the laptop on the event network.
 * **Venue clips on the laptop.** The board's earlier venue clips were uploaded to the backend with the demo events. They may contain voices: delete `data/backend` before sharing the laptop data.
-* **Phase 3** (the 3D game) waits for the visual design. The labeling page stands in for it.
+* **Practice challenges.** Hottest, Most viewed and Least viewed show practice clips with demo places, times and numbers, not real statistics.
 * **Demo species.** The demo teaches `crickets`, which is in the demo's label list only (`demo/config.demo.yaml`). Replace it with a real target species once the team has chosen them.
 * **Board after a board demo.** `run_demo.sh --board` restarts the board's console with the demo overlay. Restart it normally afterwards (`device_ctl.sh start`).
 
 ## Change log
 
+* **2026-11-15** New web interface merged into main: welcome screen, Newest with live recordings, challenges, labeling card, DJ timeline, View lab, delete recordings. Backend status page at `/`, labeling page moved to `/play`. ecco logo concepts added.
 * **2026-11-14** Phase 4: one-command demo (`make demo`), scripted 5-step scenario, event screen, verified demo set, demo reset. 3/3 runs on the laptop and on the UNO Q. Fixed: a device on the backend's machine could overwrite the backend's seed file.
 * **2026-11-14** Phase 2 backend: events become puzzles, gold clips, reliability, consensus, learning from the player's selection, prototype versions, install confirmation, event stream, 2D labeling page. Full loop verified with the UNO Q.
 * **2026-11-14** Uncertain segments become events with 2 s context, speech-safe, repeats counted per segment, hourly budget. Recognized sounds are counted. Verified on soundscapes and the UNO Q.
