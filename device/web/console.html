@@ -33,7 +33,16 @@
   button:hover { border-color: #3d4b5c; }
   button.primary { background: #1f6feb; border-color: #1f6feb; }
   button.danger { color: var(--bad); }
-  button.on { border-color: var(--ok); color: var(--ok); }
+  button.on { background: var(--ok); border-color: var(--ok); color: #071a10; font-weight: 600; }
+  /* one sentence that says what the board is doing right now */
+  .banner { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; margin-bottom: 14px; font-weight: 600; border: 1px solid var(--line); background: var(--panel2); }
+  .banner .bd { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .banner.listening { border-color: var(--ok); color: var(--ok); }
+  .banner.listening .bd { background: var(--ok); animation: pulse 1.4s infinite; }
+  .banner.offline { border-color: var(--bad); color: var(--bad); }
+  .banner.offline .bd { background: var(--bad); }
+  .banner small { font-weight: 400; color: var(--muted); margin-left: auto; }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, .6); } 70%, 100% { box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); } }
   button:disabled { opacity: .5; cursor: default; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; font-size: 13px; margin-top: 12px; }
@@ -80,7 +89,8 @@
     <div>
       <section aria-labelledby="h-live">
         <h2 id="h-live">Live</h2>
-        <div class="light" role="status" aria-live="polite">
+        <div class="banner" id="banner" role="status" aria-live="polite"><span class="bd"></span><span id="banner-text">Connecting to the board…</span></div>
+        <div class="light">
           <div class="lamp" id="lamp" aria-hidden="true"></div>
           <div>
             <div class="state" id="state">Quiet</div>
@@ -88,7 +98,7 @@
           </div>
         </div>
         <div class="row">
-          <button id="btn-mic" class="primary">Listen to mic</button>
+          <button id="btn-mic">Listen to mic</button>
           <button id="btn-playlist">Play demo playlist</button>
           <button id="btn-stop" class="danger">Stop</button>
         </div>
@@ -215,8 +225,32 @@ function renderStatus(s) {
   $("tn").textContent = Number(s.t_noise).toFixed(2);
   if (!knobBusy) $("knob").value = s.knob;
   $("btn-mic").classList.toggle("on", s.mode === "mic");
+  $("btn-mic").textContent = s.mode === "mic" ? "Listening to mic" : "Listen to mic";
   $("btn-playlist").classList.toggle("on", s.mode === "playlist");
+  $("btn-playlist").textContent = s.mode === "playlist" ? "Playing demo playlist" : "Play demo playlist";
   if (s.mode === "idle") setLamp("#8a8f98", "Quiet", "listener idle");
+  lastMode = s.mode;
+  banner();
+}
+
+// ---------------------------------------------------------------- what the board is doing, in one sentence
+let lastMode = null;
+let online = false;
+function banner() {
+  const b = $("banner"), t = $("banner-text");
+  b.className = "banner";
+  if (!online) {
+    b.classList.add("offline");
+    t.innerHTML = "Board not reachable <small>it may be restarting. This page reconnects by itself.</small>";
+  } else if (lastMode === "mic") {
+    b.classList.add("listening");
+    t.innerHTML = "Listening to the mic <small>unclear sounds are sent to the server</small>";
+  } else if (lastMode === "playlist") {
+    b.classList.add("listening");
+    t.innerHTML = "Playing the demo playlist <small>instead of the mic</small>";
+  } else {
+    t.innerHTML = "Not listening <small>press “Listen to mic” to start</small>";
+  }
 }
 
 function renderDecision(e) {
@@ -233,8 +267,8 @@ function renderDecision(e) {
 
 function connect() {
   const es = new EventSource(`/api/events?token=${encodeURIComponent(token)}`);
-  es.onopen = () => { $("b-conn").textContent = "connected"; $("b-conn").className = "badge live"; };
-  es.onerror = () => { $("b-conn").textContent = "reconnecting"; $("b-conn").className = "badge off"; };
+  es.onopen = () => { $("b-conn").textContent = "connected"; $("b-conn").className = "badge live"; online = true; refreshStatus(); banner(); };
+  es.onerror = () => { $("b-conn").textContent = "reconnecting"; $("b-conn").className = "badge off"; online = false; banner(); };
   es.onmessage = (m) => {
     const e = JSON.parse(m.data);
     if (e.type === "status") renderStatus(e);
@@ -248,7 +282,10 @@ async function setMode(mode) {
     const body = { mode };
     if (mode === "playlist") { body.path = $("pl-path").value; body.speed = Number($("pl-speed").value); }
     renderStatus(await (await post("/api/mode", body)).json());
-  } catch (e) { toast(e.message, true); }
+  } catch (e) {
+    online = false; banner();
+    toast("The board did not answer. It may be restarting.", true);
+  }
 }
 $("btn-mic").onclick = () => setMode("mic");
 $("btn-playlist").onclick = () => setMode("playlist");
