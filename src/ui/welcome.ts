@@ -52,7 +52,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
           <figure class="wl-map">
             <svg viewBox="-6 -6 ${MAP_W + 12} ${MAP_H + 12}" role="img" aria-label="Map of Finland with the recording places">
               <defs>
-                <clipPath id="wl-clip"><rect x="-6" y="-6" width="${MAP_W + 12}" height="${MAP_H + 12}" rx="14" /></clipPath>
+                <clipPath id="wl-clip"><rect x="-6" y="-6" width="${MAP_W + 12}" height="${MAP_H + 12}" rx="6" /></clipPath>
               </defs>
               <g clip-path="url(#wl-clip)">
                 ${graticule()}

@@ -51,9 +51,10 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
         <button class="btn primary wide" id="pz-next" ${busy || !online ? 'disabled' : ''}>${busy ? 'Loading…' : 'Next recording'}</button>`;
     } else {
       const chips = wins
-        .map((w, i) => `<button class="pz-win ${i === active ? 'on' : ''}" data-win="${i}" title="Show this part of the recording">${painted(w.session) ? '● ' : ''}${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s</button>`)
+        .map((w, i) => `<button class="pz-win ${i === active ? 'on' : ''}" data-win="${i}" title="Show seconds ${w.start.toFixed(0)} to ${(w.start + CLIP_SECONDS).toFixed(0)} of the recording. Each part keeps its own painting.">${painted(w.session) ? '● ' : ''}Part ${i + 1} · ${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s</button>`)
         .join('');
-      body = `${wins.length > 1 ? `<div class="pz-wins">${chips}</div>` : ''}
+      const total = puzzle.duration_s;
+      body = `${wins.length > 1 ? `<p class="muted small">This recording is ${total.toFixed(0)} s long. The landscape shows ${CLIP_SECONDS.toFixed(0)} s at a time, so it comes in ${wins.length} parts.</p><div class="pz-wins">${chips}</div>` : ''}
         <div class="pz-row"><span>Label</span><select id="pz-label" aria-label="Label">${puzzle.labels.map((l) => `<option ${l === label ? 'selected' : ''}>${l}</option>`).join('')}</select>
           <button class="btn ghost" id="pz-skip" ${busy ? 'disabled' : ''} title="Load the next recording without answering">Skip</button></div>
         <p class="muted small">Paint the sound with any tool. Unpainted means the whole event.</p>

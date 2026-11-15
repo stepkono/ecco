@@ -232,8 +232,8 @@ function afterEdit(heights = false) {
   renderLayerFilter();
   clearTimeout(scoreTimer);
   scoreTimer = window.setTimeout(renderScores, 180);
-  // layer and rest playback follow the painting
-  if (playMode !== 'mix') {
+  // layer, rest, boosted and background-free playback follow the painting
+  if (playMode !== 'mix' || view.unfold > 0 || view.whiten) {
     clearTimeout(audioTimer);
     audioTimer = window.setTimeout(() => refreshAudio(), 250);
   }
@@ -478,11 +478,37 @@ canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 type PlayMode = 'mix' | 'layer' | 'res';
 let playMode: PlayMode = 'mix';
 
+/** Boost at full strength makes the painted layers this much louder in the full mix. */
+const BOOST_MAX = 4; // about +12 dB
+
 function currentAudio(): Float32Array {
   const s = state.session!;
-  if (playMode === 'layer' && s.active) return s.layerAudio(s.active);
-  if (playMode === 'res') return s.residualAudio();
-  return s.mixture.mix;
+  const boost = view.unfold;
+  const hide = view.whiten;
+  let m: Float32Array | null = null;
+  if (playMode === 'layer' && s.active) m = s.layerMask(s.active);
+  else if (playMode === 'res') m = s.residualMask();
+  if (!m && !hide && boost <= 0) return s.mixture.mix;
+  const n = s.spec.mag.length;
+  if (!m) m = new Float32Array(n).fill(1);
+  if (playMode === 'mix' && boost > 0) {
+    // painted cells get louder, the rest stays as it is
+    const g = 1 + (BOOST_MAX - 1) * boost;
+    for (const l of s.layers) {
+      if (!l.visible) continue;
+      for (let i = 0; i < n; i++) if (l.mask[i] > 0) m[i] *= 1 + (g - 1) * Math.min(1, l.mask[i]);
+    }
+  }
+  if (hide) {
+    const bg = s.backgroundMask();
+    for (let i = 0; i < n; i++) m[i] *= bg[i];
+  }
+  const x = s.maskedAudio(m);
+  // keep it out of clipping when boosted
+  let peak = 0;
+  for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+  if (peak > 0.95) for (let i = 0; i < x.length; i++) x[i] *= 0.95 / peak;
+  return x;
 }
 
 function refreshAudio(resetPosition = false) {
@@ -514,15 +540,19 @@ document.querySelectorAll<HTMLElement>('[data-pm]').forEach((b) => (b.onclick = 
 })();
 
 // ---------------- view bar ----------------
+// both change what you see and what you hear
 ($('#whiten') as HTMLInputElement).onchange = (e) => {
   view.whiten = (e.target as HTMLInputElement).checked;
   view.markHeightsDirty();
   view.refresh();
+  refreshAudio();
 };
 ($('#unfold') as HTMLInputElement).oninput = (e) => {
   view.unfold = parseFloat((e.target as HTMLInputElement).value);
   view.markHeightsDirty();
   view.refresh();
+  clearTimeout(audioTimer);
+  audioTimer = window.setTimeout(() => refreshAudio(), 150);
 };
 const camButtons = document.querySelectorAll<HTMLElement>('[data-cam]');
 function setCam(cam: 'perspective' | 'top' | 'side') {

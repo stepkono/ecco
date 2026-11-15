@@ -431,6 +431,46 @@ export class SpectroView {
     this.axisGroup.add(ticks);
     this.label('time', new THREE.Vector3(0, 0, WORLD_D / 2 + 1.3), 'axis-title');
     this.label('frequency', new THREE.Vector3(-WORLD_W / 2 - 2.2, 0, 0), 'axis-title');
+    this.axisGroup.add(this.ampAxis);
+    this.buildAmpAxis();
+  }
+
+  /** Vertical amplitude scale at the far corner. It follows the height curve of the landscape. */
+  private ampAxis = new THREE.Group();
+  private ampAxisWhiten: boolean | null = null;
+  private buildAmpAxis() {
+    if (this.ampAxisWhiten === this.whiten) return;
+    this.ampAxisWhiten = this.whiten;
+    for (const c of [...this.ampAxis.children]) {
+      this.ampAxis.remove(c);
+      if (c instanceof CSS2DObject) c.element.remove();
+      if (c instanceof THREE.LineSegments) c.geometry.dispose();
+    }
+    // far corner (end of the time axis, highest frequency): it stands behind the landscape, clear of the panels
+    const x0 = WORLD_W / 2;
+    const z0 = -WORLD_D / 2;
+    const pts = [new THREE.Vector3(x0, 0, z0), new THREE.Vector3(x0, WORLD_H, z0)];
+    // the same mapping as the heights: v = share of the scale, height = v^1.6 of the full height
+    const ticks: [number, string][] = this.whiten
+      ? [0, 8, 16, 24, 32].map((d) => [(d + 2) / 34, d === 0 ? 'background' : `+${d} dB`])
+      : [0, 12, 24, 36, 48].map((d) => [1 - d / 66, d === 0 ? '0 dB' : `-${d} dB`]);
+    for (const [v, text] of ticks) {
+      const y = Math.max(0, v) ** 1.6 * WORLD_H;
+      pts.push(new THREE.Vector3(x0, y, z0), new THREE.Vector3(x0 + 0.25, y, z0));
+      const el = document.createElement('div');
+      el.className = 'axis-label';
+      el.textContent = text;
+      const o = new CSS2DObject(el);
+      o.position.set(x0 + 0.85, y, z0);
+      this.ampAxis.add(o);
+    }
+    const el = document.createElement('div');
+    el.className = 'axis-title';
+    el.textContent = this.whiten ? 'above background' : 'amplitude';
+    const t = new CSS2DObject(el);
+    t.position.set(x0, WORLD_H + 0.45, z0);
+    this.ampAxis.add(t);
+    this.ampAxis.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0x4a6b78 })));
   }
 
   // ---------------- theme ----------------
@@ -540,6 +580,7 @@ export class SpectroView {
 
   markHeightsDirty() {
     this.dirtyHeights = true;
+    this.buildAmpAxis();
   }
 
   /** Recompute colours (and heights if needed) from the layer masks, then update the active mode. */
@@ -1903,15 +1944,20 @@ export class SpectroView {
     if (sec === null) {
       this.playhead.visible = false;
       this.spiralRing.visible = false;
+      U.play.value.z = 0;
       return;
     }
     if (this.mode === 'spiral') {
       this.spiralRing.visible = true;
       this.spiralRing.position.y = (VIZ.spiral.height * this.axis.t * sec) / CLIP_SECONDS;
+      this.spiralRing.getWorldPosition(tmpV);
+      U.play.value.set(1, tmpV.y, 1, 0.15);
       return;
     }
     this.playhead.visible = true;
     this.playhead.position.x = -WORLD_W / 2 + (WORLD_W * sec) / CLIP_SECONDS;
+    this.playhead.getWorldPosition(tmpV);
+    U.play.value.set(0, tmpV.x, this.mode === 'disc' ? 0 : 1, 0.12);
   }
 
   setViewMode(rotateWithLeft: boolean) {
@@ -2024,7 +2070,8 @@ export class SpectroView {
     }
     if (this.iso) {
       // same framing through a narrow lens: push the camera back by the ratio of the lens widths
-      const dist = pos.distanceTo(target) * (Math.tan((21 * Math.PI) / 180) / Math.tan((3.9 * Math.PI) / 180));
+      // a little extra room, so the landscape and its axes sit between the floating panels
+      const dist = pos.distanceTo(target) * (Math.tan((21 * Math.PI) / 180) / Math.tan((3.9 * Math.PI) / 180)) * 1.2;
       const dir = view === 'perspective' ? new THREE.Vector3(-1, 0.85, 1).normalize() : pos.clone().sub(target).normalize();
       pos.copy(target).addScaledVector(dir, dist);
     }

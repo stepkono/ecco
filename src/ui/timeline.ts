@@ -5,12 +5,12 @@ import type { Transport } from '../audio/transport';
  * DJ-style timeline at the bottom of the stage.
  *
  * The waveform scrolls past a fixed needle in the middle while the clip plays.
- * Press and hold: the recording stops under your hand. Push right to play forward,
- * push left to rewind, like a jog wheel. Let go with a flick and the recording keeps
+ * Press and hold: the recording stops under your hand. The waveform follows the hand:
+ * drag it left to play forward, drag it right to rewind. Let go with a flick and the recording keeps
  * that speed, slows down, and then carries on playing (or rests, when paused).
  */
-/** +1: pushing right plays forward and pushing left rewinds (jog wheel). -1 flips it. */
-export const JOG_DIRECTION = 1;
+/** -1: the waveform follows the hand (drag left = forward, drag right = rewind). +1 is the jog wheel direction. */
+export const JOG_DIRECTION = -1;
 /** seconds of audio visible across the timeline */
 const VISIBLE_SEC = 3;
 
@@ -28,7 +28,7 @@ export class Timeline {
     this.transport = transport;
     this.cv = document.createElement('canvas');
     this.cv.className = 'timeline-canvas';
-    this.cv.title = 'Hold to stop. Push right to play forward, push left to rewind. Flick to throw.';
+    this.cv.title = 'Hold to stop. Drag the waveform left to play forward, right to rewind. Flick to throw.';
     host.appendChild(this.cv);
     this.ctx = this.cv.getContext('2d')!;
     this.cv.addEventListener('pointerdown', (e) => this.down(e));

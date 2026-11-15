@@ -47,6 +47,22 @@ Status: **open**, **in progress**, **done**.
 - **open** · Challenge places, times, views and disagreement are demo data. Connect them to real post locations and real statistics.
 - **open** · The difficulty grade is fixed per sample. Compute it from the recording (see "User flow").
 
+## Open after round 3
+
+- **open** · Long recordings come in 5 s parts, because the landscape shows 5 s at a time. Show the whole recording in one landscape instead, so nobody has to switch parts.
+- **open** · The 2 s lead-in before a live recording can be pure background noise. It still rescales the colours of its part. Consider dimming the lead-in or scaling the colours over the whole recording.
+
+## Done in the UI overhaul, round 3
+
+- **done** · Smaller corners: 4 to 6 px everywhere, small bevelled squares instead of round pills and buttons.
+- **done** · Play and pause fade the volume in about 6 ms and never change the speed, so there is no record scratch. Only hold and throw on the timeline change the speed.
+- **done** · Timeline direction flipped: the waveform follows the hand.
+- **done** · Amplitude axis at the far corner of the landscape (dB below the loudest point, or dB above the background when "Hide background" is on).
+- **done** · "Hide background" and "Boost" now change the sound as well as the picture.
+- **done** · The part the playhead has not reached yet is nearly grey. The played part keeps its colours.
+- **done** · Recording parts are labelled "Part 1 · 0–5 s" with a short explanation.
+- **done** · Left panel no longer scrolls sideways.
+
 ## Done in the UI overhaul, round 2
 
 - **done** · Frosted glass panels with a bright solid border, floating over a full-bleed 3D view.

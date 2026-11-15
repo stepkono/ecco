@@ -16,6 +16,8 @@ export const U = {
   /** water: x = wave height, y = world height of the crests (full light cyan), z = how much the water blues cover the paint (0..1). Caustic tint in waterTint */
   water: { value: new THREE.Vector4(0.035, 1.2, 0.5, 0) },
   waterTint: { value: new THREE.Color(0xffffff) },
+  /** playhead: x = axis (0 = world x, 1 = world y), y = playhead coordinate, z = on (1) or off (0), w = soft edge width */
+  play: { value: new THREE.Vector4(0, 0, 0, 0.12) },
 };
 
 type Patch = { key: string; fn: (s: THREE.WebGLProgramParametersWithUniforms) => void; last?: boolean };
@@ -96,11 +98,19 @@ export function withFog<T extends THREE.Material>(mat: T): T {
       worldPos(s);
       s.uniforms.uHFog = U.hfog;
       s.uniforms.uFogT = U.time;
+      s.uniforms.uPlay = U.play;
       s.fragmentShader = s.fragmentShader
-        .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nuniform vec4 uHFog;\nuniform float uFogT;\n' + FOG_NOISE_GLSL)
+        .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nuniform vec4 uHFog;\nuniform float uFogT;\nuniform vec4 uPlay;\n' + FOG_NOISE_GLSL)
         .replace(
           '#include <fog_fragment>',
-          `#ifdef USE_FOG
+          `// what the playhead has not reached yet is nearly grey, so you see where it came from and where it goes
+          if ( uPlay.z > 0.5 ) {
+            float plC = uPlay.x < 0.5 ? vWPos.x : vWPos.y;
+            float ahead = smoothstep( uPlay.y, uPlay.y + uPlay.w, plC );
+            float lum = dot( gl_FragColor.rgb, vec3( 0.299, 0.587, 0.114 ) );
+            gl_FragColor.rgb = mix( gl_FragColor.rgb, mix( vec3( lum ), gl_FragColor.rgb, 0.2 ) * 0.9, ahead );
+          }
+          #ifdef USE_FOG
             #ifdef FOG_EXP2
               float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
             #else
