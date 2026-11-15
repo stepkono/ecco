@@ -280,7 +280,6 @@ tools/            board setup, autostart and cleanup, prototypes, demo sets, sou
 demo/             one-command end-to-end demo and pitch helper
 tests/            pytest suite
 brand/            ecco logo concepts
-video/            pitch video (Remotion)
 assets/readme/    screenshots for this README
 ```
 
