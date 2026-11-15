@@ -232,3 +232,18 @@ def test_learning_switch(tmp_path):
     client.post("/clips/b/labels", json={"player_id": pid, "label": "crickets"})
     st = client.get("/stats").json()
     assert st["prototype_version"] == v0 + 1 and "crickets" in st["prototype_classes"]
+
+
+def test_community_archive(tmp_path):
+    """Stamps sent by players are listed for everyone, newest first."""
+    from fastapi.testclient import TestClient
+
+    from backend.app import create_app
+
+    client = TestClient(create_app(cfg_copy(gold_rate=0.0), data_dir=tmp_path / "backend"))
+    for i in range(2):
+        r = client.post("/archive", json={"id": f"s{i}", "kind": "live", "title": "Frog?", "label": "frog", "place": "Nuuksio",
+                                          "recorded": 1.0, "labelled": 10.0 + i, "stamp": "data:image/jpeg;base64,AAAA", "hue": 120})
+        assert r.status_code == 201
+    assert [s["id"] for s in client.get("/archive").json()] == ["s1", "s0"]
+    assert client.post("/archive", json={"id": "x", "kind": "live", "title": "t", "label": "l", "stamp": "not an image"}).status_code == 400

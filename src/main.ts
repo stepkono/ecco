@@ -683,7 +683,7 @@ const archive = mountArchive($('#archive'), {
     }
   },
 });
-const updateArchiveCount = () => ($('#archive-count').textContent = String(archive.count()));
+const updateArchiveCount = async () => ($('#archive-count').textContent = String(await archive.count()));
 updateArchiveCount();
 window.addEventListener('archive-changed', updateArchiveCount);
 $('#btn-archive').onclick = () => archive.show();
@@ -726,6 +726,7 @@ const welcome = mountWelcome($('#welcome'), {
   subscribe: (changed) => {
     backend.listen((ev) => {
       if (ev.type === 'clip_received' || ev.type === 'clips_deleted' || ev.type === 'label_accepted') changed();
+      if (ev.type === 'stamp_added') window.dispatchEvent(new Event('archive-changed'));
     });
   },
   archive: () => archive.show(),

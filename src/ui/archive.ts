@@ -1,10 +1,11 @@
 import { N_BINS, BIN_HZ } from '../dsp/stft';
 import type { Session } from '../game/session';
+import { backendUrl } from '../game/backend';
 
 /**
- * The archive: every landscape you labelled becomes a "sound stamp", an abstract
- * top view of its sound with a colour gradient of its own. Stamps are kept in this
- * browser (your personal collection) and open their landscape again on click.
+ * The community archive: every labelled landscape becomes a "sound stamp", an abstract
+ * top view of its sound with a colour gradient of its own. Stamps go to the server, so
+ * everyone sees everyone's stamps. A copy stays in this browser, which marks your own.
  */
 export interface ArchiveEntry {
   id: string; // clip id (live) or level id (challenge)
@@ -17,6 +18,7 @@ export interface ArchiveEntry {
   stamp: string; // data URL (JPEG)
   hue: number;
   levelIndex?: number;
+  player?: string;
 }
 
 const KEY = 'ecco.archive.v1';
@@ -48,6 +50,21 @@ export function addToArchive(e: ArchiveEntry) {
   list.unshift(e);
   saveArchive(list.slice(0, 200));
   window.dispatchEvent(new Event('archive-changed'));
+  // share it with the community
+  void fetch(`${backendUrl()}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e) })
+    .then(() => window.dispatchEvent(new Event('archive-changed')))
+    .catch(() => undefined);
+}
+
+/** Everyone's stamps from the server. Falls back to this browser's own when the server is away. */
+export async function loadCommunity(): Promise<{ list: ArchiveEntry[]; online: boolean }> {
+  try {
+    const r = await fetch(`${backendUrl()}/archive`);
+    if (!r.ok) throw new Error(String(r.status));
+    return { list: (await r.json()) as ArchiveEntry[], online: true };
+  } catch {
+    return { list: loadArchive(), online: false };
+  }
 }
 
 export function removeFromArchive(id: string) {
@@ -135,15 +152,21 @@ export interface ArchiveHooks {
 
 /** The archive page: a grid of stamps. */
 export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
-  function render() {
-    const list = loadArchive();
+  let shown: ArchiveEntry[] = [];
+  async function render() {
+    const { list, online } = await loadCommunity();
+    shown = list;
+    const mine = new Set(loadArchive().map((e) => e.id));
+    const own = list.filter((e) => mine.has(e.id)).length;
     const labels = [...new Set(list.map((e) => e.label))];
     root.innerHTML = `<div class="sheet archive-sheet">
       <button class="btn ghost close" id="ar-close">Close ✕</button>
-      <h2>Your archive</h2>
-      <p class="lead">Every landscape you labelled becomes a sound stamp with colours of its own. ${
-        list.length ? `You collected <b>${list.length}</b> stamp${list.length === 1 ? '' : 's'} of <b>${labels.length}</b> kind${labels.length === 1 ? '' : 's'} of sound.` : ''
-      }</p>
+      <h2>Community archive</h2>
+      <p class="lead">Every labelled landscape becomes a sound stamp with colours of its own. ${
+        list.length
+          ? `The community collected <b>${list.length}</b> stamp${list.length === 1 ? '' : 's'} of <b>${labels.length}</b> kind${labels.length === 1 ? '' : 's'} of sound${own ? `, <b>${own}</b> of them yours` : ''}.`
+          : ''
+      }${online ? '' : ' <span class="muted">The server is not reachable, so only your own stamps are shown.</span>'}</p>
       ${
         list.length
           ? `<div class="stamps">${list
@@ -153,7 +176,7 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
             <span class="st-label" style="--h:${e.hue}">${esc(pretty(e.label))}</span>
             <b>${esc(e.title)}</b>
             <small>${esc(e.place)} · ${when(e.recorded)}</small>
-            <small class="st-kind">${e.kind === 'live' ? 'Live recording' : 'Challenge'} · labelled ${when(e.labelled)}</small>
+            <small class="st-kind">${mine.has(e.id) ? '<span class="st-mine">yours</span> · ' : ''}${e.kind === 'live' ? 'Live recording' : 'Challenge'} · labelled ${when(e.labelled)}</small>
           </button>`,
               )
               .join('')}</div>`
@@ -163,7 +186,7 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
     root.querySelector<HTMLButtonElement>('#ar-close')!.onclick = hide;
     root.querySelectorAll<HTMLButtonElement>('.stamp').forEach((b) => {
       b.onclick = () => {
-        const e = loadArchive().find((x) => x.id === b.dataset.id);
+        const e = shown.find((x) => x.id === b.dataset.id);
         if (!e) return;
         hide();
         hooks.open(e);
@@ -171,8 +194,9 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
     });
   }
   function show() {
-    render();
+    root.innerHTML = '<div class="sheet archive-sheet"><h2>Community archive</h2><p class="lead">Loading the stamps…</p></div>';
     root.hidden = false;
+    void render();
   }
   function hide() {
     root.hidden = true;
@@ -180,5 +204,5 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
   root.addEventListener('click', (e) => {
     if (e.target === root) hide();
   });
-  return { show, hide, count: () => loadArchive().length };
+  return { show, hide, count: async () => (await loadCommunity()).list.length };
 }

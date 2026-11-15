@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS players (
   solved INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL
 );
 CREATE TABLE IF NOT EXISTS gold_clips (clip_id TEXT PRIMARY KEY, true_label TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS stamps (
+  id TEXT PRIMARY KEY, kind TEXT, title TEXT, label TEXT, place TEXT, recorded REAL, labelled REAL,
+  stamp TEXT, hue INTEGER, player TEXT, level_index INTEGER
+);
 CREATE TABLE IF NOT EXISTS prototypes (
   model_id TEXT NOT NULL, version INTEGER NOT NULL, json TEXT NOT NULL, created_at REAL NOT NULL,
   PRIMARY KEY (model_id, version)

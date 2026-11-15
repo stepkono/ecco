@@ -21,7 +21,7 @@ export interface WelcomeHooks {
   subscribe(changed: () => void): void;
   /** open the archive of sound stamps, and how many it holds */
   archive(): void;
-  archiveCount(): number;
+  archiveCount(): Promise<number>;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -48,7 +48,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
         </ol>
         <div class="wl-cta">
           <button class="btn primary big" id="wl-start">Start the first challenge</button>
-          <button class="btn ghost big" id="wl-archive">Your archive</button>
+          <button class="btn ghost big" id="wl-archive">Community archive</button>
           <p class="wl-status" id="wl-status"></p>
         </div>
       </section>
@@ -292,14 +292,14 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
 
   const archiveBtn = q<HTMLButtonElement>('#wl-archive');
   archiveBtn.onclick = () => hooks.archive();
-  const updateArchive = () => {
-    const n = hooks.archiveCount();
-    archiveBtn.textContent = n ? `Your archive · ${n} stamp${n === 1 ? '' : 's'}` : 'Your archive';
+  const updateArchive = async () => {
+    const n = await hooks.archiveCount();
+    archiveBtn.textContent = n ? `Community archive · ${n} stamp${n === 1 ? '' : 's'}` : 'Community archive';
   };
   window.addEventListener('archive-changed', updateArchive);
 
   function show() {
-    updateArchive();
+    void updateArchive();
     root.hidden = false;
     document.body.classList.add('welcoming');
     render(false);

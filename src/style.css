@@ -468,3 +468,4 @@ body.welcoming .topbar, body.welcoming .hint, body.welcoming .labels-layer { opa
 .stamp .st-kind { color: var(--faint); }
 .st-label { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: #12131c; background: hsl(calc(var(--h) + 50), 75%, 72%); }
 .ar-empty { padding: 30px; border: 1px dashed var(--edge-soft); border-radius: 6px; color: var(--muted); text-align: center; }
+.st-mine { color: var(--accent); font-weight: 600; }

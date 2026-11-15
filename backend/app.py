@@ -10,6 +10,7 @@ Endpoints (see docs/SYSTEM.md):
   GET  /clips                          waiting recordings (time, post, views, disagreement)
   DELETE /clips/{id}                   remove one recording for good (audio, labels)
   DELETE /clips                        remove every waiting recording
+  GET  /archive, POST /archive         community archive of sound stamps (labelled landscapes)
   POST /learning                       {"enabled": false} stores labels without learning (debug, predictable demos)
   POST /prototypes/reset               forget everything learned (back to the starting sounds)
   POST /prototypes/forget/{label}      forget one sound class
@@ -45,6 +46,20 @@ from .store import Store
 
 log = logging.getLogger("biospectra.backend")
 WEB = Path(__file__).parent / "web"
+
+
+class StampIn(BaseModel):
+    id: str
+    kind: str
+    title: str
+    label: str
+    place: str = ""
+    recorded: float = 0
+    labelled: float = 0
+    stamp: str
+    hue: int = 0
+    player: str = ""
+    levelIndex: int | None = None
 
 
 class LearningIn(BaseModel):
@@ -125,6 +140,24 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
     def delete_open_clips():
         """Remove every waiting recording (not the labelled ones, not gold test clips)."""
         return be.delete_clips(None)
+
+    @app.get("/archive")
+    def archive(limit: int = 300):
+        """The community archive: every sound stamp, newest first."""
+        rows = be.store.q("SELECT * FROM stamps ORDER BY labelled DESC LIMIT ?", (limit,))
+        return [{"id": r["id"], "kind": r["kind"], "title": r["title"], "label": r["label"], "place": r["place"],
+                 "recorded": r["recorded"], "labelled": r["labelled"], "stamp": r["stamp"], "hue": r["hue"],
+                 "player": r["player"], "levelIndex": r["level_index"]} for r in rows]
+
+    @app.post("/archive", status_code=201)
+    def add_stamp(s: StampIn):
+        if not s.stamp.startswith("data:image/") or len(s.stamp) > 200_000:
+            raise HTTPException(400, "stamp must be a small data URL image")
+        be.store.run("INSERT OR REPLACE INTO stamps (id, kind, title, label, place, recorded, labelled, stamp, hue, player, level_index) "
+                     "VALUES (?,?,?,?,?,?,?,?,?,?,?)", (s.id, s.kind, s.title, s.label, s.place, s.recorded, s.labelled,
+                                                        s.stamp, s.hue, s.player, s.levelIndex))
+        be.emit("stamp_added", {"id": s.id, "label": s.label, "title": s.title})
+        return {"id": s.id}
 
     @app.post("/learning")
     def set_learning(body: LearningIn):
