@@ -32,6 +32,13 @@ const DARK = {
   rose: '#f59ac6',
   orchid: '#c79cf2',
   teal: '#6fd6e0',
+  // voxel faces [top, left, right], taken from the plum voxel view
+  iso: {
+    plat: ['#b06ca2', '#7f4277', '#5c2d59'],
+    peak: ['#fbe6f1', '#dbb6cf', '#b48aa8'],
+    acc: ['#86e6f0', '#4fbac8', '#2e8e9c'],
+    dim: ['#7c4674', '#592b52', '#40203d'],
+  },
 };
 
 const LIGHT = {
@@ -47,11 +54,18 @@ const LIGHT = {
   rose: '#c8448a',
   orchid: '#8a52cc',
   teal: '#0f8a9a',
+  iso: {
+    plat: ['#d9a9cd', '#b67aa9', '#935a88'],
+    peak: ['#6d2e66', '#55224f', '#3d1739'],
+    acc: ['#2bb3c2', '#13909f', '#0b6f7b'],
+    dim: ['#ead2e4', '#d2adc8', '#b78fae'],
+  },
 };
 
 const monoTheme = (c) => ({
   mono: true,
   fg: c, lime: c, mint: c, sky: c, peri: c, lilac: c, pink: c, apricot: c, rose: c, orchid: c, teal: c,
+  iso: { plat: [c, c, c], peak: [c, c, c], acc: [c, c, c], dim: [c, c, c] },
 });
 
 const THEMES = {
@@ -522,12 +536,153 @@ ${sun}
   },
 ];
 
+// Round 3: built from the isometric voxel landscape in the plum theme.
+const ROUND3 = [
+  {
+    id: 'plateau',
+    name: 'Plateau',
+    line: 'The voxel landscape as a small block of land.',
+    idea: 'A slice of the 3D view. The low mauve plateau is the forest background. The white columns are calls that rise above it, and the teal one has already been labeled.',
+    mood: 'Crafted, tactile, game-like.',
+    best: 'App icon, store listing, onboarding. Closest to the voxel view.',
+    weight: 'regular',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const jit = noise(31, 16);
+      const tall = { '1,0': [3.4, 'peak'], '2,1': [2.6, 'peak'], '1,2': [2, 'acc'] };
+      const cells = [];
+      for (let x = 0; x < 4; x++) {
+        for (let y = 0; y < 4; y++) {
+          const [h, kind] = tall[`${x},${y}`] || [0.85 + 0.35 * jit[x * 4 + y], 'plat'];
+          cells.push({ x, y, h, kind });
+        }
+      }
+      return isoScene(c, { cells });
+    },
+    fav(c) {
+      const tall = { '1,0': [3, 'peak'], '1,1': [2, 'acc'] };
+      const cells = [];
+      for (let x = 0; x < 3; x++) {
+        for (let y = 0; y < 3; y++) {
+          const [h, kind] = tall[`${x},${y}`] || [1, 'plat'];
+          cells.push({ x, y, h, kind });
+        }
+      }
+      return isoScene(c, { cells, fit: 60 });
+    },
+  },
+
+  {
+    id: 'lift',
+    name: 'Lifted Voxel',
+    line: 'One voxel rises out of the block.',
+    idea: 'A cube of eight voxels with one lifted out and glowing. It is the one sound the listening post was unsure about. Your label puts the block back together.',
+    mood: 'Simple, curious, playful.',
+    best: 'Favicon and app icon. The clearest shape of round 3 at small sizes.',
+    weight: 'bold',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      return isoScene(c, { cells: liftCells(), fit: 54 });
+    },
+    fav(c) {
+      return isoScene(c, { cells: liftCells(), fit: 60 });
+    },
+  },
+
+  {
+    id: 'skyline',
+    name: 'Skyline',
+    line: 'One row of voxels shaped like a call.',
+    idea: 'A single row along the time axis. The heights trace a bird call with two syllables, so the row is both a waveform and a mountain ridge.',
+    mood: 'Rhythmic, calm, landscape-like.',
+    best: 'Wide placements: website header, slides, field hardware.',
+    weight: 'regular',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const hs = [1.3, 2.4, 3.6, 2.7, 1.5, 3, 1.4];
+      return isoScene(c, { cells: hs.map((h, x) => ({ x, y: 0, h, kind: h >= 2.6 ? 'peak' : 'plat' })) });
+    },
+    fav(c) {
+      const hs = [1.4, 3.4, 2, 3];
+      return isoScene(c, { cells: hs.map((h, x) => ({ x, y: 0, h, kind: h >= 2.6 ? 'peak' : 'plat' })), fit: 60 });
+    },
+  },
+
+  {
+    id: 'steps',
+    name: 'Echo Steps',
+    line: 'A call and two echoes coming back.',
+    idea: 'The tall white column is the call. Two shorter, darker columns follow it along the time axis, like echoes that fade. Sound goes out and comes back in three blocks.',
+    mood: 'Clear, minimal, a little architectural.',
+    best: 'Lockups, documentation, merch.',
+    weight: 'regular',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      return isoScene(c, { cells: stepCells(), fit: 54 });
+    },
+    fav(c) {
+      return isoScene(c, { cells: stepCells(), fit: 60 });
+    },
+  },
+
+  {
+    id: 'post',
+    name: 'Listening Post',
+    line: 'A post in the landscape with echo rings around it.',
+    idea: 'One tall column stands for a listening post in the forest. The rings on the ground are the sound it hears and the labels that come back. It tells the hardware side of the story.',
+    mood: 'Quiet, grounded, technical.',
+    best: 'Hardware labels, maps of posts, partner material.',
+    weight: 'light',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const { iso } = c.t;
+      return isoScene(c, {
+        cells: [{ x: 0, y: 0, h: 4.4, kind: 'peak' }],
+        rings: [
+          { cx: 0.5, cy: 0.5, r: 1.4, color: iso.acc[0], w: 2.4 },
+          { cx: 0.5, cy: 0.5, r: 2.3, color: iso.plat[0], w: 2.4 },
+        ],
+      });
+    },
+    fav(c) {
+      const { iso } = c.t;
+      return isoScene(c, {
+        cells: [{ x: 0, y: 0, h: 3.6, kind: 'peak' }],
+        rings: [{ cx: 0.5, cy: 0.5, r: 1.6, color: iso.acc[0], w: 4.4 }],
+        fit: 60,
+      });
+    },
+  },
+];
+
+function liftCells() {
+  return [
+    { x: 0, y: 0, h: 1 },
+    { x: 1, y: 0, h: 2 },
+    { x: 0, y: 1, h: 2 },
+    { x: 1, y: 1, h: 2 },
+    { x: 0, y: 0, z0: 2.9, h: 1, kind: 'acc' },
+  ];
+}
+
+function stepCells() {
+  return [
+    { x: 0, y: 0, h: 3.6, kind: 'peak' },
+    { x: 1.7, y: 0, h: 2.3, kind: 'plat' },
+    { x: 3.4, y: 0, h: 1.2, kind: 'dim' },
+  ];
+}
+
 ROUND1.forEach((k) => (k.round = 1));
+ROUND3.forEach((k) => {
+  k.round = 3;
+  k.tile = PLUM;
+});
 ROUND2.forEach((k) => {
   k.round = 2;
   k.tile = PLUM;
 });
-const CONCEPTS = [...ROUND2, ...ROUND1];
+const CONCEPTS = [...ROUND3, ...ROUND2, ...ROUND1];
 
 // ---------------------------------------------------------------- shapes
 
@@ -622,6 +777,52 @@ function rays(c, { cx = 32, cy = 32, n, from = 0, to = 360, r0 = 0, outer, w, ga
     if (g.dots) out.push(`<g fill="${col}"${op}>${g.dots}</g>`);
   });
   return out.join('\n');
+}
+
+// Isometric voxel scene like ecco's 3D view. Cells live on a grid: x runs
+// along time (down right), y along frequency (down left), h is the height.
+// Faces are drawn back to front and pulled in a little, so a thin gap
+// separates every face. That gap keeps the 3D shape readable in one color.
+const COS30 = Math.cos(rad(30));
+function isoScene(c, { cells, rings = [], fit = 58 }) {
+  const P = (x, y, z) => [(x - y) * COS30, (x + y) * 0.5 - z];
+  const items = [];
+  rings.forEach(({ cx, cy, r, color, w }) => {
+    items.push({ pts: [P(cx - r, cy - r, 0), P(cx + r, cy - r, 0), P(cx + r, cy + r, 0), P(cx - r, cy + r, 0)], stroke: color, w });
+  });
+  const lifted = (q) => ((q.z0 || 0) > 0 ? 1 : 0);
+  const sorted = [...cells].sort((a, b) => lifted(a) - lifted(b) || a.x + a.y - (b.x + b.y));
+  for (const cell of sorted) {
+    const { x, y, h, kind = 'plat' } = cell;
+    const z0 = cell.z0 || 0, z1 = z0 + h;
+    const [top, left, right] = c.t.iso[kind];
+    items.push({ pts: [P(x, y + 1, z1), P(x + 1, y + 1, z1), P(x + 1, y + 1, z0), P(x, y + 1, z0)], fill: left });
+    items.push({ pts: [P(x + 1, y, z1), P(x + 1, y + 1, z1), P(x + 1, y + 1, z0), P(x + 1, y, z0)], fill: right });
+    items.push({ pts: [P(x, y, z1), P(x + 1, y, z1), P(x + 1, y + 1, z1), P(x, y + 1, z1)], fill: top });
+  }
+  const all = items.flatMap((it) => it.pts);
+  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  const [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  const k = fit / Math.max(x1 - x0, y1 - y0);
+  const ox = 32 - ((x0 + x1) / 2) * k, oy = 32 - ((y0 + y1) / 2) * k;
+  const gap = c.t.mono ? 0.9 : 0.45;
+  return items
+    .map((it) => {
+      let pts = it.pts.map(([px, py]) => [ox + px * k, oy + py * k]);
+      if (it.fill) {
+        const cx = pts.reduce((a, p) => a + p[0], 0) / 4, cy = pts.reduce((a, p) => a + p[1], 0) / 4;
+        pts = pts.map(([px, py]) => {
+          const d = Math.hypot(cx - px, cy - py) || 1;
+          const m = Math.min(gap, d * 0.4) / d;
+          return [px + (cx - px) * m, py + (cy - py) * m];
+        });
+      }
+      const d = 'M' + pts.map(([px, py]) => `${f(px)} ${f(py)}`).join('L') + 'Z';
+      return it.fill
+        ? `<path d="${d}" fill="${it.fill}"/>`
+        : `<path d="${d}" fill="none" stroke="${it.stroke}" stroke-width="${it.w}" stroke-linejoin="round"/>`;
+    })
+    .join('\n');
 }
 
 // ---------------------------------------------------------------- files
@@ -783,7 +984,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ecco logo concepts</title>
-<link id="favicon" rel="icon" type="image/svg+xml" href="${ROUND2[0].id}/favicon.svg">
+<link id="favicon" rel="icon" type="image/svg+xml" href="${ROUND3[0].id}/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -856,13 +1057,15 @@ const html = `<!doctype html>
   .concept { border-top: 1px solid var(--line); padding: 48px 0 24px; }
   .round { margin-bottom: 64px; }
   .round-title { font-size: 26px; margin: 0 0 6px; }
-  .round.r2 {
+  .round.plum {
     --surface: #1d1026;
     --line: #3a2546;
     --accent: #f59ac6;
   }
-  .round.r2 dd { color: #e2cfdc; }
-  .round.r2 .glance { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .round.r3 { --accent: #86e6f0; }
+  .round.plum dd { color: #e2cfdc; }
+  .round.plum .glance { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .round.r2 { border-top: 2px solid #3a2546; padding-top: 48px; }
   .round.r1 { border-top: 2px solid #1c3340; padding-top: 48px; }
   .concept-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
   .concept-head .num { padding-top: 10px; }
@@ -922,7 +1125,7 @@ const html = `<!doctype html>
 
   @media (max-width: 760px) {
     .wrap { padding: 32px 16px 64px; }
-    .glance, .round.r2 .glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .glance, .round.plum .glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .why { grid-template-columns: 1fr; gap: 12px; }
     .hero, .lockups, .small, .tabs { grid-template-columns: 1fr; }
     .panel.big { height: 220px; }
@@ -932,18 +1135,31 @@ const html = `<!doctype html>
 </head>
 <body>
 <main class="wrap">
-  <p class="eyebrow">ecco brand · round 2</p>
+  <p class="eyebrow">ecco brand · round 3</p>
   <h1>Logo concepts</h1>
   <p class="intro">Directions for <b>ecco</b>, the community platform that listens to forests. Each concept has a mark, a lockup, one-color versions and a simplified favicon. All lettering is drawn as geometry, so no font is needed in the files. <b>Click any concept</b> to try its favicon in this browser tab.</p>
 
-  <div class="round r2">
+  <div class="round r3 plum">
+    <h2 class="round-title">Round 3 · from the voxel landscape</h2>
+    <p class="intro small-intro">Five marks built from the isometric voxel view in the plum theme: a mauve plateau, white peaks for calls, teal for a labeled sound.</p>
+    <div class="glance">
+      ${glance(ROUND3)}
+    </div>
+    <h3 class="sub">Pixel check</h3>
+    <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times.</p>
+    <div class="pixels">
+      ${pixels(ROUND3)}
+    </div>
+${sections(ROUND3)}
+  </div>
+
+  <div class="round r2 plum">
     <h2 class="round-title">Round 2 · from the spiral view</h2>
     <p class="intro small-intro">Five marks built from the radial rays of the spiral view seen from above: plum night, dusty rose, orchid and teal.</p>
     <div class="glance">
       ${glance(ROUND2)}
     </div>
     <h3 class="sub">Pixel check</h3>
-    <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times. This is what a browser tab really shows.</p>
     <div class="pixels">
       ${pixels(ROUND2)}
     </div>

@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Skyline favicon</title>
+<rect width="64" height="64" rx="15" fill="#1d1026"/>
+<g transform="translate(7 7) scale(0.78125)">
+<path d="M8.13 24.63L17.25 30.1L17.38 44.92L8.26 39.45Z" fill="#7f4277"/>
+<path d="M27 24.63L17.88 30.1L17.75 44.92L26.88 39.45Z" fill="#5c2d59"/>
+<path d="M17.57 19.12L26.74 24.22L17.57 29.33L8.39 24.22Z" fill="#b06ca2"/>
+<path d="M17.66 7.99L27.06 13.54L27.09 50.45L17.7 44.9Z" fill="#dbb6cf"/>
+<path d="M36.71 7.99L27.32 13.54L27.29 50.45L36.68 44.9Z" fill="#b48aa8"/>
+<path d="M27.19 2.45L36.36 7.56L27.19 12.66L18.02 7.56Z" fill="#fbe6f1"/>
+<path d="M27.34 29.09L36.59 34.61L36.66 56.02L27.41 50.5Z" fill="#7f4277"/>
+<path d="M46.29 29.09L37.04 34.61L36.96 56.02L46.21 50.5Z" fill="#5c2d59"/>
+<path d="M36.81 23.56L45.98 28.67L36.81 33.77L27.64 28.67Z" fill="#b06ca2"/>
+<path d="M36.92 23.55L46.29 29.09L46.33 61.56L36.96 56.02Z" fill="#dbb6cf"/>
+<path d="M55.95 23.55L46.58 29.09L46.54 61.56L55.91 56.02Z" fill="#b48aa8"/>
+<path d="M46.43 18.01L55.61 23.11L46.43 28.22L37.26 23.11Z" fill="#fbe6f1"/>
+</g>
+</svg>

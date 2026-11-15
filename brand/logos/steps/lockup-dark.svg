@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 218.6 64" width="218.6" height="64" role="img" aria-label="ecco">
+<title>ecco, Echo Steps lockup (dark)</title>
+<path d="M12.05 9.73L19.26 14L19.29 43.99L12.08 39.71Z" fill="#dbb6cf"/>
+<path d="M26.71 9.73L19.5 14L19.47 43.99L26.68 39.71Z" fill="#b48aa8"/>
+<path d="M19.38 5.45L26.35 9.29L19.38 13.12L12.41 9.29Z" fill="#fbe6f1"/>
+<path d="M24.71 28.14L31.8 32.41L31.87 51.28L24.77 47.02Z" fill="#7f4277"/>
+<path d="M39.29 28.14L32.2 32.41L32.13 51.28L39.23 47.02Z" fill="#5c2d59"/>
+<path d="M32 23.88L38.97 27.71L32 31.55L25.03 27.71Z" fill="#b06ca2"/>
+<path d="M37.4 44.83L44.27 49L44.41 58.6L37.55 54.43Z" fill="#592b52"/>
+<path d="M51.84 44.83L44.97 49L44.82 58.6L51.69 54.43Z" fill="#40203d"/>
+<path d="M44.62 40.59L51.59 44.43L44.62 48.26L37.65 44.43Z" fill="#7c4674"/>
+<g fill="none" stroke-width="5.1" stroke-linecap="round">
+  <path d="M83.55 32H108.45A12.45 12.45 0 1 0 105.81 39.66" stroke="#e8f1ee"/>
+  <path d="M141.25 23.04A12.45 12.45 0 1 0 141.25 40.96" stroke="#e8f1ee"/>
+  <path d="M175.75 23.04A12.45 12.45 0 1 0 175.75 40.96" stroke="#e8f1ee"/>
+  <circle cx="201.6" cy="32" r="12.45" stroke="#e8f1ee"/>
+  </g>
+</svg>

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ecco logo concepts</title>
-<link id="favicon" rel="icon" type="image/svg+xml" href="bloom/favicon.svg">
+<link id="favicon" rel="icon" type="image/svg+xml" href="plateau/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -77,13 +77,15 @@
   .concept { border-top: 1px solid var(--line); padding: 48px 0 24px; }
   .round { margin-bottom: 64px; }
   .round-title { font-size: 26px; margin: 0 0 6px; }
-  .round.r2 {
+  .round.plum {
     --surface: #1d1026;
     --line: #3a2546;
     --accent: #f59ac6;
   }
-  .round.r2 dd { color: #e2cfdc; }
-  .round.r2 .glance { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .round.r3 { --accent: #86e6f0; }
+  .round.plum dd { color: #e2cfdc; }
+  .round.plum .glance { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .round.r2 { border-top: 2px solid #3a2546; padding-top: 48px; }
   .round.r1 { border-top: 2px solid #1c3340; padding-top: 48px; }
   .concept-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
   .concept-head .num { padding-top: 10px; }
@@ -143,7 +145,7 @@
 
   @media (max-width: 760px) {
     .wrap { padding: 32px 16px 64px; }
-    .glance, .round.r2 .glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .glance, .round.plum .glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .why { grid-template-columns: 1fr; gap: 12px; }
     .hero, .lockups, .small, .tabs { grid-template-columns: 1fr; }
     .panel.big { height: 220px; }
@@ -153,11 +155,357 @@
 </head>
 <body>
 <main class="wrap">
-  <p class="eyebrow">ecco brand · round 2</p>
+  <p class="eyebrow">ecco brand · round 3</p>
   <h1>Logo concepts</h1>
   <p class="intro">Directions for <b>ecco</b>, the community platform that listens to forests. Each concept has a mark, a lockup, one-color versions and a simplified favicon. All lettering is drawn as geometry, so no font is needed in the files. <b>Click any concept</b> to try its favicon in this browser tab.</p>
 
-  <div class="round r2">
+  <div class="round r3 plum">
+    <h2 class="round-title">Round 3 · from the voxel landscape</h2>
+    <p class="intro small-intro">Five marks built from the isometric voxel view in the plum theme: a mauve plateau, white peaks for calls, teal for a labeled sound.</p>
+    <div class="glance">
+      <button class="glance-item" data-fav="plateau/favicon.svg" title="Use as this tab’s favicon">
+        <img src="plateau/mark-dark.svg" style="height:56px" alt="Plateau mark">
+        <span class="glance-icons">
+          <img src="plateau/favicon.svg" style="height:32px" alt="Plateau favicon 32 px">
+          <img src="plateau/favicon.svg" style="height:16px" alt="Plateau favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">3.1</span> Plateau</span>
+      </button>
+      <button class="glance-item" data-fav="lift/favicon.svg" title="Use as this tab’s favicon">
+        <img src="lift/mark-dark.svg" style="height:56px" alt="Lifted Voxel mark">
+        <span class="glance-icons">
+          <img src="lift/favicon.svg" style="height:32px" alt="Lifted Voxel favicon 32 px">
+          <img src="lift/favicon.svg" style="height:16px" alt="Lifted Voxel favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">3.2</span> Lifted Voxel</span>
+      </button>
+      <button class="glance-item" data-fav="skyline/favicon.svg" title="Use as this tab’s favicon">
+        <img src="skyline/mark-dark.svg" style="height:56px" alt="Skyline mark">
+        <span class="glance-icons">
+          <img src="skyline/favicon.svg" style="height:32px" alt="Skyline favicon 32 px">
+          <img src="skyline/favicon.svg" style="height:16px" alt="Skyline favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">3.3</span> Skyline</span>
+      </button>
+      <button class="glance-item" data-fav="steps/favicon.svg" title="Use as this tab’s favicon">
+        <img src="steps/mark-dark.svg" style="height:56px" alt="Echo Steps mark">
+        <span class="glance-icons">
+          <img src="steps/favicon.svg" style="height:32px" alt="Echo Steps favicon 32 px">
+          <img src="steps/favicon.svg" style="height:16px" alt="Echo Steps favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">3.4</span> Echo Steps</span>
+      </button>
+      <button class="glance-item" data-fav="post/favicon.svg" title="Use as this tab’s favicon">
+        <img src="post/mark-dark.svg" style="height:56px" alt="Listening Post mark">
+        <span class="glance-icons">
+          <img src="post/favicon.svg" style="height:32px" alt="Listening Post favicon 32 px">
+          <img src="post/favicon.svg" style="height:16px" alt="Listening Post favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">3.5</span> Listening Post</span>
+      </button>
+    </div>
+    <h3 class="sub">Pixel check</h3>
+    <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times.</p>
+    <div class="pixels">
+      <div class="pix">
+        <span class="glance-name">Plateau</span>
+        <span class="pix-row">
+          <canvas data-src="plateau/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="plateau/mark-dark.svg" data-px="16" class="on-dark" data-bg="#1d1026"></canvas>
+          <canvas data-src="plateau/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="plateau/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="plateau/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Lifted Voxel</span>
+        <span class="pix-row">
+          <canvas data-src="lift/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="lift/mark-dark.svg" data-px="16" class="on-dark" data-bg="#1d1026"></canvas>
+          <canvas data-src="lift/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="lift/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="lift/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Skyline</span>
+        <span class="pix-row">
+          <canvas data-src="skyline/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="skyline/mark-dark.svg" data-px="16" class="on-dark" data-bg="#1d1026"></canvas>
+          <canvas data-src="skyline/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="skyline/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="skyline/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Echo Steps</span>
+        <span class="pix-row">
+          <canvas data-src="steps/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="steps/mark-dark.svg" data-px="16" class="on-dark" data-bg="#1d1026"></canvas>
+          <canvas data-src="steps/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="steps/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="steps/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Listening Post</span>
+        <span class="pix-row">
+          <canvas data-src="post/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="post/mark-dark.svg" data-px="16" class="on-dark" data-bg="#1d1026"></canvas>
+          <canvas data-src="post/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="post/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="post/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+    </div>
+
+  <section class="concept" id="plateau">
+    <header class="concept-head">
+      <span class="num">3.1</span>
+      <div>
+        <h2>Plateau</h2>
+        <p class="line">The voxel landscape as a small block of land.</p>
+      </div>
+      <button class="try" data-fav="plateau/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>A slice of the 3D view. The low mauve plateau is the forest background. The white columns are calls that rise above it, and the teal one has already been labeled.</dd></div>
+      <div><dt>Mood</dt><dd>Crafted, tactile, game-like.</dd></div>
+      <div><dt>Works best</dt><dd>App icon, store listing, onboarding. Closest to the voxel view.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="plateau/mark-dark.svg" style="height:168px" alt="Plateau mark on dark"></div>
+      <div class="panel light big"><img src="plateau/mark-light.svg" style="height:168px" alt="Plateau mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="plateau/lockup-dark.svg" style="height:72px" alt="Plateau lockup on dark"></div>
+      <div class="panel light"><img src="plateau/lockup-light.svg" style="height:72px" alt="Plateau lockup on light"></div>
+      <div class="panel light"><img src="plateau/lockup-mono.svg" style="height:48px" alt="Plateau one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="plateau/lockup-mono-white.svg" style="height:48px" alt="Plateau one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="plateau/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="plateau/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="plateau/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="plateau/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="plateau/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="plateau/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="plateau/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="plateau/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="plateau/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="plateau/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="plateau/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="plateau/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="plateau/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="plateau/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="plateau/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="plateau/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="plateau/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="plateau/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="plateau/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="plateau/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="plateau/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="plateau/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="plateau/mark-dark.svg">mark-dark.svg</a> <a href="plateau/lockup-dark.svg">lockup-dark.svg</a> <a href="plateau/mark-light.svg">mark-light.svg</a> <a href="plateau/lockup-light.svg">lockup-light.svg</a> <a href="plateau/mark-mono.svg">mark-mono.svg</a> <a href="plateau/lockup-mono.svg">lockup-mono.svg</a> <a href="plateau/mark-mono-white.svg">mark-mono-white.svg</a> <a href="plateau/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="plateau/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="lift">
+    <header class="concept-head">
+      <span class="num">3.2</span>
+      <div>
+        <h2>Lifted Voxel</h2>
+        <p class="line">One voxel rises out of the block.</p>
+      </div>
+      <button class="try" data-fav="lift/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>A cube of eight voxels with one lifted out and glowing. It is the one sound the listening post was unsure about. Your label puts the block back together.</dd></div>
+      <div><dt>Mood</dt><dd>Simple, curious, playful.</dd></div>
+      <div><dt>Works best</dt><dd>Favicon and app icon. The clearest shape of round 3 at small sizes.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="lift/mark-dark.svg" style="height:168px" alt="Lifted Voxel mark on dark"></div>
+      <div class="panel light big"><img src="lift/mark-light.svg" style="height:168px" alt="Lifted Voxel mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="lift/lockup-dark.svg" style="height:72px" alt="Lifted Voxel lockup on dark"></div>
+      <div class="panel light"><img src="lift/lockup-light.svg" style="height:72px" alt="Lifted Voxel lockup on light"></div>
+      <div class="panel light"><img src="lift/lockup-mono.svg" style="height:48px" alt="Lifted Voxel one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="lift/lockup-mono-white.svg" style="height:48px" alt="Lifted Voxel one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="lift/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="lift/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="lift/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="lift/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="lift/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="lift/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="lift/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="lift/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="lift/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="lift/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="lift/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="lift/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="lift/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="lift/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="lift/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="lift/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="lift/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="lift/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="lift/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="lift/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="lift/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="lift/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="lift/mark-dark.svg">mark-dark.svg</a> <a href="lift/lockup-dark.svg">lockup-dark.svg</a> <a href="lift/mark-light.svg">mark-light.svg</a> <a href="lift/lockup-light.svg">lockup-light.svg</a> <a href="lift/mark-mono.svg">mark-mono.svg</a> <a href="lift/lockup-mono.svg">lockup-mono.svg</a> <a href="lift/mark-mono-white.svg">mark-mono-white.svg</a> <a href="lift/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="lift/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="skyline">
+    <header class="concept-head">
+      <span class="num">3.3</span>
+      <div>
+        <h2>Skyline</h2>
+        <p class="line">One row of voxels shaped like a call.</p>
+      </div>
+      <button class="try" data-fav="skyline/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>A single row along the time axis. The heights trace a bird call with two syllables, so the row is both a waveform and a mountain ridge.</dd></div>
+      <div><dt>Mood</dt><dd>Rhythmic, calm, landscape-like.</dd></div>
+      <div><dt>Works best</dt><dd>Wide placements: website header, slides, field hardware.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="skyline/mark-dark.svg" style="height:168px" alt="Skyline mark on dark"></div>
+      <div class="panel light big"><img src="skyline/mark-light.svg" style="height:168px" alt="Skyline mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="skyline/lockup-dark.svg" style="height:72px" alt="Skyline lockup on dark"></div>
+      <div class="panel light"><img src="skyline/lockup-light.svg" style="height:72px" alt="Skyline lockup on light"></div>
+      <div class="panel light"><img src="skyline/lockup-mono.svg" style="height:48px" alt="Skyline one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="skyline/lockup-mono-white.svg" style="height:48px" alt="Skyline one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="skyline/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="skyline/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="skyline/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="skyline/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="skyline/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="skyline/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="skyline/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="skyline/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="skyline/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="skyline/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="skyline/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="skyline/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="skyline/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="skyline/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="skyline/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="skyline/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="skyline/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="skyline/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="skyline/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="skyline/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="skyline/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="skyline/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="skyline/mark-dark.svg">mark-dark.svg</a> <a href="skyline/lockup-dark.svg">lockup-dark.svg</a> <a href="skyline/mark-light.svg">mark-light.svg</a> <a href="skyline/lockup-light.svg">lockup-light.svg</a> <a href="skyline/mark-mono.svg">mark-mono.svg</a> <a href="skyline/lockup-mono.svg">lockup-mono.svg</a> <a href="skyline/mark-mono-white.svg">mark-mono-white.svg</a> <a href="skyline/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="skyline/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="steps">
+    <header class="concept-head">
+      <span class="num">3.4</span>
+      <div>
+        <h2>Echo Steps</h2>
+        <p class="line">A call and two echoes coming back.</p>
+      </div>
+      <button class="try" data-fav="steps/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>The tall white column is the call. Two shorter, darker columns follow it along the time axis, like echoes that fade. Sound goes out and comes back in three blocks.</dd></div>
+      <div><dt>Mood</dt><dd>Clear, minimal, a little architectural.</dd></div>
+      <div><dt>Works best</dt><dd>Lockups, documentation, merch.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="steps/mark-dark.svg" style="height:168px" alt="Echo Steps mark on dark"></div>
+      <div class="panel light big"><img src="steps/mark-light.svg" style="height:168px" alt="Echo Steps mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="steps/lockup-dark.svg" style="height:72px" alt="Echo Steps lockup on dark"></div>
+      <div class="panel light"><img src="steps/lockup-light.svg" style="height:72px" alt="Echo Steps lockup on light"></div>
+      <div class="panel light"><img src="steps/lockup-mono.svg" style="height:48px" alt="Echo Steps one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="steps/lockup-mono-white.svg" style="height:48px" alt="Echo Steps one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="steps/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="steps/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="steps/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="steps/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="steps/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="steps/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="steps/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="steps/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="steps/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="steps/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="steps/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="steps/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="steps/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="steps/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="steps/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="steps/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="steps/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="steps/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="steps/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="steps/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="steps/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="steps/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="steps/mark-dark.svg">mark-dark.svg</a> <a href="steps/lockup-dark.svg">lockup-dark.svg</a> <a href="steps/mark-light.svg">mark-light.svg</a> <a href="steps/lockup-light.svg">lockup-light.svg</a> <a href="steps/mark-mono.svg">mark-mono.svg</a> <a href="steps/lockup-mono.svg">lockup-mono.svg</a> <a href="steps/mark-mono-white.svg">mark-mono-white.svg</a> <a href="steps/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="steps/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="post">
+    <header class="concept-head">
+      <span class="num">3.5</span>
+      <div>
+        <h2>Listening Post</h2>
+        <p class="line">A post in the landscape with echo rings around it.</p>
+      </div>
+      <button class="try" data-fav="post/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>One tall column stands for a listening post in the forest. The rings on the ground are the sound it hears and the labels that come back. It tells the hardware side of the story.</dd></div>
+      <div><dt>Mood</dt><dd>Quiet, grounded, technical.</dd></div>
+      <div><dt>Works best</dt><dd>Hardware labels, maps of posts, partner material.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="post/mark-dark.svg" style="height:168px" alt="Listening Post mark on dark"></div>
+      <div class="panel light big"><img src="post/mark-light.svg" style="height:168px" alt="Listening Post mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="post/lockup-dark.svg" style="height:72px" alt="Listening Post lockup on dark"></div>
+      <div class="panel light"><img src="post/lockup-light.svg" style="height:72px" alt="Listening Post lockup on light"></div>
+      <div class="panel light"><img src="post/lockup-mono.svg" style="height:48px" alt="Listening Post one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="post/lockup-mono-white.svg" style="height:48px" alt="Listening Post one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="post/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="post/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="post/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="post/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="post/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="post/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="post/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="post/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="post/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="post/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="post/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="post/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="post/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="post/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="post/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="post/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="post/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="post/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="post/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="post/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="post/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="post/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="post/mark-dark.svg">mark-dark.svg</a> <a href="post/lockup-dark.svg">lockup-dark.svg</a> <a href="post/mark-light.svg">mark-light.svg</a> <a href="post/lockup-light.svg">lockup-light.svg</a> <a href="post/mark-mono.svg">mark-mono.svg</a> <a href="post/lockup-mono.svg">lockup-mono.svg</a> <a href="post/mark-mono-white.svg">mark-mono-white.svg</a> <a href="post/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="post/favicon.svg">favicon.svg</a></p>
+  </section>
+  </div>
+
+  <div class="round r2 plum">
     <h2 class="round-title">Round 2 · from the spiral view</h2>
     <p class="intro small-intro">Five marks built from the radial rays of the spiral view seen from above: plum night, dusty rose, orchid and teal.</p>
     <div class="glance">
@@ -203,7 +551,6 @@
       </button>
     </div>
     <h3 class="sub">Pixel check</h3>
-    <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times. This is what a browser tab really shows.</p>
     <div class="pixels">
       <div class="pix">
         <span class="glance-name">Bloom</span>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 218.6 64" width="218.6" height="64" role="img" aria-label="ecco">
+<title>ecco, Listening Post lockup (dark)</title>
+<path d="M32 31.27L49.65 41.46L32 51.66L14.35 41.46Z" fill="none" stroke="#86e6f0" stroke-width="2.4" stroke-linejoin="round"/>
+<path d="M32 24.72L61 41.46L32 58.21L3 41.46Z" fill="none" stroke="#b06ca2" stroke-width="2.4" stroke-linejoin="round"/>
+<path d="M25.77 9.88L31.9 13.51L31.92 44.66L25.79 41.02Z" fill="#dbb6cf"/>
+<path d="M38.23 9.88L32.1 13.51L32.08 44.66L38.21 41.02Z" fill="#b48aa8"/>
+<path d="M32 6.24L37.85 9.43L32 12.62L26.15 9.43Z" fill="#fbe6f1"/>
+<g fill="none" stroke-width="3.9" stroke-linecap="round">
+  <path d="M82.95 32H109.05A13.05 13.05 0 1 0 106.28 40.03" stroke="#e8f1ee"/>
+  <path d="M141.67 22.61A13.05 13.05 0 1 0 141.67 41.39" stroke="#e8f1ee"/>
+  <path d="M176.17 22.61A13.05 13.05 0 1 0 176.17 41.39" stroke="#e8f1ee"/>
+  <circle cx="201.6" cy="32" r="13.05" stroke="#e8f1ee"/>
+  </g>
+</svg>
