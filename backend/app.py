@@ -2,7 +2,7 @@
 
     python -m backend.app                # http://<laptop>:8000, labeling page at /
 
-Endpoints (see docs/SYSTEM.md):
+Endpoints:
   POST /devices/{device_id}/clips      multipart: audio (WAV) + metadata (JSON)
   POST /players                        {"nickname"} -> {"player_id"}
   GET  /puzzles/next?player_id=        next open event (sometimes a hidden gold clip)

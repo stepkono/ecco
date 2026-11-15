@@ -10,7 +10,7 @@
   <b>Built in one weekend at Junction 2026.</b>
 </p>
 
-![A recording of a storm chorus as a 3D landscape of drop lines](docs/img/25-drop-lines-orbit-horizon.jpg)
+![A recording of a storm chorus as a 3D landscape of drop lines](assets/readme/25-drop-lines-orbit-horizon.jpg)
 
 ---
 
@@ -93,12 +93,12 @@ flowchart LR
 
 | | |
 |---|---|
-| ![Welcome screen with live recordings and a map of Finland](docs/img/01-welcome-newest-live-recordings.jpg) | ![A live recording from the board, cut into parts](docs/img/15-live-recording-from-the-board.jpg) |
+| ![Welcome screen with live recordings and a map of Finland](assets/readme/01-welcome-newest-live-recordings.jpg) | ![A live recording from the board, cut into parts](assets/readme/15-live-recording-from-the-board.jpg) |
 | **Welcome screen.** Live recordings from the posts, challenges and the map | **A live recording from the board**, opened as a landscape |
-| ![Brush painting a frog call](docs/img/03-brush-painted-frog-layer.jpg) | ![Echo marks every repeat of a call](docs/img/06-echo-finds-all-repeats.jpg) |
+| ![Brush painting a frog call](assets/readme/03-brush-painted-frog-layer.jpg) | ![Echo marks every repeat of a call](assets/readme/06-echo-finds-all-repeats.jpg) |
 | **Brush.** Paint the call where you see and hear it | **Echo.** Mark one call, find every repeat |
 
-![The same recording as a spiral](docs/img/09-spiral-storm-chorus.jpg)
+![The same recording as a spiral](assets/readme/09-spiral-storm-chorus.jpg)
 
 ## Tech stack
 
@@ -121,7 +121,6 @@ flowchart LR
 | Perch 2.0 | Tested only | Most accurate (88 %), but needs TensorFlow and about 1.4 GB, too big for the board |
 | Tiny int8 mask model | Model lab in the first browser prototype | Trained in the browser from painted masks and exported as an Arduino header. Not part of the live loop |
 
-All numbers and the full comparison are in [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 **Measured on the real board:**
 
@@ -146,7 +145,7 @@ cd spetrum
 
 ```bash
 uv venv --python 3.11 .venv
-uv pip install --python .venv -r requirements.txt
+uv pip install --python .venv "birdnet[tf]==1.4.0" tensorflow==2.21.0 ai-edge-litert==2.3.0 kagglehub==1.0.3 gradio==6.32.0 numpy scipy soundfile matplotlib pandas psutil pyyaml pytest websockets sounddevice remotezip fastapi uvicorn python-multipart httpx
 ```
 
 Build the starting sounds from ESC-50 (download [ESC-50](https://github.com/karolpiczak/ESC-50) into `data/downloads/` first):
@@ -194,7 +193,7 @@ bash ~/spetrum/tools/device_ctl.sh start
 bash ~/spetrum/tools/device_ctl.sh url
 ```
 
-The console opens on port 8765. `device_ctl.sh autostart on` brings it back after a reboot. Hardware notes, power tips and a cleanup script for borrowed boards are in [docs/SYSTEM.md](docs/SYSTEM.md).
+The console opens on port 8765. `device_ctl.sh autostart on` brings it back after a reboot. Before returning a borrowed board, run `tools/board_cleanup.sh` over SSH. It removes the code, the environment, the recordings and the autostart.
 
 ### Tests
 
@@ -207,7 +206,7 @@ The console opens on port 8765. `device_ctl.sh autostart on` brings it back afte
 We changed direction twice in 48 hours. Each step kept what worked and dropped what did not.
 
 **Saturday morning: BioSpectra, a game for untangling sound.**
-The first idea was a puzzle game. A 5-second clip of a forest becomes a 3D sound sculpture, and players carve apart a frog, a hornet and a chainsaw with brushes, tuning forks and knives. Their masks trained a tiny int8 model in the browser that could be exported as a header for an Arduino Nano. The 3D landscape, the tools and the scoring were born here. ([details](docs/TECHNICAL.md))
+The first idea was a puzzle game. A 5-second clip of a forest becomes a 3D sound sculpture, and players carve apart a frog, a hornet and a chainsaw with brushes, tuning forks and knives. Their masks trained a tiny int8 model in the browser that could be exported as a header for an Arduino Nano. The 3D landscape, the tools and the scoring were born here.
 
 **Saturday afternoon: a real listening post on the Arduino UNO Q.**
 We wanted the device in the field to be real, not simulated. We built a model bench and compared YAMNet, BirdNET and Perch on a fair ESC-50 split. The small YAMNet TFLite won for the board: nearly as accurate as Perch, 30 times cheaper than BirdNET, and it doubles as the speech filter. Then came the listening post itself, with the energy gate, the privacy filter, the prototype head, the LED, offline sync and a developer console. It recognized 8 of 8 test clips correctly on the board.
@@ -224,7 +223,6 @@ We realized the strongest story was not a game, but labeling that anyone can do 
 **Sunday morning: ready for a live stage.**
 The live demo exposed real problems, and we fixed them. The board restarts itself after power drops. The console now says in plain words what the post hears. Recordings arrive in seconds instead of half a minute. The server page can delete recordings, forget sounds or pause learning for a predictable pitch. Finally, the community archive turned every solved sound into a stamp, and we cut the pitch video.
 
-The detailed change log is at the end of [docs/SYSTEM.md](docs/SYSTEM.md).
 
 ## Challenges we ran into
 
@@ -277,7 +275,7 @@ demo/             one-command end-to-end demo and pitch helper
 tests/            pytest suite
 brand/            ecco logo concepts
 video/            pitch video (Remotion)
-docs/             SYSTEM.md (how everything works), TECHNICAL.md (measurements), PIPELINE.md (German overview)
+assets/readme/    screenshots for this README
 ```
 
 ## Credits and licenses

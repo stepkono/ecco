@@ -34,7 +34,7 @@ fi
 cd "$DIR"
 [ -d .venv ] || "$UV" venv -q --python /usr/bin/python3 .venv
 # Device set: LiteRT models only (birdnet-2.4-int8, yamnet-tflite). No TensorFlow, no Gradio.
-"$UV" pip install -q --python .venv -r requirements-device.txt
+"$UV" pip install -q --python .venv birdnet==1.4.0 kagglehub==1.0.3 numpy scipy soundfile pyyaml psutil websockets==17.4
 echo "[setup] python: $(.venv/bin/python --version)"
 
 command -v ffmpeg >/dev/null || echo "[setup] note: ffmpeg missing. Needed to decode mp3/mp4 on the board: sudo apt install ffmpeg"

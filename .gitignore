@@ -50,3 +50,10 @@ video/out
 video/public/footage
 video/clips
 video/audio
+
+# kept locally, not published
+pitch.md
+requirements.txt
+requirements-device.txt
+spectrum-todo.md
+docs/
