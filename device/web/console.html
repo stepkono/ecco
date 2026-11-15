@@ -238,6 +238,12 @@ function renderStatus(s) {
   else if (s.mode === "mic") { $("listen-v").innerHTML = '<span class="dot ok pulse"></span>Listening to the mic'; $("listen-s").textContent = s.mic || ""; }
   else if (s.mode === "playlist") { $("listen-v").innerHTML = '<span class="dot ok pulse"></span>Playing test files'; $("listen-s").textContent = s.mode_detail; }
   else { $("listen-v").innerHTML = '<span class="dot"></span>Not listening'; $("listen-s").textContent = "Press “Listen to mic” to start."; }
+  // the camera mic dropped off the USB connection: say so plainly
+  if (online && s.mic === "not connected") {
+    t.className = "tile offline";
+    $("listen-v").innerHTML = '<span class="dot bad"></span>No microphone';
+    $("listen-s").innerHTML = "The camera mic is not connected to the board. Unplug the camera and plug it back in, then press “Listen to mic”.";
+  }
   $("btn-mic").classList.toggle("on", s.mode === "mic");
   $("btn-mic").textContent = s.mode === "mic" ? "Listening" : "Listen to mic";
   $("btn-playlist").classList.toggle("on", s.mode === "playlist");
@@ -336,7 +342,12 @@ function connect() {
       loadClips(); refreshStatus();
     } else if (e.type === "learned") {
       add("learned", "Learned", `installed known sounds version ${e.version} from the server`, Object.keys(e.classes || {}).map(pretty).join(", "), e.time, true);
-    } else if (e.type === "error") toast(e.message, true);
+    } else if (e.type === "error") {
+      const msg = /No such device|Cannot get card/.test(e.message) ? "The microphone is not connected. Plug the camera back in." : e.message;
+      add("dropped", "Problem", esc(msg), "listening stopped");
+      toast(msg, true);
+      refreshStatus();
+    }
   };
 }
 
