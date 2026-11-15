@@ -42,6 +42,10 @@
   .banner.offline { border-color: var(--bad); color: var(--bad); }
   .banner.offline .bd { background: var(--bad); }
   .banner small { font-weight: 400; color: var(--muted); margin-left: auto; }
+  .banner .warn { color: var(--warn, #f5a623); font-weight: 600; margin-left: 8px; }
+  .privacy { display: flex; gap: 10px; align-items: flex-start; margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .privacy input { margin-top: 3px; }
+  .privacy.on { border-color: #f5a623; background: rgba(245, 166, 35, .08); }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(63, 185, 80, .6); } 70%, 100% { box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); } }
   button:disabled { opacity: .5; cursor: default; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -113,6 +117,10 @@
           <input id="knob" type="range" min="0" max="1" step="0.01">
           <div class="muted">T_known <b class="mono" id="tk">–</b> · noise bar <span class="mono" id="tn">–</span></div>
         </div>
+        <label class="privacy" id="privacy" title="Off (default): the board drops every clip with human speech. On: speech is analysed like any sound and can be sent to the server. Turns off again when the board restarts.">
+          <input type="checkbox" id="keep-speech">
+          <span><b>Keep speech</b><br><span class="muted">Privacy filter off: voices are no longer dropped and can be sent to the server. Off again after a restart.</span></span>
+        </label>
         <div class="kv">
           <span>Mode</span><span id="k-mode">–</span>
           <span>Microphone</span><span id="k-mic">–</span>
@@ -230,12 +238,16 @@ function renderStatus(s) {
   $("btn-playlist").textContent = s.mode === "playlist" ? "Playing demo playlist" : "Play demo playlist";
   if (s.mode === "idle") setLamp("#8a8f98", "Quiet", "listener idle");
   lastMode = s.mode;
+  keepSpeech = !!s.keep_speech;
+  $("keep-speech").checked = keepSpeech;
+  $("privacy").classList.toggle("on", keepSpeech);
   banner();
 }
 
 // ---------------------------------------------------------------- what the board is doing, in one sentence
 let lastMode = null;
 let online = false;
+let keepSpeech = false;
 function banner() {
   const b = $("banner"), t = $("banner-text");
   b.className = "banner";
@@ -251,7 +263,12 @@ function banner() {
   } else {
     t.innerHTML = "Not listening <small>press “Listen to mic” to start</small>";
   }
+  if (online && keepSpeech) t.innerHTML += '<span class="warn">· speech is kept</span>';
 }
+$("keep-speech").onchange = async (e) => {
+  try { renderStatus(await (await post("/api/privacy", { keep_speech: e.target.checked })).json()); }
+  catch (err) { e.target.checked = keepSpeech; toast("The board did not answer. It may be restarting.", true); }
+};
 
 function renderDecision(e) {
   setLamp(e.color, STATE_NAME[e.state] || e.state, e.detail);

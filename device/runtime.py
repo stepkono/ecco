@@ -131,6 +131,8 @@ class Listener:
         self.detections = Counter()  # recognized label -> count since start
         self.recent_detections: deque[tuple[float, str]] = deque(maxlen=20000)
         self._last_speech_end = -1e9  # audio time: event context must not reach back into speech
+        # off by default and after every restart: speech is dropped on the board (privacy)
+        self.keep_speech = False
         self.events: deque[DecisionEvent] = deque(maxlen=200)
         self.events_file = data_path("data") / "device_events.jsonl"
         self.sync_status = lambda: "offline"
@@ -182,12 +184,13 @@ class Listener:
             head = self.head
         decision = None
         emb = a.clip_embedding()
-        if energy_ok and not pr.speech:
+        speech = pr.speech and not self.keep_speech  # the switch in the console turns the filter off
+        if energy_ok and not speech:
             decision = head.predict(emb, self.t_known, self.margin)
             if (not decision.recognized and is_noise(decision.best_label, self.noise_label)
                     and decision.best >= self.t_noise and decision.margin >= self.margin):
                 decision.label = decision.best_label  # clearly weather: stay quiet
-        raw = state_for(energy_ok, pr.speech, decision, self.noise_label)
+        raw = state_for(energy_ok, speech, decision, self.noise_label)
         return Verdict(a, pr, decision, raw, energy_ok, emb, head.version, round(1000 * (time.perf_counter() - t0), 1))
 
     def step(self, clip: np.ndarray, sr: int, source_label: str = "") -> DecisionEvent:
@@ -198,6 +201,7 @@ class Listener:
             self.history.push(clip)
         v = self.evaluate(clip, sr)
         pr, decision, raw = v.privacy, v.decision, v.raw
+        speech = pr.speech and not self.keep_speech
         shown = self.sm.update(raw)
         if raw.kind == StateKind.RECOGNIZED and raw.label:
             self.detections[raw.label] += 1
@@ -207,16 +211,16 @@ class Listener:
             seg_end - self.clip_s, seg_end, raw.kind == StateKind.NEEDS_HELP, embedding=v.embedding,
             level=rms_dbfs(clip), best_label=decision.best_label if decision else None,
             best=decision.best if decision else 0.0, similarities=decision.similarities if decision else None,
-            speech=pr.speech, source=source_label,
+            speech=speech, source=source_label,
         )
         queued, action = self._commit(closed, sr) if closed else (None, None)
-        if pr.speech:  # after committing: this segment only limits the context of later events
+        if speech:  # after committing: this segment only limits the context of later events
             self._last_speech_end = seg_end
         ev = DecisionEvent(
             time=time.strftime("%H:%M:%S"), source=source_label, raw_state=raw.kind.value, shown_state=shown.kind.value,
             label=raw.label, best_label=decision.best_label if decision else None,
             score=round(decision.best, 3) if decision else 0.0, margin=round(decision.margin, 3) if decision else 0.0,
-            speech=pr.speech, speech_score=round(pr.score, 3), level_dbfs=round(rms_dbfs(clip), 1),
+            speech=speech, speech_score=round(pr.score, 3), level_dbfs=round(rms_dbfs(clip), 1),
             t_known=self.t_known, proto_version=v.proto_version, queued=queued, event=action,
             latency_ms=v.latency_ms, peak_rss_mb=round(peak_rss_mb(), 0),
         )
