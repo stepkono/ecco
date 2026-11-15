@@ -2146,6 +2146,64 @@ export class SpectroView {
     this.camera.position.copy(pos);
   }
 
+  /**
+   * The landscape seen straight from above, as a compressed JPEG: the picture on a sound stamp.
+   * Renders once into the canvas at a small size and puts everything back in the same task,
+   * so nothing flickers on screen. Helpers, playhead and the played/unplayed tint stay out.
+   */
+  topSnapshot(size = 360, quality = 0.8): string {
+    const r = this.renderer;
+    const cam = this.camera;
+    const fog = this.scene.fog as THREE.Fog;
+    const keep = {
+      pos: cam.position.clone(), target: this.controls.target.clone(), aspect: cam.aspect,
+      size: r.getSize(new THREE.Vector2()), ratio: r.getPixelRatio(),
+      play: U.play.value.clone(), reveal: U.reveal.value.clone(), near: fog.near, far: fog.far,
+    };
+    const hide = [this.playhead, ...this.overlays(), ...this.mirrorOverlays, this.mirrorPlayhead, this.axisGroup, this.grid, this.fogVolume.object, this.sweep, this.spiralRing];
+    const vis = hide.map((o) => o.visible);
+    hide.forEach((o) => (o.visible = false));
+    U.play.value.z = 0;
+    U.reveal.value.w = 0;
+    fog.near = 1e4;
+    fog.far = 1e5;
+    // frame the footprint tightly from straight above
+    cam.aspect = 1;
+    if (this.mode === 'spiral' || this.mode === 'disc') {
+      this.resetCamera('top');
+    } else {
+      const { t: sx, a: sy, f: sz } = this.axis;
+      const half = (Math.max(WORLD_W * sx, WORLD_D * sz) / 2) * 1.02;
+      const ty = this.mode === 'symmetry' ? 0 : 0.2 * sy;
+      const dist = half / Math.tan((cam.fov * Math.PI) / 360) + WORLD_H * sy;
+      this.controls.target.set(0, ty, 0);
+      cam.position.set(0, ty + dist, 0.001);
+    }
+    cam.lookAt(this.controls.target);
+    cam.updateProjectionMatrix();
+    r.setPixelRatio(1);
+    r.setSize(size, size, false);
+    r.render(this.scene, cam);
+    const out = document.createElement('canvas');
+    out.width = out.height = size;
+    out.getContext('2d')!.drawImage(r.domElement, 0, 0);
+    // put everything back and draw the normal frame again before the browser shows anything
+    hide.forEach((o, i) => (o.visible = vis[i]));
+    U.play.value.copy(keep.play);
+    U.reveal.value.copy(keep.reveal);
+    fog.near = keep.near;
+    fog.far = keep.far;
+    r.setPixelRatio(keep.ratio);
+    r.setSize(keep.size.x, keep.size.y, false);
+    cam.aspect = keep.aspect;
+    cam.position.copy(keep.pos);
+    this.controls.target.copy(keep.target);
+    cam.lookAt(keep.target);
+    cam.updateProjectionMatrix();
+    r.render(this.scene, cam);
+    return out.toDataURL('image/jpeg', quality);
+  }
+
   private frame() {
     const dt = Math.min(0.1, this.clock.getDelta());
     U.time.value += dt;

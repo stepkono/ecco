@@ -11,6 +11,7 @@ Endpoints (see docs/SYSTEM.md):
   DELETE /clips/{id}                   remove one recording for good (audio, labels)
   DELETE /clips                        remove every waiting recording
   GET  /archive, POST /archive         community archive of sound stamps (labelled landscapes)
+  DELETE /archive                      empty the community archive
   POST /learning                       {"enabled": false} stores labels without learning (debug, predictable demos)
   POST /prototypes/reset               forget everything learned (back to the starting sounds)
   POST /prototypes/forget/{label}      forget one sound class
@@ -158,6 +159,14 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
                                                         s.stamp, s.hue, s.player, s.levelIndex))
         be.emit("stamp_added", {"id": s.id, "label": s.label, "title": s.title})
         return {"id": s.id}
+
+    @app.delete("/archive")
+    def clear_archive():
+        """Empty the community archive (for a clean demo). Recordings and labels stay."""
+        n = be.store.q("SELECT COUNT(*) AS n FROM stamps")[0]["n"]
+        be.store.run("DELETE FROM stamps")
+        be.emit("stamps_cleared", {"deleted": n})
+        return {"deleted": n}
 
     @app.post("/learning")
     def set_learning(body: LearningIn):

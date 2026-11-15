@@ -82,6 +82,14 @@
   </section>
 
   <section>
+    <div class="head">
+      <h2>Community archive</h2>
+      <button class="danger" id="del-stamps">Delete all stamps</button>
+    </div>
+    <div class="row"><span>Sound stamps everyone can see on the website</span><b id="stamps">–</b></div>
+  </section>
+
+  <section>
     <div class="head"><h2>Where to go</h2></div>
     <div class="row"><span>The website (label recordings)</span><a href="http://localhost:5173/">open</a></div>
     <div class="row"><span>Stage screen for the pitch</span><a href="/screen">open</a></div>
@@ -127,6 +135,14 @@ async function loadStats() {
   }
 }
 
+async function loadStamps() {
+  try {
+    const n = (await (await fetch('/archive')).json()).length;
+    $('stamps').textContent = n;
+    $('del-stamps').disabled = !n;
+  } catch { $('stamps').textContent = '–'; }
+}
+
 async function loadClips() {
   try {
     const list = await (await fetch('/clips')).json();
@@ -161,12 +177,16 @@ document.addEventListener('click', async (e) => {
       if (!confirm(`Delete all ${n} waiting recordings for good? This cannot be undone.`)) return;
       const r = await api('DELETE', '/clips');
       toast(`${r.deleted.length} recordings deleted.`);
+    } else if (e.target.id === 'del-stamps') {
+      if (!confirm('Delete all stamps from the community archive? Recordings and labels stay.')) return;
+      const r = await api('DELETE', '/archive');
+      toast(`${r.deleted} stamps deleted.`);
     } else if (e.target.id === 'reset') {
       if (!confirm('Reset to the starting sounds? Everything learned from labels is forgotten. Older versions stay stored.')) return;
       const r = await api('POST', '/prototypes/reset');
       toast(`Back to the starting sounds (v${r.version}). The posts follow within seconds.`);
     } else return;
-    loadStats(); loadClips();
+    loadStats(); loadClips(); loadStamps();
   } catch (err) {
     toast('That did not work: ' + err.message);
   }
@@ -180,11 +200,11 @@ $('learning').onchange = async (e) => {
   } catch { e.target.checked = !e.target.checked; toast('That did not work.'); }
 };
 
-loadStats(); loadClips();
+loadStats(); loadClips(); loadStamps();
 setInterval(loadStats, 3000);
 // the list follows the server: new or deleted recordings show up on their own
 new EventSource('/events/stream').onmessage = (m) => {
-  try { const ev = JSON.parse(m.data); if (['clip_received', 'clips_deleted', 'label_accepted'].includes(ev.type)) loadClips(); } catch {}
+  try { const ev = JSON.parse(m.data); if (['clip_received', 'clips_deleted', 'label_accepted'].includes(ev.type)) loadClips(); if (['stamp_added', 'stamps_cleared'].includes(ev.type)) loadStamps(); } catch {}
 };
 </script>
 </body>

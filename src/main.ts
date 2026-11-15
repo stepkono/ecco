@@ -16,7 +16,7 @@ import { openLab, renderLabIfOpen, setLabHooks } from './ui/lab';
 import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
 import { brandLogo } from './ui/brand';
-import { addToArchive, hueOf, mountArchive, renderStamp, type ArchiveEntry } from './ui/archive';
+import { addToArchive, hueOf, mountArchive, type ArchiveEntry } from './ui/archive';
 import { mountWelcome } from './ui/welcome';
 import { mountVizPanel } from './ui/vizpanel';
 import { mountPuzzles } from './ui/puzzle';
@@ -596,7 +596,7 @@ function contribute() {
     id, kind: 'challenge', title: s.level?.title ?? uploadName ?? 'Your recording',
     label: useful.map((u) => CLASSES[u].label.toLowerCase()).join(' + '),
     place: c?.kind === 'practice' ? c.place : 'Your upload', recorded: c?.recorded.getTime() ?? Date.now(),
-    labelled: Date.now(), stamp: renderStamp(s, hue), hue, levelIndex: s.level ? LEVELS.indexOf(s.level) : undefined,
+    labelled: Date.now(), stamp: view.topSnapshot(), hue, levelIndex: s.level ? LEVELS.indexOf(s.level) : undefined,
   });
 }
 
@@ -658,13 +658,13 @@ const puzzles = mountPuzzles($('#labeling'), {
   },
   next: () => openNext(),
   contribute,
-  labelled: (clipId, label, s) => {
+  labelled: (clipId, label) => {
     const c = queue[qi]?.id === clipId ? queue[qi] : null;
     const hue = hueOf(clipId);
     addToArchive({
       id: clipId, kind: 'live', title: c?.title ?? 'Live recording', label,
       place: c?.place ?? 'Listening post', recorded: c?.recorded.getTime() ?? Date.now(),
-      labelled: Date.now(), stamp: renderStamp(s, hue), hue,
+      labelled: Date.now(), stamp: view.topSnapshot(), hue,
     });
   },
 });
@@ -688,6 +688,7 @@ const archive = mountArchive($('#archive'), {
 async function seedArchive() {
   for (const [i, level] of LEVELS.entries()) {
     const s = new Session(level, await mixLevel(level));
+    view.setSession(s);
     const hue = hueOf(level.id);
     const c = PRACTICE[i];
     await addToArchive(
@@ -695,11 +696,13 @@ async function seedArchive() {
         id: level.id, kind: 'challenge', title: level.title,
         label: level.targets.map((t) => CLASSES[t].label.toLowerCase()).join(' + '),
         place: c.place, recorded: c.recorded.getTime(), labelled: Date.now() - (LEVELS.length - i) * 600_000,
-        stamp: renderStamp(s, hue), hue, levelIndex: i, player: 'ecco team',
+        stamp: view.topSnapshot(), hue, levelIndex: i, player: 'ecco team',
       },
       { local: false },
     ).catch(() => undefined);
   }
+  // back to what was open before
+  if (state.session) view.setSession(state.session);
   window.dispatchEvent(new Event('archive-changed'));
 }
 const updateArchiveCount = async () => ($('#archive-count').textContent = String(await archive.count()));
@@ -745,7 +748,7 @@ const welcome = mountWelcome($('#welcome'), {
   subscribe: (changed) => {
     backend.listen((ev) => {
       if (ev.type === 'clip_received' || ev.type === 'clips_deleted' || ev.type === 'label_accepted') changed();
-      if (ev.type === 'stamp_added') window.dispatchEvent(new Event('archive-changed'));
+      if (ev.type === 'stamp_added' || ev.type === 'stamps_cleared') window.dispatchEvent(new Event('archive-changed'));
     });
   },
   archive: () => archive.show(),

@@ -1,10 +1,8 @@
-import { N_BINS, BIN_HZ } from '../dsp/stft';
-import type { Session } from '../game/session';
 import { backendUrl } from '../game/backend';
 
 /**
- * The community archive: every labelled landscape becomes a "sound stamp", an abstract
- * top view of its sound with a colour gradient of its own. Stamps go to the server, so
+ * The community archive: every labelled landscape becomes a "sound stamp", a small
+ * picture of its 3D landscape seen from above. Stamps go to the server, so
  * everyone sees everyone's stamps. A copy stays in this browser, which marks your own.
  */
 export interface ArchiveEntry {
@@ -84,69 +82,6 @@ export function hueOf(id: string): number {
   return Math.abs(h) % 360;
 }
 
-const hsl = (h: number, s: number, l: number): [number, number, number] => {
-  s /= 100;
-  l /= 100;
-  const k = (n: number) => (n + h / 30) % 12;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
-  return [255 * f(0), 255 * f(8), 255 * f(4)];
-};
-
-/**
- * Draw the stamp: the landscape seen from above, coarse and soft, in a gradient of its
- * own. Quiet parts take a deep shade of the base hue, loud parts move towards a lighter,
- * neighbouring hue. Painted parts glow a little brighter.
- */
-export function renderStamp(s: Session, hue: number, size = 168): string {
-  const G = 14; // very coarse grid: the stamp shows the character of the sound, not its detail
-  const grid = new Float32Array(G * G);
-  const melOf = (hz: number) => 2595 * Math.log10(1 + hz / 700);
-  const melMax = melOf((N_BINS - 1) * BIN_HZ);
-  const painted = new Float32Array(s.frames * N_BINS);
-  for (const l of s.layers) for (let i = 0; i < painted.length; i++) painted[i] = Math.max(painted[i], l.mask[i]);
-  const cnt = new Float32Array(G * G);
-  for (let t = 0; t < s.frames; t++) {
-    const gx = Math.min(G - 1, Math.floor((t / s.frames) * G));
-    for (let k = 1; k < N_BINS; k++) {
-      const gy = G - 1 - Math.min(G - 1, Math.floor((melOf(k * BIN_HZ) / melMax) * G));
-      const i = t * N_BINS + k;
-      let v = (s.db[i] - s.floor[k] - 6) / 28; // the steady background stays dark
-      v = v < 0 ? 0 : v > 1 ? 1 : v;
-      v = Math.max(v, v * 0.6 + painted[i] * 0.4);
-      const o = gy * G + gx;
-      grid[o] += v;
-      cnt[o]++;
-    }
-  }
-  const small = document.createElement('canvas');
-  small.width = small.height = G;
-  const g = small.getContext('2d')!;
-  const img = g.createImageData(G, G);
-  const lo = hsl(hue, 50, 13);
-  const mid = hsl((hue + 40) % 360, 70, 48);
-  const hi = hsl((hue + 80) % 360, 90, 80);
-  for (let i = 0; i < G * G; i++) {
-    const v = Math.min(1, Math.pow(grid[i] / Math.max(1, cnt[i]), 0.85) * 2.2);
-    const [a, b, f] = v < 0.5 ? [lo, mid, v / 0.5] : [mid, hi, (v - 0.5) / 0.5];
-    img.data[i * 4] = a[0] + (b[0] - a[0]) * f;
-    img.data[i * 4 + 1] = a[1] + (b[1] - a[1]) * f;
-    img.data[i * 4 + 2] = a[2] + (b[2] - a[2]) * f;
-    img.data[i * 4 + 3] = 255;
-  }
-  g.putImageData(img, 0, 0);
-  // scale up with smoothing and a soft blur: an abstract stamp, not a chart
-  const big = document.createElement('canvas');
-  big.width = big.height = size;
-  const b = big.getContext('2d')!;
-  b.imageSmoothingEnabled = true;
-  b.imageSmoothingQuality = 'high';
-  b.filter = 'blur(9px)';
-  b.drawImage(small, -14, -14, size + 28, size + 28);
-  b.filter = 'none';
-  return big.toDataURL('image/jpeg', 0.82);
-}
-
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const pretty = (l: string) => (l.startsWith('noise:') ? `${l.slice(6)} noise` : l.replace(/_/g, ' '));
 const when = (ms: number) => new Date(ms).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -157,40 +92,53 @@ export interface ArchiveHooks {
   seed(): Promise<void>;
 }
 
-/** The archive page: a grid of stamps. */
+/** The archive page: a full-screen grid of stamps, filtered by kind of sound. */
 export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
   let shown: ArchiveEntry[] = [];
+  let filter = 'all';
+  root.classList.add('archive-page');
   async function render() {
     const { list, online } = await loadCommunity();
     shown = list;
     const mine = new Set(loadArchive().map((e) => e.id));
     const own = list.filter((e) => mine.has(e.id)).length;
     const labels = [...new Set(list.map((e) => e.label))];
-    root.innerHTML = `<div class="sheet archive-sheet">
-      <button class="btn ghost close" id="ar-close">Close ✕</button>
-      <h2>Community archive</h2>
-      <p class="lead">Every labelled landscape becomes a sound stamp with colours of its own. ${
-        list.length
-          ? `The community collected <b>${list.length}</b> stamp${list.length === 1 ? '' : 's'} of <b>${labels.length}</b> kind${labels.length === 1 ? '' : 's'} of sound${own ? `, <b>${own}</b> of them yours` : ''}.`
-          : ''
-      }${online ? '' : ' <span class="muted">The server is not reachable, so only your own stamps are shown.</span>'}</p>
+    if (filter !== 'all' && filter !== 'mine' && !labels.includes(filter)) filter = 'all';
+    const visible = list.filter((e) => (filter === 'all' ? true : filter === 'mine' ? mine.has(e.id) : e.label === filter));
+    const chip = (id: string, text: string, n: number) =>
+      `<button class="ar-chip" data-filter="${esc(id)}" aria-pressed="${filter === id}">${esc(text)} <span>${n}</span></button>`;
+    root.innerHTML = `<header class="ar-top">
+        <button class="btn ghost" id="ar-close">← Back</button>
+        <div class="ar-title">
+          <h1>Community archive</h1>
+          <p>${
+            list.length
+              ? `<b>${list.length}</b> landscape${list.length === 1 ? '' : 's'} solved by the community, <b>${labels.length}</b> kind${labels.length === 1 ? '' : 's'} of sound${own ? `, <b>${own}</b> by you` : ''}. Every stamp is the landscape seen from above. Open one to explore it again.`
+              : 'Every solved landscape lands here as a stamp, seen from above.'
+          }${online ? '' : ' <span class="muted">The server is not reachable, so only your own stamps are shown.</span>'}</p>
+        </div>
+      </header>
       ${
         list.length
-          ? `<div class="stamps">${list
-              .map(
-                (e) => `<button class="stamp" data-id="${esc(e.id)}" title="Open this landscape again">
-            <img src="${e.stamp}" alt="Sound stamp of ${esc(e.title)}" width="168" height="168">
-            <span class="st-label" style="--h:${e.hue}">${esc(pretty(e.label))}</span>
-            <b>${esc(e.title)}</b>
-            <small>${esc(e.place)} · ${when(e.recorded)}</small>
-            <small class="st-kind">${mine.has(e.id) ? '<span class="st-mine">yours</span> · ' : ''}${e.kind === 'live' ? 'Live recording' : 'Challenge'} · labelled ${when(e.labelled)}</small>
+          ? `<nav class="ar-chips" aria-label="Filter stamps">${chip('all', 'All', list.length)}${own ? chip('mine', 'Yours', own) : ''}${labels
+              .map((l) => chip(l, pretty(l), list.filter((e) => e.label === l).length))
+              .join('')}</nav>
+        <div class="stamps">${visible
+          .map(
+            (e, i) => `<button class="stamp" data-id="${esc(e.id)}" style="--i:${Math.min(i, 16)}" title="Open this landscape again">
+            <span class="st-img"><img src="${e.stamp}" alt="Top view of ${esc(e.title)}" loading="lazy"></span>
+            <span class="st-body">
+              <span class="st-label" style="--h:${e.hue}">${esc(pretty(e.label))}</span>
+              <b>${esc(e.title)}</b>
+              <small>${esc(e.place)} · ${when(e.recorded)}</small>
+              <small class="st-kind">${mine.has(e.id) ? '<span class="st-mine">yours</span> · ' : ''}${e.kind === 'live' ? 'Live recording' : 'Challenge'} · solved ${when(e.labelled)}</small>
+            </span>
           </button>`,
-              )
-              .join('')}</div>`
+          )
+          .join('')}</div>`
           : `<div class="ar-empty">No stamps yet. Label a recording with “Send label”, or contribute a challenge, and its landscape lands here.
               ${online ? '<br><button class="btn ghost" id="ar-seed">Add the practice landscapes as examples</button>' : ''}</div>`
-      }
-    </div>`;
+      }`;
     root.querySelector<HTMLButtonElement>('#ar-close')!.onclick = hide;
     const seed = root.querySelector<HTMLButtonElement>('#ar-seed');
     if (seed)
@@ -200,6 +148,12 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
         await hooks.seed();
         void render();
       };
+    root.querySelectorAll<HTMLButtonElement>('.ar-chip').forEach((b) => {
+      b.onclick = () => {
+        filter = b.dataset.filter!;
+        void render();
+      };
+    });
     root.querySelectorAll<HTMLButtonElement>('.stamp').forEach((b) => {
       b.onclick = () => {
         const e = shown.find((x) => x.id === b.dataset.id);
@@ -210,15 +164,16 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
     });
   }
   function show() {
-    root.innerHTML = '<div class="sheet archive-sheet"><h2>Community archive</h2><p class="lead">Loading the stamps…</p></div>';
+    root.innerHTML = '<header class="ar-top"><div class="ar-title"><h1>Community archive</h1><p>Loading the stamps…</p></div></header>';
     root.hidden = false;
+    root.scrollTop = 0;
     void render();
   }
   function hide() {
     root.hidden = true;
   }
-  root.addEventListener('click', (e) => {
-    if (e.target === root) hide();
+  window.addEventListener('archive-changed', () => {
+    if (!root.hidden) void render();
   });
   return { show, hide, count: async () => (await loadCommunity()).list.length };
 }
