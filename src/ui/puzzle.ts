@@ -21,11 +21,9 @@ interface Win {
   session: Session;
 }
 
-export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
+export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
   const be = new Backend();
-  const card = document.createElement('section');
-  card.className = 'card puzzle-card';
-  panel.prepend(card);
+  card.classList.add('puzzle-card');
 
   let online = false;
   let busy = false;
@@ -34,40 +32,34 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
   let wins: Win[] = [];
   let active = 0;
   let label = '';
-  const log: string[] = [];
+  /** one short line for the player: what happened last, never technical details */
+  let message = '';
   /** events skipped or answered here, so Skip moves on to a different one */
   const seen = new Set<string>();
 
   const note = (msg: string) => {
-    log.unshift(msg);
-    log.length = Math.min(log.length, 4);
+    message = msg;
     render();
   };
 
   const painted = (s: Session) => s.layers.some((l) => l.mask.some((v) => v > 0.05));
 
   function render() {
-    const status = `<span class="pz-dot ${online ? 'on' : ''}"></span>${online ? 'backend online' : 'backend offline'}`;
     let body: string;
     if (!puzzle) {
-      body = `<p class="muted small">Sounds the forest listening post could not recognize. Carve the sound in 3D, pick a label and send it. The post learns it within seconds.</p>
-        <button class="btn primary wide" id="pz-next" ${busy || !online ? 'disabled' : ''}>${busy ? 'Loading…' : 'Get next puzzle'}</button>`;
+      body = `<p class="muted small">${message || (online ? 'Recordings the listening posts could not recognize are waiting for you.' : 'No recordings to label right now.')}</p>
+        <button class="btn primary wide" id="pz-next" ${busy || !online ? 'disabled' : ''}>${busy ? 'Loading…' : 'Next recording'}</button>`;
     } else {
       const chips = wins
-        .map((w, i) => `<button class="pz-win ${i === active ? 'on' : ''}" data-win="${i}" title="Show this part of the event">${painted(w.session) ? '● ' : ''}${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s</button>`)
+        .map((w, i) => `<button class="pz-win ${i === active ? 'on' : ''}" data-win="${i}" title="Show this part of the recording">${painted(w.session) ? '● ' : ''}${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s</button>`)
         .join('');
-      body = `<div class="muted small">Event <b>${puzzle.clip_id.slice(0, 10)}</b> · ${puzzle.duration_s.toFixed(1)} s</div>
-        ${wins.length > 1 ? `<div class="pz-wins">${chips}</div>` : ''}
-        <label class="pz-row"><span>Label</span><select id="pz-label">${puzzle.labels.map((l) => `<option ${l === label ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-        <div class="pz-row">
-          <button class="btn primary" id="pz-send" ${busy ? 'disabled' : ''} title="Send the painted mask of all windows with this label">Send label</button>
-          <button class="btn ghost" id="pz-skip" ${busy ? 'disabled' : ''} title="Load the next puzzle without answering">Skip</button>
-        </div>
-        <p class="muted small">Paint the sound with any tool. Unpainted means the whole event.</p>`;
+      body = `${wins.length > 1 ? `<div class="pz-wins">${chips}</div>` : ''}
+        <div class="pz-row"><span>Label</span><select id="pz-label" aria-label="Label">${puzzle.labels.map((l) => `<option ${l === label ? 'selected' : ''}>${l}</option>`).join('')}</select>
+          <button class="btn ghost" id="pz-skip" ${busy ? 'disabled' : ''} title="Load the next recording without answering">Skip</button></div>
+        <p class="muted small">Paint the sound with any tool. Unpainted means the whole event.</p>
+        <button class="btn primary wide" id="pz-send" ${busy ? 'disabled' : ''} title="Send the painted mask of all parts with this label">Send label</button>`;
     }
-    card.innerHTML = `<div class="card-head"><h3>Forest device puzzles</h3><span class="muted small pz-status">${status}</span></div>
-      ${body}
-      ${log.length ? `<ul class="pz-log">${log.map((l) => `<li>${l}</li>`).join('')}</ul>` : ''}`;
+    card.innerHTML = `<div class="card-head"><h3>Labeling</h3></div>${body}`;
     bind();
   }
 
@@ -93,7 +85,7 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
   function show(i: number) {
     active = i;
     const w = wins[i];
-    hooks.start(w.session, `Device event ${puzzle!.clip_id.slice(0, 8)} · ${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s`);
+    hooks.start(w.session, `${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s`);
     render();
   }
 
@@ -142,10 +134,11 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
           best = i;
         }
       });
-      note(`Loaded event ${p.clip_id.slice(0, 10)} (${dur.toFixed(1)} s, ${wins.length} window${wins.length > 1 ? 's' : ''}).`);
+      message = '';
       show(best);
     } catch (e) {
-      note('Could not load a puzzle: ' + String(e));
+      console.warn('puzzle load failed', e);
+      note('This recording could not be loaded. Try the next one.');
     } finally {
       busy = false;
       render();
@@ -200,20 +193,16 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
       const mask = buildGrid();
       const r = await be.submit(puzzle.clip_id, label, mask);
       seen.add(puzzle.clip_id);
-      if (r.gold) {
-        note(r.correct ? `Gold check passed: it was <b>${r.true_label}</b>.` : `Gold check: this one was <b>${r.true_label}</b>.`);
-      } else if (r.accepted) {
-        note(`Accepted as <b>${label}</b>${r.learned === false ? ' (not learned: no class for it)' : `, prototypes v${r.prototype_version}`}.`);
-      } else {
-        const votes = Object.entries(r.votes ?? {}).map(([k, v]) => `${k} ${v}`).join(', ');
-        note(`Label sent. Waiting for more players (${votes || 'no votes'}, ${r.needed} needed).`);
-      }
+      if (r.gold) toast(r.correct ? `Well done. It was <b>${r.true_label}</b>.` : `Good try. This one was <b>${r.true_label}</b>.`, 'info');
+      else if (r.accepted) toast(`Thank you. Your label <b>${label}</b> was accepted.`, 'info');
+      else toast('Thank you. Your label counts once a few more people agree.', 'info');
       if (!mask) toast('No painting found, so the whole event was sent.', 'info');
       puzzle = null;
       wins = [];
       await load();
     } catch (e) {
-      note('Sending failed: ' + String(e));
+      console.warn('label submit failed', e);
+      toast('Your label could not be sent. Please try again.', 'warn');
     } finally {
       busy = false;
       render();
@@ -228,8 +217,8 @@ export function mountPuzzles(panel: HTMLElement, hooks: PuzzleHooks) {
         online = true;
         render();
         be.listen((ev) => {
-          if (ev.type === 'device_updated') toast(`The forest device learned this sound (prototypes v${ev.version}).`, 'info', 6000);
-          if (ev.type === 'clip_received') note('The listening post sent a new event.');
+          if (ev.type === 'device_updated') toast('A listening post just learned from your labels.', 'info', 6000);
+          if (ev.type === 'clip_received' && !puzzle) note('A new recording is waiting for you.');
         });
       }
     } catch {

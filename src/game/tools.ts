@@ -34,6 +34,23 @@ function applyCell(s: Session, layerIdx: number, i: number, k: number, w: number
   }
 }
 
+/** Eraser: brings every layer back to unpainted inside the radius, with only a thin soft rim. */
+export function eraseAll(s: Session, map: Mapping, cx: number, cz: number, radius: number) {
+  const r2 = radius * radius;
+  for (let t = 0; t < s.frames; t++) {
+    const dx = map.xOfFrame(t) - cx;
+    if (Math.abs(dx) > radius) continue;
+    for (let k = 0; k < N_BINS; k++) {
+      const dz = map.zOfBin[k] - cz;
+      const d = Math.sqrt((dx * dx + dz * dz) / r2);
+      if (d >= 1) continue;
+      const keep = d < 0.85 ? 0 : (d - 0.85) / 0.15;
+      const i = t * N_BINS + k;
+      for (const l of s.layers) l.mask[i] *= keep;
+    }
+  }
+}
+
 /** Soft spatial brush in world space (x = time, z = warped frequency). */
 export function brush(s: Session, map: Mapping, layerIdx: number, cx: number, cz: number, radius: number, o: PaintOpts) {
   const r2 = radius * radius;
@@ -48,13 +65,6 @@ export function brush(s: Session, map: Mapping, layerIdx: number, cx: number, cz
       applyCell(s, layerIdx, t * N_BINS + k, k, w, o);
     }
   }
-}
-
-/** Band knife: claim a time x frequency box. */
-export function knife(s: Session, layerIdx: number, t0: number, t1: number, k0: number, k1: number, o: PaintOpts) {
-  const [ta, tb] = [Math.max(0, Math.round(Math.min(t0, t1))), Math.min(s.frames - 1, Math.round(Math.max(t0, t1)))];
-  const [ka, kb] = [Math.max(0, Math.round(Math.min(k0, k1))), Math.min(N_BINS - 1, Math.round(Math.max(k0, k1)))];
-  for (let t = ta; t <= tb; t++) for (let k = ka; k <= kb; k++) applyCell(s, layerIdx, t * N_BINS + k, k, o.strength, o);
 }
 
 // ---------------- harmonic tuning fork ----------------

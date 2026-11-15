@@ -7,7 +7,6 @@ import type { Mapping } from '../game/tools';
 import { U, withFog, withMirror, withMirrorLines, withWater } from './shaders';
 import { LEVEL_THEME, applyPaint, applyUiTheme, themeById, type Theme } from './themes';
 import { CLASSES } from '../game/catalog';
-import { Walker } from './walk';
 import { pillarGeometry, withPillar } from './pillar';
 import { DiscMode } from './disc';
 import { FogVolume } from './fogvolume';
@@ -62,15 +61,12 @@ export interface Pick {
 
 export type VizMode = 'surface' | 'rounded' | 'voxel' | 'skyline' | 'drops' | 'disc' | 'spiral' | 'symmetry';
 
-export const VIZ_MODES: { id: VizMode; label: string; note: string; walk: boolean }[] = [
-  { id: 'surface', label: 'Surface', note: 'All tools work here.', walk: true },
-  { id: 'rounded', label: 'Rounded', note: 'All tools work. Picks follow the smooth hills.', walk: true },
-  { id: 'voxel', label: 'Voxels', note: 'All tools work. Picks hit the column tops.', walk: true },
-  { id: 'skyline', label: 'Skyline', note: 'All tools work. Blocks merge where the sound is even. Picks hit the block tops.', walk: true },
-  { id: 'drops', label: 'Drop lines', note: 'All tools work. Picks hit the tops of the lines.', walk: false },
-  { id: 'disc', label: 'Disc', note: 'All tools work. Picks snap to the nearest point.', walk: false },
-  { id: 'spiral', label: 'Spiral', note: 'All tools work. Picks snap to the nearest point.', walk: false },
-  { id: 'symmetry', label: 'Symmetry', note: 'All tools work on both halves. The reflection is a copy, so paint shows on both.', walk: false },
+/** Modes offered in the View lab. Surface, rounded, skyline and disc still exist in code (symmetry builds on the surface). */
+export const VIZ_MODES: { id: VizMode; label: string }[] = [
+  { id: 'voxel', label: 'Voxels' },
+  { id: 'drops', label: 'Drop lines' },
+  { id: 'spiral', label: 'Spiral' },
+  { id: 'symmetry', label: 'Symmetry' },
 ];
 
 /**
@@ -94,7 +90,7 @@ export const VIZ = {
   voxel: {
     step: 0, // height terraces (0 = smooth heights)
     gap: 0.08, // empty space between columns, as a fraction of the cell (0 = touching)
-    round: 0.6, // roundness of the column tops (0 = flat)
+    round: 0.55, // roundness of the column tops (0 = flat)
   },
   drops: {
     points: true, // dot on top of each line
@@ -213,14 +209,13 @@ export class SpectroView {
   private fogVolume = new FogVolume();
 
   // playground state
-  mode: VizMode = 'surface';
+  mode: VizMode = 'voxel';
   readonly axis = { t: 1, f: WORLD_W / WORLD_D, a: 1 };
   /** near-isometric camera: very narrow field of view from far away */
   iso = false;
   theme: Theme;
   themeChoice = 'auto';
   onThemeChange: () => void = () => {};
-  readonly walker: Walker;
   /** canonical layout, scaled by the axis sliders (copy 0) */
   private world = new THREE.Group();
   /** reflection for the symmetry mode */
@@ -379,7 +374,6 @@ export class SpectroView {
     this.scene.add(this.fogVolume.object);
 
     this.theme = themeById('lagoon');
-    this.walker = new Walker(this);
 
     const ro = new ResizeObserver(() => this.resize());
     ro.observe(container);
@@ -723,13 +717,12 @@ export class SpectroView {
   // ---------------- modes ----------------
 
   setMode(m: VizMode, keepCamera = false) {
-    if (this.walker.active && !VIZ_MODES.find((x) => x.id === m)!.walk) this.walker.exit();
     this.endMorph();
     if (m === this.mode) return;
     this.mode = m;
     this.applyLayout();
     this.updateMode(true);
-    if (!keepCamera && !this.walker.active) this.resetCamera('perspective');
+    if (!keepCamera) this.resetCamera('perspective');
   }
 
   setAxis(t: number, f: number, a: number) {
@@ -1668,11 +1661,6 @@ export class SpectroView {
   pick(clientX: number, clientY: number): Pick | null {
     if (!this.session) return null;
     const rect = this.renderer.domElement.getBoundingClientRect();
-    if (this.walker.active) {
-      // first person: the pick ray goes through the crosshair
-      clientX = rect.left + rect.width / 2;
-      clientY = rect.top + rect.height / 2;
-    }
     const ndc = new THREE.Vector2(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
     this.ray.setFromCamera(ndc, this.camera);
     const o = this.ray.ray.origin;
@@ -1936,23 +1924,66 @@ export class SpectroView {
     };
   }
 
-  private walkSaved: { a: number; res: number } | null = null;
+  // ---------------- navigation that works with every tool ----------------
 
-  /** While walking: flatter terrain and a coarser grid, so you can see far ahead instead of a wall of noise. */
-  walkLook(on: boolean) {
-    const m = this.mode;
-    if (on && !this.walkSaved) {
-      this.walkSaved = { a: this.axis.a, res: VIZ.res[m] };
-      VIZ.res[m] = Math.min(VIZ.res[m], m === 'surface' ? 0.34 : 0.3);
-      this.disposeModes();
-      this.setAxis(this.axis.t, this.axis.f, this.axis.a * 0.4);
-    } else if (!on && this.walkSaved) {
-      VIZ.res[m] = this.walkSaved.res;
-      const a = this.walkSaved.a;
-      this.walkSaved = null;
-      this.disposeModes();
-      this.setAxis(this.axis.t, this.axis.f, a);
-    }
+  /** World units per screen pixel at the orbit target, for perspective and the narrow iso lens alike. */
+  private worldPerPixel() {
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    return (2 * dist * Math.tan((this.camera.fov * Math.PI) / 360)) / Math.max(1, this.renderer.domElement.clientHeight);
+  }
+
+  private moveBy(v: THREE.Vector3) {
+    this.camera.position.add(v);
+    this.controls.target.add(v);
+  }
+
+  /** Slide the view over the ground plane. dx, dy in screen pixels (drag right moves the landscape right). */
+  panGround(dxPx: number, dyPx: number) {
+    const k = this.worldPerPixel();
+    const fwd = new THREE.Vector3();
+    this.camera.getWorldDirection(fwd);
+    fwd.y = 0;
+    if (fwd.lengthSq() < 1e-6) fwd.set(0, 0, -1);
+    fwd.normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    // the landscape follows the pointer, so the camera moves the other way
+    this.moveBy(right.multiplyScalar(-dxPx * k).addScaledVector(fwd, dyPx * k * 1.4));
+  }
+
+  /** Move the view up or down. dy in screen pixels (drag down moves the landscape down). */
+  panVertical(dyPx: number) {
+    this.moveBy(new THREE.Vector3(0, dyPx * this.worldPerPixel(), 0));
+  }
+
+  /** Orbit around the target by angles in radians. */
+  orbitBy(dAzimuth: number, dPolar: number) {
+    const off = this.camera.position.clone().sub(this.controls.target);
+    const sph = new THREE.Spherical().setFromVector3(off);
+    sph.theta -= dAzimuth;
+    sph.phi = Math.min(this.controls.maxPolarAngle, Math.max(0.05, sph.phi - dPolar));
+    off.setFromSpherical(sph);
+    this.camera.position.copy(this.controls.target).add(off);
+  }
+
+  /** Keys held down right now (WASD move, arrows orbit, Q/Z up and down). Set by the app. */
+  readonly keys = new Set<string>();
+
+  private stepKeys(dt: number) {
+    if (!this.keys.size) return;
+    const h = this.renderer.domElement.clientHeight;
+    const speed = 0.9 * h * dt; // pixels per frame: about one screen height per second
+    let dx = 0;
+    let dy = 0;
+    if (this.keys.has('a')) dx += speed;
+    if (this.keys.has('d')) dx -= speed;
+    if (this.keys.has('w')) dy += speed;
+    if (this.keys.has('s')) dy -= speed;
+    if (dx || dy) this.panGround(dx, dy);
+    const rot = 1.4 * dt;
+    if (this.keys.has('arrowleft')) this.orbitBy(-rot, 0);
+    if (this.keys.has('arrowright')) this.orbitBy(rot, 0);
+    if (this.keys.has('arrowup')) this.orbitBy(0, rot * 0.6);
+    if (this.keys.has('arrowdown')) this.orbitBy(0, -rot * 0.6);
   }
 
   /** Near-isometric look (Monument Valley style): a very narrow lens from far away. */
@@ -1965,7 +1996,6 @@ export class SpectroView {
   }
 
   resetCamera(view: 'perspective' | 'top' | 'side' = 'perspective') {
-    if (this.walker.active) this.walker.exit();
     const { t: sx, a: sy, f: sz } = this.axis;
     const target = new THREE.Vector3();
     const pos = new THREE.Vector3();
@@ -2020,19 +2050,12 @@ export class SpectroView {
     }
     // distance fog follows the zoom, so depth reads the same at every distance
     const fog = this.scene.fog as THREE.Fog;
-    if (this.walker.active) {
-      this.walker.update(dt);
-      fog.near = 3;
-      fog.far = 22;
-      // at eye level the ground fog would cover everything, so it thins out while walking
-      U.hfog.value.z = Math.min(this.hfogDensity, 0.15);
-    } else {
-      U.hfog.value.z = this.hfogDensity;
-      this.controls.update();
-      const dist = this.camera.position.distanceTo(this.controls.target);
-      fog.near = dist * 0.75;
-      fog.far = dist * 2.6;
-    }
+    this.stepKeys(dt);
+    U.hfog.value.z = this.hfogDensity;
+    this.controls.update();
+    const dist = this.camera.position.distanceTo(this.controls.target);
+    fog.near = dist * 0.75;
+    fog.far = dist * 2.6;
     const sy = this.axis.a;
     const A = VIZ.atmosphere;
     // the fog box wraps whatever the current mode draws, with room around it
@@ -2056,7 +2079,7 @@ export class SpectroView {
       center: new THREE.Vector3(),
       half: fogBox,
       bottom,
-      density: this.walker.active ? A.fog * 0.3 : A.fog,
+      density: A.fog,
       time: U.time.value,
       viewportHeight: this.renderer.domElement.height,
       fovDeg: this.camera.fov,
