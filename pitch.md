@@ -12,6 +12,11 @@ Last updated: 2026-11-15
 
 ## Part 1: Our idea (the team's framing)
 
+### Current focus (changed on 2026-11-15)
+- The main product is no longer a game in the classic sense. It is a **gamified, easy-to-use tool** that lets people label audio data and find patterns in it.
+- It is built for the community, for people with no expertise in data labeling.
+- Planned user flow: a landing page with the mission and an invitation to take part. Then a choice of challenges: newest, hottest (where users disagree most), most viewed and least viewed. Each challenge shows where and when it was recorded. Challenges get a difficulty grade based on how even or busy the soundscape is.
+
 ### The hero: edge AI on the Arduino
 - The Arduino UNO Q is the hero of the story. We show why edge AI on the board is better than a normal microphone that streams everything to the cloud.
 - **Decentralized, not in the cloud.** Many small listening posts ("agents") sit in forests and national parks. They record and categorize sounds on the spot.
