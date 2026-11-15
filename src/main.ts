@@ -684,6 +684,11 @@ const welcome = mountWelcome($('#welcome'), {
     if (!r.ok) return null;
     return ((await r.json()) as LiveClip[]).map(fromLive);
   },
+  subscribe: (changed) => {
+    backend.listen((ev) => {
+      if (ev.type === 'clip_received' || ev.type === 'clips_deleted' || ev.type === 'label_accepted') changed();
+    });
+  },
   remove: async (ids) => {
     const urls = ids ? ids.map((id) => `${backend.base}/clips/${encodeURIComponent(id)}`) : [`${backend.base}/clips`];
     for (const u of urls) {

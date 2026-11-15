@@ -17,6 +17,8 @@ export interface WelcomeHooks {
   live(): Promise<Challenge[] | null>;
   /** delete these recordings from the server for good (null = every waiting recording) */
   remove(ids: string[] | null): Promise<void>;
+  /** call back whenever the server gets a new recording or loses one */
+  subscribe(changed: () => void): void;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -26,6 +28,8 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   let cat: Category = 'newest';
   let live: Challenge[] | null = null;
   let focus: string | null = null;
+  /** ids already shown once, so a recording that just arrived can be highlighted */
+  let known: Set<string> | null = null;
 
   root.innerHTML = `
     <div class="wl-inner">
@@ -261,9 +265,25 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
 
   async function refreshLive() {
     live = await hooks.live().catch(() => null);
+    const fresh = known && live ? live.filter((c) => !known!.has(c.id)).map((c) => c.id) : [];
+    if (live) known = new Set(live.map((c) => c.id));
     updateStatus();
-    render(false);
+    render(true);
+    // a recording that just arrived glows briefly
+    for (const id of fresh) {
+      const li = cards.get(id);
+      if (!li) continue;
+      li.classList.remove('fresh');
+      void li.offsetWidth;
+      li.classList.add('fresh');
+    }
   }
+  // the list follows the server live: new recordings appear without reloading
+  let refreshTimer = 0;
+  hooks.subscribe(() => {
+    clearTimeout(refreshTimer);
+    refreshTimer = window.setTimeout(() => void refreshLive(), 300);
+  });
   q<HTMLButtonElement>('#wl-del-all').onclick = () => void removeLive(null);
 
   function show() {

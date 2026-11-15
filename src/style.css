@@ -451,3 +451,7 @@ body.welcoming .topbar, body.welcoming .hint, body.welcoming .labels-layer { opa
 .wl-helprow .wl-help { margin: 0; }
 .wl-helprow .btn[hidden] { display: none; }
 #wl-del-all:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+
+/* a live recording that just arrived */
+.ch-card.fresh { animation: fresh 2.4s var(--ease); }
+@keyframes fresh { 0% { background: color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); } 100% { background: rgba(255, 255, 255, 0.04); } }

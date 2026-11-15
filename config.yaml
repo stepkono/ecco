@@ -6,7 +6,7 @@ device:
   model_id: yamnet-tflite        # best few-shot accuracy on the board (ESC-50, see README). Must match the backend
   privacy_model_id: yamnet-tflite  # speech filter on the device (no TensorFlow). Same as model_id = one inference
   backend_url: ""                # Phase 2 backend, e.g. http://10.0.41.129:8000. Empty = offline
-  sync_interval_s: 5             # upload clips / check prototypes this often
+  sync_interval_s: 2             # upload clips / check prototypes this often
   hardware: auto                 # auto | mock | led | mock,led | none
   web_port: 8765                 # mock light page: http://<device>:8765
   decision_hop_s: 5.0            # one decision per this many seconds of audio
@@ -14,8 +14,8 @@ device:
 events:                          # how uncertain moments become puzzles (device/events.py)
   pre_roll_s: 2.0                # context saved before the first uncertain segment
   post_roll_s: 2.0               # and after the last one
-  gap_tolerance: 1               # quiet/recognized segments allowed inside one event
-  max_event_s: 30.0              # longer events are split
+  gap_tolerance: 0               # quiet/recognized segments allowed inside one event (0 = close at the first clear segment, so it arrives sooner)
+  max_event_s: 15.0              # longer events are split. Shorter = it reaches the players sooner (a steady noise otherwise always fills 30 s)
   dedup_similarity: 0.90         # two 5 s segments are "the same sound" from this similarity (ESC-50: 67 % of
                                  # same-recording pairs, 0.0 % of different-sound pairs). Repeats are counted
   dedup_coverage: 0.8            # an event is a repeat only if this share of its 5 s segments has a twin
