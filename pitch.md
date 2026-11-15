@@ -36,6 +36,10 @@ Last updated: 2026-11-15
 - The community is the peer review system. Players map the sounds to species.
 - Their labels raise the certainty of the edge AI. The improvement goes back onto the board, so the system learns over time.
 
+### The 3D moment (team note, 2026-11-15)
+- Turning audio into 3D graphics is what sets us apart. The pitch video should build up to it, so the reveal feels like a satisfying relief.
+- Current wording: "When ecco hears an unknown or uncertain sound, it triggers a community-driven, human-in-the-loop pipeline, sending a short snippet to ecco and turning tedious data labeling into a visual exploration tool. We extend sound into 3D space. Users can rotate, switch between views and color-code patterns until the hidden call clicks. Every solved sound creates verified human training data and becomes a unique Sound Stamp in the archive. If you label a new acoustic fingerprint first, your name stays on it."
+
 ### Why a human and not just another algorithm
 - Pattern recognition picks the most likely pattern, the one that sticks out the most.
 - A human can actually hear the sound, so they have context. They don't just search for the obvious thing that sticks out.
@@ -192,6 +196,14 @@ The feeling only works if players can see it. Ideas that back the claim:
 - **No hidden use.** Speech never leaves the board (A1), and labels are used for conservation only.
 
 Suggested opening for the pitch: "AI needs labeled data, and labeling is the most boring job in tech. We turned it into a game where every label teaches a listening post in a real forest, in seconds."
+
+### A14. Build-up to the 3D reveal · open
+The reveal lands harder when the audience first feels the problem with their ears, and the answer comes for their eyes:
+1. **The pain, made physical:** one frog call, buried in rain. Finding it means replaying the same noisy seconds until your ears give up.
+2. **The turn:** but our eyes find a shape in a heartbeat.
+3. **The relief:** so we stopped asking people to listen harder. We let them see the sound.
+
+In the video: half a second of silence before the relief line, then the landscape builds up exactly on "see". Note: "your name stays on it" is an idea (A8), not built yet. In the video, say "will stay" or keep it as the outlook.
 
 ---
 
