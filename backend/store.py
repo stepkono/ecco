@@ -52,6 +52,8 @@ class Store:
         self.db.executescript(SCHEMA)
         if "proto_version" not in {r["name"] for r in self.db.execute("PRAGMA table_info(devices)")}:
             self.db.execute("ALTER TABLE devices ADD COLUMN proto_version INTEGER")
+        if "views" not in {r["name"] for r in self.db.execute("PRAGMA table_info(clips)")}:
+            self.db.execute("ALTER TABLE clips ADD COLUMN views INTEGER NOT NULL DEFAULT 0")
         self.db.commit()
 
     def q(self, sql: str, args: tuple = ()) -> list[sqlite3.Row]:

@@ -115,6 +115,8 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
         c = be.store.clip(cid)
         if c is None:
             raise HTTPException(404, "no such clip")
+        # opening a recording to label it counts as a view
+        be.store.run("UPDATE clips SET views = views + 1 WHERE id=?", (cid,))
         return FileResponse(c["audio_path"], media_type="audio/wav")
 
     @app.get("/clips/{cid}/spectrogram")
@@ -169,6 +171,10 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
                 be.bus.unsubscribe(q)
 
         return StreamingResponse(gen(), media_type="text/event-stream", headers={"Cache-Control": "no-store"})
+
+    @app.get("/clips")
+    def open_clips(limit: int = 200):
+        return JSONResponse(be.open_clips(limit))
 
     @app.get("/stats")
     def stats():

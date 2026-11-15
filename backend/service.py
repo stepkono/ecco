@@ -286,6 +286,32 @@ class Backend:
         return row["json"] if row else None
 
     # ------------------------------------------------------------ clip info + demo
+    def open_clips(self, limit: int = 200) -> list[dict]:
+        """Waiting recordings for the challenge list: when and where they were heard, and how people see them."""
+        rows = self.store.q(
+            "SELECT * FROM clips WHERE status='open' AND id NOT IN (SELECT clip_id FROM gold_clips) "
+            "ORDER BY COALESCE(created_at, received_at) DESC LIMIT ?", (limit,))
+        votes: dict[str, dict[str, int]] = {}
+        for r in self.store.q("SELECT clip_id, label, COUNT(*) AS n FROM labels GROUP BY clip_id, label"):
+            votes.setdefault(r["clip_id"], {})[r["label"]] = r["n"]
+        posts = self.b.get("posts", {}) or {}
+        out = []
+        for c in rows:
+            v = votes.get(c["id"], {})
+            total = sum(v.values())
+            post = posts.get(c["device_id"], {}) or {}
+            out.append({
+                "clip_id": c["id"], "device_id": c["device_id"],
+                "post": post.get("name") or c["device_id"], "region": post.get("region", ""),
+                "lat": post.get("lat"), "lon": post.get("lon"),
+                "recorded_at": c["created_at"] or c["received_at"], "duration_s": c["duration_s"],
+                "heard_count": c["heard_count"], "device_guess": c["device_guess"], "device_score": c["device_score"],
+                "views": c["views"], "labels": total,
+                # share of answers that differ from the most common one
+                "disagreement": (1 - max(v.values()) / total) if total else 0.0,
+            })
+        return out
+
     def clip_info(self, cid: str) -> dict:
         c = self.store.clip(cid)
         if c is None:

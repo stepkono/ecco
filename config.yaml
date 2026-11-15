@@ -86,6 +86,8 @@ backend:                         # Phase 2 (backend/app.py), runs on the laptop
   reliability_step: 0.2          # how fast gold answers move a player's reliability
   gold_rate: 0.2                 # share of puzzles that are hidden gold clips (when gold clips exist)
   labels: [frog, chirping_birds, crow]  # placeholder for the three local target species
+  posts:                         # where each listening post stands (shown on the challenge map)
+    post-01: { name: Nuuksio wetland edge, region: "Espoo, Uusimaa", lat: 60.315, lon: 24.502 }
   spectrogram_max_rows: 192      # display grid sent to the game
   spectrogram_max_cols: 640
 
