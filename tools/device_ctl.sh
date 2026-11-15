@@ -5,7 +5,7 @@
 #   bash tools/device_ctl.sh start --start mic      console that starts listening right away
 #   bash tools/device_ctl.sh url                    console address with the access token
 #   bash tools/device_ctl.sh stop | status | log
-#   bash tools/device_ctl.sh ensure                 start it only if it is not running (and not stopped on purpose)
+#   bash tools/device_ctl.sh ensure                 start it listening to the mic, only if it is not running (and not stopped on purpose)
 #   bash tools/device_ctl.sh autostart on|off       start after every reboot and restart it within a minute if it dies
 #                                                   (user crontab, no admin rights; board_cleanup.sh removes it)
 #
@@ -42,7 +42,8 @@ case "${1:-status}" in
   ensure)
     if running || [ -f "$STOPPED" ]; then exit 0; fi
     rm -f "$PIDFILE"
-    nohup .venv/bin/python -m device.console > "$LOG" 2>&1 < /dev/null &
+    # a listening post resumes listening after a reboot or a crash
+    nohup .venv/bin/python -m device.console --start mic > "$LOG" 2>&1 < /dev/null &
     echo $! > "$PIDFILE"
     echo "$(date '+%F %T') console (re)started by ensure" >> data/autostart.log
     ;;
