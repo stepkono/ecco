@@ -42,7 +42,8 @@ def _multipart(fields: dict[str, str], files: dict[str, tuple[str, bytes, str]])
 class SyncClient:
     def __init__(self, *, queue: ClipQueue, device_id: str, model_id: str, backend_url: str | None,
                  local_prototypes: Path, current_version: Callable[[], int],
-                 on_prototypes: Callable[[str, str], bool], interval_s: float = 5.0, timeout_s: float = 5.0) -> None:
+                 on_prototypes: Callable[[str, str], bool], interval_s: float = 5.0, timeout_s: float = 5.0,
+                 on_uploaded: Callable[[object], None] | None = None) -> None:
         self.queue = queue
         self.device_id = device_id
         self.model_id = model_id
@@ -50,6 +51,7 @@ class SyncClient:
         self.local = local_prototypes
         self.current_version = current_version
         self.on_prototypes = on_prototypes
+        self.on_uploaded = on_uploaded  # told about every recording that reached the server
         self.interval = interval_s
         self.timeout = timeout_s
         self.status = "offline (no backend set)" if not self.backend else "connecting"
@@ -117,6 +119,8 @@ class SyncClient:
                 if 200 <= r.status < 300:
                     self.queue.mark_uploaded(clip.id)
                     self.uploaded += 1
+                    if self.on_uploaded:
+                        self.on_uploaded(clip)
 
     def _fetch(self) -> None:
         # device_id + installed version let the backend confirm when a post has learned a new version

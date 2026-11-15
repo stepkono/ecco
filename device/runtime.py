@@ -309,6 +309,9 @@ class Listener:
             "location": self.cfg["device"]["location"], "model_id": self.model.model_id,
             "event_action": ev.event, "source": ev.source, "raw_state": ev.raw_state, "label": ev.label,
             "score": ev.score, "proto_version": ev.proto_version,
+            # for a readable console: why it decided, and whether a recording is being collected right now
+            "best_label": ev.best_label, "margin": ev.margin, "speech": ev.speech, "level_dbfs": ev.level_dbfs,
+            "t_noise": self.t_noise, "collecting": len(self.tracker.open.segments) if self.tracker.open else 0,
         })
 
     # ------------------------------------------------------------ main loop

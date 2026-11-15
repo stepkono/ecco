@@ -121,7 +121,7 @@ class Controller:
             queue=self.listener.queue, device_id=dev["id"], model_id=self.listener.model.model_id,
             backend_url=dev.get("backend_url"), local_prototypes=prototype_path(self.listener.model.model_id),
             current_version=lambda: self.listener.proto_version, on_prototypes=self._on_prototypes,
-            interval_s=float(dev.get("sync_interval_s", 5)),
+            interval_s=float(dev.get("sync_interval_s", 5)), on_uploaded=self._on_uploaded,
         ).start()
         self.listener.sync_status = lambda: self.sync.status
         self.mode = "idle"
@@ -134,8 +134,14 @@ class Controller:
     def _on_prototypes(self, text: str, origin: str) -> bool:
         ok = self.listener.swap_prototypes(text, origin)
         if ok:
+            self.bus.publish({"type": "learned", "time": time.strftime("%H:%M:%S"), "version": self.listener.proto_version,
+                              "origin": origin, "classes": dict(self.listener.head.classes)})
             self.bus.publish({"type": "status", **self.status()})
         return ok
+
+    def _on_uploaded(self, clip) -> None:
+        self.bus.publish({"type": "uploaded", "time": time.strftime("%H:%M:%S"), "clip_id": clip.id,
+                          "duration_s": clip.duration_s, "guess": clip.best_guess})
 
     # ------------------------------------------------------------ live mode
     def start(self, mode: str, path: str | None = None, speed: float = 1.0, loop: bool = True) -> dict:
@@ -224,10 +230,16 @@ class Controller:
 
     # ------------------------------------------------------------ status
     def mic_info(self) -> str:
+        # only the microphone in use, in a few words (not every sound card of the board)
         if shutil.which("arecord"):
+            want = str(self.cfg["audio"].get("device", ""))
+            card = want.split("CARD=")[1].split(",")[0] if "CARD=" in want else ""
             out = subprocess.run(["arecord", "-l"], capture_output=True, text=True, check=False).stdout
-            cards = [ln.split(":", 1)[1].strip() for ln in out.splitlines() if ln.startswith("card")]
-            return ", ".join(cards) or "no microphone found"
+            for ln in out.splitlines():
+                if ln.startswith("card") and (not card or f" {card} [" in ln):
+                    name = ln.split("[", 1)[1].split("]", 1)[0] if "[" in ln else ln
+                    return f"{name} (USB)"
+            return "not connected"
         try:
             import sounddevice as sd
 
@@ -250,6 +262,8 @@ class Controller:
             "proto_version": version, "proto_classes": classes,
             "queue_pending": L.queue.count(only_pending=True), "queue_total": L.queue.count(),
             "sync": self.sync.status, "mic": self.mic_info(),
+            "uploaded": self.sync.uploaded, "server": self.sync.backend or "",
+            "budget_used": L.queue.count_since(time.time() - 3600),
             "uptime_s": int(time.time() - self.started), "process_rss_mb": round(peak_rss_mb()),
             "mem_available_mb": round(vm.available / 1e6), "cpu_percent": psutil.cpu_percent(interval=None),
             "last": self.bus.last_state,
