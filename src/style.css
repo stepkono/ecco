@@ -365,7 +365,7 @@ table.eval th.num { text-align: right; }
 .wl-body { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 18px; align-items: start; }
 .wl-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ch-card {
-  display: grid; grid-template-columns: minmax(0, 1fr) auto 18px; align-items: center; gap: 14px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto 18px; align-items: center; gap: 14px;
   padding: 14px 16px; border: 1px solid var(--edge-soft); border-radius: 6px; background: rgba(255, 255, 255, 0.04); cursor: pointer;
   transition: background var(--fast), border-color var(--fast);
   animation: cardIn 520ms var(--ease) both; animation-delay: calc(var(--i, 0) * 55ms + 180ms);
@@ -440,3 +440,14 @@ body.welcoming .topbar, body.welcoming .hint, body.welcoming .labels-layer { opa
 .ch-empty { list-style: none; padding: 18px 16px; border: 1px dashed var(--edge-soft); border-radius: 6px; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .wl-status { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
 .wl-cta .btn { overflow: hidden; text-overflow: ellipsis; }
+
+/* delete a live recording: shows on hover, red on its own hover */
+.ch-del { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; opacity: 0; transition: opacity var(--fast), color var(--fast), border-color var(--fast); }
+.ch-card:hover .ch-del, .ch-card.focus .ch-del, .ch-del:focus-visible { opacity: 1; }
+.ch-del:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }
+.ch-del svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.ch-card:not(:has(.ch-del)) { grid-template-columns: minmax(0, 1fr) auto 18px; }
+.wl-helprow { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 4px 0 8px; }
+.wl-helprow .wl-help { margin: 0; }
+.wl-helprow .btn[hidden] { display: none; }
+#wl-del-all:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 45%, transparent); }

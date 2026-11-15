@@ -15,6 +15,8 @@ export interface WelcomeHooks {
   pick(c: Challenge, list: Challenge[]): void;
   /** live recordings waiting at the backend, or null when it cannot be reached */
   live(): Promise<Challenge[] | null>;
+  /** delete these recordings from the server for good (null = every waiting recording) */
+  remove(ids: string[] | null): Promise<void>;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -50,7 +52,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
             <span class="seg-pill" aria-hidden="true"></span>
           </div>
         </header>
-        <p class="wl-help" id="wl-help"></p>
+        <div class="wl-helprow"><p class="wl-help" id="wl-help"></p><button class="btn ghost tiny" id="wl-del-all" hidden title="Delete every waiting recording from the server">Delete all</button></div>
         <div class="wl-body">
           <ul class="wl-list" id="wl-list"></ul>
           <figure class="wl-map">
@@ -107,6 +109,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
         ${c.guess ? `<span class="ch-guess">${esc(c.guess)}</span>` : ''}
       </div>
       <div class="ch-meta"><span class="ch-metric">${metric(c)}</span>${right}</div>
+      ${c.kind === 'live' ? `<button class="ch-del" data-del="${c.id}" title="Delete this recording from the server" aria-label="Delete this recording"><svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6" /></svg></button>` : ''}
       <svg class="ch-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>`;
   }
 
@@ -117,7 +120,11 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       li.className = 'ch-card';
       li.tabIndex = 0;
       li.setAttribute('role', 'button');
-      li.onclick = () => open(li!.dataset.id!);
+      li.onclick = (e) => {
+        const del = (e.target as Element).closest<HTMLElement>('[data-del]');
+        if (del) return void removeLive([del.dataset.del!]);
+        open(li!.dataset.id!);
+      };
       li.onkeydown = (e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -131,6 +138,28 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
     li.setAttribute('aria-label', `${c.title}, ${c.place}, ${whenRecorded(c.recorded)}`);
     li.innerHTML = cardHtml(c);
     return li;
+  }
+
+  /** Permanent: asks first, then deletes on the server and takes the cards away. */
+  async function removeLive(ids: string[] | null) {
+    const n = ids ? ids.length : live?.length ?? 0;
+    if (!n) return;
+    const what = ids ? 'this recording' : `all ${n} waiting recordings`;
+    if (!confirm(`Delete ${what} from the server? This cannot be undone.`)) return;
+    try {
+      await hooks.remove(ids);
+      const gone = new Set(ids ?? live!.map((c) => c.id));
+      live = (live ?? []).filter((c) => !gone.has(c.id));
+      for (const id of gone) {
+        cards.get(id)?.remove();
+        cards.delete(id);
+      }
+      updateStatus();
+      render(true);
+    } catch (e) {
+      console.warn('delete failed', e);
+      alert('The recording could not be deleted. Is the server running?');
+    }
   }
 
   function open(id: string) {
@@ -206,6 +235,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       }
     });
     help.textContent = cat === 'newest' ? 'The most recent recordings from the listening posts, live.' : CATEGORIES.find((x) => x.id === cat)!.help + '.';
+    q<HTMLButtonElement>('#wl-del-all').hidden = !(cat === 'newest' && live && live.length);
     startBtn.disabled = !shown.length;
     startBtn.textContent = shown.length ? `Start: ${shown[0].title}` : 'Nothing to start';
     renderPins();
@@ -221,15 +251,20 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   });
   startBtn.onclick = () => shown[0] && hooks.pick(shown[0], shown);
 
-  async function refreshLive() {
-    live = await hooks.live().catch(() => null);
+  function updateStatus() {
     const n = live?.length ?? 0;
     status.innerHTML =
       live === null
         ? 'The listening posts cannot be reached right now.'
         : `<span class="live-dot"></span>${n} live recording${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} your ears`;
+  }
+
+  async function refreshLive() {
+    live = await hooks.live().catch(() => null);
+    updateStatus();
     render(false);
   }
+  q<HTMLButtonElement>('#wl-del-all').onclick = () => void removeLive(null);
 
   function show() {
     root.hidden = false;

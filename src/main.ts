@@ -684,6 +684,13 @@ const welcome = mountWelcome($('#welcome'), {
     if (!r.ok) return null;
     return ((await r.json()) as LiveClip[]).map(fromLive);
   },
+  remove: async (ids) => {
+    const urls = ids ? ids.map((id) => `${backend.base}/clips/${encodeURIComponent(id)}`) : [`${backend.base}/clips`];
+    for (const u of urls) {
+      const r = await fetch(u, { method: 'DELETE' });
+      if (!r.ok && r.status !== 404) throw new Error(`delete failed: ${r.status}`);
+    }
+  },
 });
 function enterWorkspace() {
   welcome.hide();
