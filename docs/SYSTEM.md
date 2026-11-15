@@ -372,6 +372,7 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 
 ## Change log
 
+* **2026-11-15** Archive: labelled recordings and contributed challenges become sound stamps (abstract top views, own gradient) in a personal archive in the browser. A stamp opens its landscape again.
 * **2026-11-15** Server page at `/` lists waiting recordings (listen, delete one or all) and the known sounds (forget one, reset to the starting sounds). Devices now follow the server's prototype version also downward.
 * **2026-11-15** New web interface merged into main: welcome screen, Newest with live recordings, challenges, labeling card, DJ timeline, View lab, delete recordings. Backend status page at `/`, labeling page moved to `/play`. ecco logo concepts added.
 * **2026-11-14** Phase 4: one-command demo (`make demo`), scripted 5-step scenario, event screen, verified demo set, demo reset. 3/3 runs on the laptop and on the UNO Q. Fixed: a device on the backend's machine could overwrite the backend's seed file.

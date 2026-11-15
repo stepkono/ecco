@@ -455,3 +455,16 @@ body.welcoming .topbar, body.welcoming .hint, body.welcoming .labels-layer { opa
 /* a live recording that just arrived */
 .ch-card.fresh { animation: fresh 2.4s var(--ease); }
 @keyframes fresh { 0% { background: color-mix(in srgb, var(--accent) 35%, transparent); border-color: var(--accent); } 100% { background: rgba(255, 255, 255, 0.04); } }
+
+/* ---------- archive of sound stamps ---------- */
+.archive-sheet { width: min(1100px, 94vw); }
+.archive-sheet .lead { margin: 6px 0 18px; }
+.stamps { display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 14px; }
+.stamp { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left; padding: 8px 8px 10px; border: 1px solid var(--edge-soft); border-radius: 6px; background: rgba(255, 255, 255, 0.03); color: var(--text); cursor: pointer; transition: border-color var(--fast), transform var(--mid) var(--ease), background var(--fast); animation: cardIn 520ms var(--ease) both; }
+.stamp:hover { border-color: var(--edge); background: rgba(255, 255, 255, 0.07); transform: translateY(-2px); }
+.stamp img { width: 100%; height: auto; aspect-ratio: 1; border-radius: 4px; display: block; margin-bottom: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3); }
+.stamp b { font-size: 13px; font-weight: 600; }
+.stamp small { font-size: 11px; color: var(--muted); }
+.stamp .st-kind { color: var(--faint); }
+.st-label { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 4px; color: #12131c; background: hsl(calc(var(--h) + 50), 75%, 72%); }
+.ar-empty { padding: 30px; border: 1px dashed var(--edge-soft); border-radius: 6px; color: var(--muted); text-align: center; }

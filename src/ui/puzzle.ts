@@ -18,6 +18,8 @@ export interface PuzzleHooks {
   next(): void;
   /** practice clips: add the painted layers to the training set */
   contribute(): void;
+  /** a live recording was labelled: the session on screen (for the archive stamp) and the label */
+  labelled(clipId: string, label: string, s: Session): void;
 }
 
 interface Win {
@@ -199,6 +201,8 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
     try {
       const mask = buildGrid();
       const r = await be.submit(puzzle.clip_id, label, mask);
+      // the landscape on screen goes into the archive as a sound stamp
+      if (wins[active]) hooks.labelled(puzzle.clip_id, label, wins[active].session);
       if (r.gold) toast(r.correct ? `Well done. It was <b>${r.true_label}</b>.` : `Good try. This one was <b>${r.true_label}</b>.`, 'info');
       else if (r.accepted) toast(`Thank you. Your label <b>${label}</b> was accepted.`, 'info');
       else toast('Thank you. Your label counts once a few more people agree.', 'info');

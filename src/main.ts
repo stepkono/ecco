@@ -16,6 +16,7 @@ import { openLab, renderLabIfOpen, setLabHooks } from './ui/lab';
 import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
 import { brandLogo } from './ui/brand';
+import { addToArchive, hueOf, mountArchive, renderStamp, type ArchiveEntry } from './ui/archive';
 import { mountWelcome } from './ui/welcome';
 import { mountVizPanel } from './ui/vizpanel';
 import { mountPuzzles } from './ui/puzzle';
@@ -586,7 +587,17 @@ function contribute() {
   save();
   renderCounts();
   renderLabIfOpen();
-  toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b>. Open the Model lab to retrain.`);
+  toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b>. Its stamp is in your archive.`);
+  // the challenge goes into the archive as a sound stamp
+  const c = queue[qi];
+  const id = s.level?.id ?? `upload-${uploadName}`;
+  const hue = hueOf(id);
+  addToArchive({
+    id, kind: 'challenge', title: s.level?.title ?? uploadName ?? 'Your recording',
+    label: useful.map((u) => CLASSES[u].label.toLowerCase()).join(' + '),
+    place: c?.kind === 'practice' ? c.place : 'Your upload', recorded: c?.recorded.getTime() ?? Date.now(),
+    labelled: Date.now(), stamp: renderStamp(s, hue), hue, levelIndex: s.level ? LEVELS.indexOf(s.level) : undefined,
+  });
 }
 
 // ---------------- edge AI deployment on current clip ----------------
@@ -647,7 +658,35 @@ const puzzles = mountPuzzles($('#labeling'), {
   },
   next: () => openNext(),
   contribute,
+  labelled: (clipId, label, s) => {
+    const c = queue[qi]?.id === clipId ? queue[qi] : null;
+    const hue = hueOf(clipId);
+    addToArchive({
+      id: clipId, kind: 'live', title: c?.title ?? 'Live recording', label,
+      place: c?.place ?? 'Listening post', recorded: c?.recorded.getTime() ?? Date.now(),
+      labelled: Date.now(), stamp: renderStamp(s, hue), hue,
+    });
+  },
 });
+
+// ---------------- archive of sound stamps ----------------
+const archive = mountArchive($('#archive'), {
+  open: (e: ArchiveEntry) => {
+    enterWorkspace();
+    queue = [];
+    qi = -1;
+    setCrumbs(e.title, `from your archive · ${e.place}`);
+    if (e.kind === 'live') puzzles.open(e.id);
+    else if (e.levelIndex !== undefined && e.levelIndex >= 0) {
+      puzzles.practice(e.title);
+      void loadLevel(e.levelIndex);
+    }
+  },
+});
+const updateArchiveCount = () => ($('#archive-count').textContent = String(archive.count()));
+updateArchiveCount();
+window.addEventListener('archive-changed', updateArchiveCount);
+$('#btn-archive').onclick = () => archive.show();
 
 // ---------------- the list the player picked from ----------------
 // "Next" walks through exactly the list shown on the challenges page, in its order.
@@ -689,6 +728,8 @@ const welcome = mountWelcome($('#welcome'), {
       if (ev.type === 'clip_received' || ev.type === 'clips_deleted' || ev.type === 'label_accepted') changed();
     });
   },
+  archive: () => archive.show(),
+  archiveCount: () => archive.count(),
   remove: async (ids) => {
     const urls = ids ? ids.map((id) => `${backend.base}/clips/${encodeURIComponent(id)}`) : [`${backend.base}/clips`];
     for (const u of urls) {
@@ -731,8 +772,8 @@ function typing(e: KeyboardEvent) {
 }
 window.addEventListener('keydown', (e) => {
   if (typing(e)) return;
-  if (!$('#lab').hidden || !$('#eco').hidden) {
-    if (e.key === 'Escape') ['#lab', '#eco'].forEach((s) => ($(s).hidden = true));
+  if (!$('#lab').hidden || !$('#eco').hidden || !$('#archive').hidden) {
+    if (e.key === 'Escape') ['#lab', '#eco', '#archive'].forEach((s) => ($(s).hidden = true));
     return;
   }
   if (welcome.visible) return;

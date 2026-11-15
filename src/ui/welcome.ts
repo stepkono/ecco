@@ -19,6 +19,9 @@ export interface WelcomeHooks {
   remove(ids: string[] | null): Promise<void>;
   /** call back whenever the server gets a new recording or loses one */
   subscribe(changed: () => void): void;
+  /** open the archive of sound stamps, and how many it holds */
+  archive(): void;
+  archiveCount(): number;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -45,6 +48,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
         </ol>
         <div class="wl-cta">
           <button class="btn primary big" id="wl-start">Start the first challenge</button>
+          <button class="btn ghost big" id="wl-archive">Your archive</button>
           <p class="wl-status" id="wl-status"></p>
         </div>
       </section>
@@ -286,7 +290,16 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   });
   q<HTMLButtonElement>('#wl-del-all').onclick = () => void removeLive(null);
 
+  const archiveBtn = q<HTMLButtonElement>('#wl-archive');
+  archiveBtn.onclick = () => hooks.archive();
+  const updateArchive = () => {
+    const n = hooks.archiveCount();
+    archiveBtn.textContent = n ? `Your archive · ${n} stamp${n === 1 ? '' : 's'}` : 'Your archive';
+  };
+  window.addEventListener('archive-changed', updateArchive);
+
   function show() {
+    updateArchive();
     root.hidden = false;
     document.body.classList.add('welcoming');
     render(false);
