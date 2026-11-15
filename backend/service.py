@@ -363,5 +363,6 @@ class Backend:
             "players": [dict(r) for r in self.store.q("SELECT id, nickname, reliability, solved FROM players")],
             "prototype_version": self.head.version, "prototype_classes": self.head.classes, "model_id": self.model_id,
             "consensus_needed": 1 if self.b.get("demo_mode") else int(self.b.get("consensus_n", 2)),
+            "label_options": self.labels,
             "time": time.time(),
         }
