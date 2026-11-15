@@ -227,7 +227,7 @@ The labeling page at `/play` is the older 2D stand-in for the game: spectrogram 
 The website in `src/` is where people label recordings. Start it with `npm run dev`. It talks to the backend at the same host on port 8000 (or `?backend=<url>`). `npm run build` makes a static build that runs from any path.
 
 * **Welcome screen.** It states the mission and the task in three steps. Then it shows the challenge list as cards and as pins on a map of Finland. Hovering a card highlights its pin, and the other way round.
-* **Categories.** **Newest** lists the live recordings that the listening posts could not recognize, straight from the backend (`GET /clips`). **Hottest**, **Most viewed** and **Least viewed** list the challenges. Challenges are built-in practice clips with known answers. Their places, times and numbers are demo data. A card shows where and when the sound was recorded. Clicking a card opens exactly that recording. **Next** follows the list on screen.
+* **Categories.** **Newest** lists the live recordings that the listening posts could not recognize, straight from the backend (`GET /clips`), on top, and the challenges below them, so it is never empty. **Hottest**, **Most viewed** and **Least viewed** list the challenges. Challenges are built-in practice clips with known answers. Their places, times and numbers are demo data. A card shows where and when the sound was recorded. Clicking a card opens exactly that recording. **Next** follows the list on screen.
 * **Delete recordings.** In Newest, one recording or all of them can be deleted from the server. The page asks for confirmation first.
 * **Labeling card.** A live recording is cut into 5 s parts. The player paints the call in the 3D landscape on each part, picks a label and sends it. All parts become one mask on the backend's spectrogram grid. Skip moves on to another recording. When none are left, the card says so in plain words.
 * **Tools.** A navigation bar with the painting tools and an eraser. The landscape is revealed along the time axis when a recording opens. The panels are frosted glass.
@@ -373,6 +373,7 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 
 ## Change log
 
+* **2026-11-15** Newest keeps the challenges below the live recordings, so deleting every live recording leaves the challenges in place.
 * **2026-11-15** New hackathon README (idea, how it works, stack, models, setup, history, outlook). The old technical README moved to `docs/TECHNICAL.md`.
 * **2026-11-15** Community archive is a full-screen page with filters by kind of sound. Each stamp is the real 3D landscape rendered from straight above (JPEG, about 45 KB). Stamps live on the server and everyone sees them. An empty archive offers to add the 5 practice landscapes as examples, and the server page can delete all stamps (`DELETE /archive`). A landscape now plays its reveal once when it opens, not twice.
 * **2026-11-15** Archive: labelled recordings and contributed challenges become sound stamps (abstract top views, own gradient) in a personal archive in the browser. A stamp opens its landscape again.

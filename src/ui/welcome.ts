@@ -5,8 +5,8 @@ import { FINLAND, LAKES, MAP_H, MAP_W, NEIGHBOURS, project } from './finland-map
 /**
  * Welcome screen: the mission, a three-step mental model of the task, and the
  * challenge list. "Newest" lists the live recordings the listening posts could
- * not recognize (real, from the backend). The other categories list the
- * challenges. What you click is exactly what opens, and "Next" in the workspace
+ * not recognize (real, from the backend) on top, and the challenges below them,
+ * so it is never empty. The other categories list the challenges. What you click is exactly what opens, and "Next" in the workspace
  * follows the list on screen.
  * Cards and map pins are two views of the same list, so hovering one highlights the other.
  */
@@ -96,8 +96,9 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   const cards = new Map<string, HTMLLIElement>();
   let shown: Challenge[] = [];
 
-  // Newest: what the listening posts heard most recently. The other categories: the challenges.
-  const current = () => (cat === 'newest' ? live ?? [] : PRACTICE);
+  // Newest: the live recordings from the listening posts on top, then the challenges.
+  // The other categories: the challenges.
+  const current = () => (cat === 'newest' ? [...(live ?? []), ...PRACTICE] : PRACTICE);
   const placeKey = (c: Challenge) => `${c.lat.toFixed(3)},${c.lon.toFixed(3)}`;
 
   const metric = (c: Challenge) => {
@@ -220,12 +221,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       li.style.setProperty('--i', String(i));
       list.appendChild(li);
     });
-    if (!shown.length)
-      list.innerHTML =
-        cat === 'newest'
-          ? `<li class="ch-empty">${live === null ? 'The listening posts cannot be reached right now.' : 'No new recordings are waiting. Every sound the posts heard has a name.'} The other categories have challenges meanwhile.</li>`
-          : '';
-    else list.querySelector('.ch-empty')?.remove();
+    list.querySelector('.ch-empty')?.remove();
     if (animate)
       for (const c of shown) {
         const li = cards.get(c.id)!;
@@ -242,7 +238,14 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
         segPill.style.transform = `translateX(${b.offsetLeft - 3}px)`;
       }
     });
-    help.textContent = cat === 'newest' ? 'The most recent recordings from the listening posts, live.' : CATEGORIES.find((x) => x.id === cat)!.help + '.';
+    help.textContent =
+      cat === 'newest'
+        ? live === null
+          ? 'The listening posts cannot be reached right now. The most recent challenges.'
+          : live.length
+            ? 'Live recordings from the listening posts first, then the most recent challenges.'
+            : 'No live recordings are waiting right now. The most recent challenges.'
+        : CATEGORIES.find((x) => x.id === cat)!.help + '.';
     q<HTMLButtonElement>('#wl-del-all').hidden = !(cat === 'newest' && live && live.length);
     startBtn.disabled = !shown.length;
     startBtn.textContent = shown.length ? `Start: ${shown[0].title}` : 'Nothing to start';

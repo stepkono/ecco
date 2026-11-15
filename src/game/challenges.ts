@@ -104,7 +104,8 @@ export const CATEGORIES: { id: Category; label: string; help: string }[] = [
 export function sortChallenges(list: Challenge[], c: Category): Challenge[] {
   const out = [...list];
   const newest = (a: Challenge, b: Challenge) => b.recorded.getTime() - a.recorded.getTime();
-  if (c === 'newest') out.sort(newest);
+  // live recordings always come first in Newest, then the challenges, each newest first
+  if (c === 'newest') out.sort((a, b) => Number(b.kind === 'live') - Number(a.kind === 'live') || newest(a, b));
   if (c === 'hottest') out.sort((a, b) => b.disagreement - a.disagreement || b.labels - a.labels || newest(a, b));
   if (c === 'most') out.sort((a, b) => b.views - a.views || newest(a, b));
   if (c === 'least') out.sort((a, b) => a.views - b.views || newest(a, b));
