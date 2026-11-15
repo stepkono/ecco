@@ -320,6 +320,24 @@ class Backend:
                 "heard_count": c["heard_count"], "status": c["status"], "accepted_label": c["accepted_label"],
                 "timeline": json.loads(c["timeline_json"] or "[]"), "received_at": c["received_at"]}
 
+    def delete_clips(self, ids: list[str] | None = None) -> dict:
+        """Permanently remove recordings: the audio file, the database row and any labels on it.
+        ids=None removes every waiting (open) recording. Gold test clips are never removed here."""
+        if ids is None:
+            rows = self.store.q("SELECT id, audio_path FROM clips WHERE status='open' AND id NOT IN (SELECT clip_id FROM gold_clips)")
+        else:
+            rows = [r for cid in ids if (r := self.store.clip(cid)) is not None]
+            rows = [r for r in rows if not self.store.one("SELECT 1 FROM gold_clips WHERE clip_id=?", (r["id"],))]
+        for r in rows:
+            Path(r["audio_path"]).unlink(missing_ok=True)
+            self.store.run("DELETE FROM labels WHERE clip_id=?", (r["id"],))
+            self.store.run("DELETE FROM clips WHERE id=?", (r["id"],))
+            self._spec_cache.pop(r["id"], None)
+        deleted = [r["id"] for r in rows]
+        if deleted:
+            self.emit("clips_deleted", {"clip_ids": deleted})
+        return {"deleted": deleted}
+
     def demo_reset(self) -> dict:
         """Demo only: forget all events and labels, and publish the seed prototypes as a newer version,
         so devices drop what they learned in the previous run."""

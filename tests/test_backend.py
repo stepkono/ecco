@@ -165,3 +165,26 @@ def test_device_update_is_confirmed_once(tmp_path):
     be.latest_prototypes("yamnet-tflite", "post-1", v)  # no second event
     ups = [e for e in be.store.recent_events() if e["type"] == "device_updated"]
     assert [(e["device_id"], e["version"]) for e in ups] == [("post-1", v)]
+
+
+def test_delete_recordings(tmp_path):
+    """Waiting recordings can be listed and removed for good, one or all."""
+    from fastapi.testclient import TestClient
+
+    from backend.app import create_app
+
+    client = TestClient(create_app(cfg_copy(gold_rate=0.0), data_dir=tmp_path / "backend"))
+    buf = io.BytesIO()
+    sf.write(buf, np.zeros(16000, dtype=np.float32), 16000, format="WAV")
+    ids = []
+    for i in range(3):
+        r = client.post("/devices/post-01/clips", files={"audio": ("a.wav", buf.getvalue(), "audio/wav")},
+                        data={"metadata": json.dumps({"clip_id": f"c{i}", "duration_s": 1.0})})
+        assert r.status_code == 201
+        ids.append(f"c{i}")
+    assert [c["clip_id"] for c in client.get("/clips").json()] and len(client.get("/clips").json()) == 3
+    assert client.delete("/clips/c0").json() == {"deleted": ["c0"]}
+    assert client.get("/clips/c0").status_code == 404
+    assert client.delete("/clips/c0").status_code == 404
+    assert sorted(client.delete("/clips").json()["deleted"]) == ["c1", "c2"]
+    assert client.get("/clips").json() == []

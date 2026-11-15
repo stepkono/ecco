@@ -7,6 +7,9 @@ Endpoints (see docs/SYSTEM.md):
   POST /players                        {"nickname"} -> {"player_id"}
   GET  /puzzles/next?player_id=        next open event (sometimes a hidden gold clip)
   GET  /clips/{id}                     metadata incl. timeline of the unclear segments
+  GET  /clips                          waiting recordings (time, post, views, disagreement)
+  DELETE /clips/{id}                   remove one recording for good (audio, labels)
+  DELETE /clips                        remove every waiting recording
   GET  /clips/{id}/audio               WAV
   GET  /clips/{id}/spectrogram         dB grid with time and frequency axes
   POST /clips/{id}/preview             {"mask"} -> masked audio (WAV)
@@ -103,6 +106,18 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
             return be.clip_info(cid)
         except KeyError as e:
             not_found(e)
+
+    @app.delete("/clips/{cid}")
+    def delete_clip(cid: str):
+        r = be.delete_clips([cid])
+        if not r["deleted"]:
+            raise HTTPException(404, "no such recording")
+        return r
+
+    @app.delete("/clips")
+    def delete_open_clips():
+        """Remove every waiting recording (not the labelled ones, not gold test clips)."""
+        return be.delete_clips(None)
 
     @app.post("/demo/reset")
     def demo_reset():
