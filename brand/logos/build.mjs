@@ -16,6 +16,7 @@ const rad = (deg) => (deg * Math.PI) / 180;
 // ---------------------------------------------------------------- palette
 
 const TILE = '#0b1820';
+const PLUM = '#1d1026'; // round 2 tile, from the spiral view background
 const PAPER = '#f4f6f1';
 
 const DARK = {
@@ -28,6 +29,9 @@ const DARK = {
   lilac: '#c58cff',
   pink: '#ff8fc7',
   apricot: '#ffc15e',
+  rose: '#f59ac6',
+  orchid: '#c79cf2',
+  teal: '#6fd6e0',
 };
 
 const LIGHT = {
@@ -40,11 +44,14 @@ const LIGHT = {
   lilac: '#8648db',
   pink: '#d6448e',
   apricot: '#d9820c',
+  rose: '#c8448a',
+  orchid: '#8a52cc',
+  teal: '#0f8a9a',
 };
 
 const monoTheme = (c) => ({
   mono: true,
-  fg: c, lime: c, mint: c, sky: c, peri: c, lilac: c, pink: c, apricot: c,
+  fg: c, lime: c, mint: c, sky: c, peri: c, lilac: c, pink: c, apricot: c, rose: c, orchid: c, teal: c,
 });
 
 const THEMES = {
@@ -53,6 +60,38 @@ const THEMES = {
   mono: monoTheme('#11242c'),
   'mono-white': monoTheme('#ffffff'),
 };
+
+// Small seeded random generator, so every build draws the same rays.
+function noise(seed, n) {
+  let s = seed >>> 0;
+  const next = () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return Array.from({ length: n }, next);
+}
+
+function hexMix(a, b, t) {
+  const pa = a.match(/\w\w/g).map((h) => parseInt(h, 16));
+  const pb = b.match(/\w\w/g).map((h) => parseInt(h, 16));
+  return '#' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+
+// Color at position x (0..1) along stops [[pos, color], ...].
+function ramp(stops, x) {
+  x = Math.min(1, Math.max(0, x));
+  for (let i = 1; i < stops.length; i++) {
+    if (x <= stops[i][0]) {
+      const [p0, c0] = stops[i - 1];
+      const [p1, c1] = stops[i];
+      return hexMix(c0, c1, (x - p0) / (p1 - p0 || 1));
+    }
+  }
+  return stops[stops.length - 1][1];
+}
 
 // Collects gradient defs for one SVG. In mono themes every paint is flat.
 function makeCtx(t, prefix) {
@@ -111,7 +150,7 @@ const WEIGHT = { light: 0.13, regular: 0.17, bold: 0.215 };
 // Every mark is drawn in a 64 x 64 box. fav() is a simplified mark for
 // 16 to 32 px, drawn in the same box and placed on a dark tile.
 
-const CONCEPTS = [
+const ROUND1 = [
   {
     id: 'echo',
     name: 'Echo',
@@ -293,6 +332,203 @@ const CONCEPTS = [
   },
 ];
 
+// Round 2: built from the look of the spiral view seen from above.
+const lobe = (a, k = 2, ph = 40) => 0.5 + 0.5 * Math.sin(rad(a * k + ph));
+const cosPow = (a) => Math.pow(Math.max(0, Math.cos(rad(a))), 1.4);
+
+const ROUND2 = [
+  {
+    id: 'bloom',
+    name: 'Bloom',
+    line: 'The spiral view from above, as a flower of sound.',
+    idea: 'This is how a call looks in the spiral view from above. Every ray is a moment in time and its length is loudness. The gaps are silence. It also reads as a flower or a burst of light.',
+    mood: 'Lively, warm, a little mysterious.',
+    best: 'App icon and splash screen. Closest to the product itself.',
+    weight: 'regular',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const { t } = c;
+      const jit = noise(11, 84);
+      return rays(c, {
+        n: 84, r0: 4, w: 1.05, bins: 14,
+        gaps: [[98, 112], [146, 152], [194, 199]],
+        outer: (a, i) => Math.min(30.5, 20 + 5 * lobe(a) + 5.5 * jit[i]),
+        color: (x) => ramp([[0, t.orchid], [0.17, t.teal], [0.33, t.rose], [0.7, t.rose], [1, t.orchid]], x),
+      });
+    },
+    fav(c) {
+      const { t } = c;
+      const jit = noise(5, 24);
+      return rays(c, {
+        n: 18, r0: 0, w: 3.8, bins: 18,
+        gaps: [[100, 128]],
+        outer: (a, i) => Math.min(31, 21 + 4 * lobe(a) + 5 * jit[i]),
+        color: (x) => ramp([[0, t.orchid], [0.17, t.teal], [0.33, t.rose], [0.7, t.rose], [1, t.orchid]], x),
+      });
+    },
+  },
+
+  {
+    id: 'whorl',
+    name: 'Whorl',
+    line: 'Rays that grow around the time axis into a spiral.',
+    idea: 'The rays get longer as time goes on, so the burst winds into a spiral shell. It joins the Fiddlehead curl from round 1 with the look of the spiral view. One mark for time, sound and growth.',
+    mood: 'Calm, organic, hypnotic.',
+    best: 'Main brand mark. The spiral silhouette survives at favicon size.',
+    weight: 'regular',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const { t } = c;
+      const jit = noise(3, 72);
+      return rays(c, {
+        n: 72, r0: 0, w: 1.4, bins: 12,
+        outer: (a, i) => 6 + 23 * (a / 360) + 2.5 * jit[i],
+        color: (x) => ramp([[0, t.teal], [0.5, t.orchid], [1, t.rose]], x),
+      });
+    },
+    fav(c) {
+      const { t } = c;
+      const jit = noise(3, 26);
+      return rays(c, {
+        n: 17, r0: 0, w: 4.4, bins: 17,
+        outer: (a, i) => 9 + 22 * (a / 360),
+        color: (x) => ramp([[0, t.teal], [0.5, t.orchid], [1, t.rose]], x),
+      });
+    },
+  },
+
+  {
+    id: 'seed',
+    name: 'Seedhead',
+    line: 'A dandelion clock made from the dots view.',
+    idea: 'With dots at the ray tips, the burst becomes a dandelion. A few seeds drift away, like labels that travel back to the listening posts. Small acts of the community spread far.',
+    mood: 'Light, gentle, hopeful.',
+    best: 'Community and volunteer side, campaigns, stickers.',
+    weight: 'light',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const { t } = c;
+      const jit = noise(21, 30);
+      const col = (x) => ramp([[0, t.teal], [0.4, t.orchid], [1, t.rose]], x);
+      const head = rays(c, {
+        cx: 30, cy: 27, n: 30, r0: 3, w: 1.15, bins: 10, tip: 2.1,
+        gaps: [[22, 78]],
+        outer: (a, i) => 15 + 6 * jit[i],
+        color: col,
+      });
+      const seeds = [[49, 11, 2.1], [56, 18, 1.8], [58, 6, 1.5]]
+        .map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}"/>`).join('');
+      return `<path d="M30 31C30 44 33 52 32 61" stroke="${t.orchid}" stroke-width="2.2" stroke-linecap="round" fill="none"/>
+${head}
+<g fill="${t.teal}">${seeds}</g>`;
+    },
+    fav(c) {
+      const { t } = c;
+      const jit = noise(21, 12);
+      const col = (x) => ramp([[0, t.teal], [0.4, t.orchid], [1, t.rose]], x);
+      const head = rays(c, {
+        cx: 30, cy: 27, n: 12, r0: 3, w: 2.6, bins: 12, tip: 4.2,
+        gaps: [[20, 70]],
+        outer: (a, i) => 17 + 3 * jit[i],
+        color: col,
+      });
+      return `<path d="M30 31C30 45 32 52 31 61" stroke="${t.orchid}" stroke-width="4" stroke-linecap="round" fill="none"/>
+${head}
+<circle cx="54" cy="9" r="3.8" fill="${t.teal}"/>`;
+    },
+  },
+
+  {
+    id: 'echoray',
+    name: 'Echo Rays',
+    line: 'The Echo mark from round 1, drawn in spiral-view rays.',
+    idea: 'The two nested c’s stay, but each arc is built from rays of different lengths, like a radial spectrum. The simple shape keeps it legible. The rays give it the texture of the product.',
+    mood: 'Precise and technical, but softer than round 1.',
+    best: 'Product UI, the Echo tool, docs and talks.',
+    weight: 'regular',
+    words: (t) => [t.fg, t.teal, t.rose, t.fg],
+    mark(c) {
+      const { t } = c;
+      const j1 = noise(8, 46), j2 = noise(9, 24);
+      const outerArc = rays(c, {
+        cx: 33, n: 46, from: 132, to: 408, r0: 18.5, w: 1.5, bins: 10,
+        outer: (a, i) => 23 + 4 * lobe(a, 3, 0) + 3.5 * j1[i],
+        color: (x) => ramp([[0, t.teal], [1, t.orchid]], x),
+      });
+      const innerArc = rays(c, {
+        cx: 33, n: 24, from: 145, to: 395, r0: 7.5, w: 1.5, bins: 4,
+        outer: (a, i) => 10.5 + 2.5 * j2[i],
+        color: () => t.rose,
+      });
+      return `${outerArc}\n${innerArc}\n<circle cx="33" cy="32" r="3" fill="${t.rose}"/>`;
+    },
+    fav(c) {
+      const { t } = c;
+      const j1 = noise(8, 18), j2 = noise(9, 9);
+      const outerArc = rays(c, {
+        cx: 34, n: 18, from: 135, to: 405, r0: 18, w: 3.4, bins: 18,
+        outer: (a, i) => 25 + 5 * j1[i],
+        color: (x) => ramp([[0, t.teal], [1, t.orchid]], x),
+      });
+      const innerArc = rays(c, {
+        cx: 34, n: 9, from: 150, to: 390, r0: 5, w: 3.4, bins: 1,
+        outer: (a, i) => 11 + 2 * j2[i],
+        color: () => t.rose,
+      });
+      return `${outerArc}\n${innerArc}`;
+    },
+  },
+
+  {
+    id: 'rise',
+    name: 'Dawn Chorus',
+    line: 'A sun made of sound, rising over the water.',
+    idea: 'Birds sing most at sunrise, the dawn chorus. The rays are a sun made of calls, rising over a water line. Light on the water below mirrors the mirrored-surface view.',
+    mood: 'Hopeful, open, cinematic.',
+    best: 'Park partners, posters, the landing page hero.',
+    weight: 'light',
+    words: (t) => [t.fg, t.fg, t.fg, t.fg],
+    mark(c) {
+      const { t } = c;
+      const jit = noise(14, 31);
+      const col = (x) => ramp([[0, t.teal], [0.3, t.orchid], [0.5, t.rose], [0.7, t.orchid], [1, t.teal]], x);
+      const sun = rays(c, {
+        cy: 43, n: 29, from: -82, to: 82, r0: 11.5, w: 1.6, bins: 11,
+        outer: (a, i) => Math.min(37, 18 + 12 * cosPow(a) + 6 * jit[i]),
+        color: col,
+      });
+      // light on the water: short vertical strokes, longest in the middle
+      const glitter = [-12, -8, -4, 0, 4, 8, 12]
+        .map((dx) => `M${32 + dx} 51.5V${f(51.5 + 9 * Math.cos(rad(dx * 6.5)) * (0.75 + 0.25 * jit[Math.abs(dx)]))}`)
+        .join('');
+      return `<path d="M23 43A9 9 0 0 1 41 43Z" fill="${t.rose}"/>
+${sun}
+<path d="M4 46H60" stroke="${t.teal}" stroke-width="2.6" stroke-linecap="round"/>
+<path d="${glitter}" stroke="${t.orchid}" stroke-width="1.8" stroke-linecap="round" opacity="${c.op(0.6)}"/>`;
+    },
+    fav(c) {
+      const { t } = c;
+      const jit = noise(14, 13);
+      const col = (x) => ramp([[0, t.teal], [0.3, t.orchid], [0.5, t.rose], [0.7, t.orchid], [1, t.teal]], x);
+      const sun = rays(c, {
+        cy: 44, n: 11, from: -78, to: 78, r0: 15, w: 3.6, bins: 11,
+        outer: (a, i) => Math.min(40, 23 + 12 * cosPow(a) + 3 * jit[i]),
+        color: col,
+      });
+      return `<path d="M21 44A11 11 0 0 1 43 44Z" fill="${t.rose}"/>
+${sun}
+<path d="M3 51H61" stroke="${t.teal}" stroke-width="4.5" stroke-linecap="round"/>`;
+    },
+  },
+];
+
+ROUND1.forEach((k) => (k.round = 1));
+ROUND2.forEach((k) => {
+  k.round = 2;
+  k.tile = PLUM;
+});
+const CONCEPTS = [...ROUND2, ...ROUND1];
+
 // ---------------------------------------------------------------- shapes
 
 function voxels({ cols, cell, gap, x0, base, rows, float, rx }) {
@@ -359,6 +595,35 @@ function hueGrid(c, { cell, gap, x0, rx, ring, dot }) {
   return out.join('\n');
 }
 
+// Radial rays like ecco's spiral view seen from above. Angle 0 points up and
+// runs clockwise, in degrees. Rays are grouped into color bins so each bin is
+// one path. outer(a, i) gives the ray's end radius, tip draws a dot at the end.
+function rays(c, { cx = 32, cy = 32, n, from = 0, to = 360, r0 = 0, outer, w, gaps = [], color, bins = 12, tip = 0, opacity = 1 }) {
+  const span = to - from;
+  const closed = span >= 360;
+  const groups = [];
+  for (let i = 0; i < n; i++) {
+    const a = from + (closed ? i / n : i / (n - 1)) * span;
+    const norm = ((a % 360) + 360) % 360;
+    if (gaps.some(([g0, g1]) => norm >= g0 && norm <= g1)) continue;
+    const r1 = outer(a, i);
+    const sx = Math.sin(rad(a)), sy = -Math.cos(rad(a));
+    const b = Math.min(bins - 1, Math.floor((i / n) * bins));
+    groups[b] ??= { d: '', dots: '' };
+    groups[b].d += `M${f(cx + r0 * sx)} ${f(cy + r0 * sy)}L${f(cx + r1 * sx)} ${f(cy + r1 * sy)}`;
+    if (tip) groups[b].dots += `<circle cx="${f(cx + r1 * sx)}" cy="${f(cy + r1 * sy)}" r="${tip}"/>`;
+  }
+  const op = c.op(opacity) === 1 ? '' : ` opacity="${opacity}"`;
+  const out = [];
+  groups.forEach((g, b) => {
+    if (!g) return;
+    const col = c.t.mono ? c.t.fg : color((b + 0.5) / bins);
+    out.push(`<path d="${g.d}" stroke="${col}" stroke-width="${w}" stroke-linecap="round" fill="none"${op}/>`);
+    if (g.dots) out.push(`<g fill="${col}"${op}>${g.dots}</g>`);
+  });
+  return out.join('\n');
+}
+
 // ---------------------------------------------------------------- files
 
 function svgFile({ w, h, title, defs, body }) {
@@ -418,7 +683,7 @@ for (const concept of CONCEPTS) {
       h: 64,
       title: `ecco, ${concept.name} favicon`,
       defs: fc.defs,
-      body: `<rect width="64" height="64" rx="15" fill="${TILE}"/>\n<g transform="translate(7 7) scale(0.78125)">\n${favBody}\n</g>`,
+      body: `<rect width="64" height="64" rx="15" fill="${concept.tile || TILE}"/>\n<g transform="translate(7 7) scale(0.78125)">\n${favBody}\n</g>`,
     }),
   );
 }
@@ -428,23 +693,25 @@ for (const concept of CONCEPTS) {
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
 const img = (src, h, alt) => `<img src="${src}" style="height:${h}px" alt="${esc(alt)}">`;
 
-const glance = CONCEPTS.map(
+const numOf = (k, i) => `${k.round}.${i + 1}`;
+
+const glance = (list) => list.map(
   (k, i) => `<button class="glance-item" data-fav="${k.id}/favicon.svg" title="Use as this tab’s favicon">
         ${img(`${k.id}/mark-dark.svg`, 56, `${k.name} mark`)}
         <span class="glance-icons">
           ${img(`${k.id}/favicon.svg`, 32, `${k.name} favicon 32 px`)}
           ${img(`${k.id}/favicon.svg`, 16, `${k.name} favicon 16 px`)}
         </span>
-        <span class="glance-name"><span class="num">${String(i + 1).padStart(2, '0')}</span> ${esc(k.name)}</span>
+        <span class="glance-name"><span class="num">${numOf(k, i)}</span> ${esc(k.name)}</span>
       </button>`,
 ).join('\n      ');
 
-const pixels = CONCEPTS.map(
+const pixels = (list) => list.map(
   (k) => `<div class="pix">
         <span class="glance-name">${esc(k.name)}</span>
         <span class="pix-row">
           <canvas data-src="${k.id}/favicon.svg" data-px="16"></canvas>
-          <canvas data-src="${k.id}/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="${k.id}/mark-dark.svg" data-px="16" class="on-dark" data-bg="${k.tile || TILE}"></canvas>
           <canvas data-src="${k.id}/mark-light.svg" data-px="16" class="on-light"></canvas>
         </span>
         <span class="pix-row">
@@ -459,8 +726,8 @@ const sizes = (id, theme) =>
   `<span class="sep"></span>` +
   [32, 16].map((s) => `<figure>${img(`${id}/favicon.svg`, s, `favicon ${s} px`)}<figcaption>fav ${s}</figcaption></figure>`).join('');
 
-const sections = CONCEPTS.map((k, i) => {
-  const n = String(i + 1).padStart(2, '0');
+const sections = (list) => list.map((k, i) => {
+  const n = numOf(k, i);
   return `
   <section class="concept" id="${k.id}">
     <header class="concept-head">
@@ -516,7 +783,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ecco logo concepts</title>
-<link id="favicon" rel="icon" type="image/svg+xml" href="${CONCEPTS[0].id}/favicon.svg">
+<link id="favicon" rel="icon" type="image/svg+xml" href="${ROUND2[0].id}/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -587,6 +854,16 @@ const html = `<!doctype html>
   .pix canvas.on-dark { background: #000; }
   .pix canvas.on-light { background: var(--paper); }
   .concept { border-top: 1px solid var(--line); padding: 48px 0 24px; }
+  .round { margin-bottom: 64px; }
+  .round-title { font-size: 26px; margin: 0 0 6px; }
+  .round.r2 {
+    --surface: #1d1026;
+    --line: #3a2546;
+    --accent: #f59ac6;
+  }
+  .round.r2 dd { color: #e2cfdc; }
+  .round.r2 .glance { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .round.r1 { border-top: 2px solid #1c3340; padding-top: 48px; }
   .concept-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
   .concept-head .num { padding-top: 10px; }
   .concept-head > div { flex: 1; }
@@ -645,7 +922,7 @@ const html = `<!doctype html>
 
   @media (max-width: 760px) {
     .wrap { padding: 32px 16px 64px; }
-    .glance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .glance, .round.r2 .glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .why { grid-template-columns: 1fr; gap: 12px; }
     .hero, .lockups, .small, .tabs { grid-template-columns: 1fr; }
     .panel.big { height: 220px; }
@@ -655,20 +932,36 @@ const html = `<!doctype html>
 </head>
 <body>
 <main class="wrap">
-  <p class="eyebrow">ecco brand · round 1</p>
+  <p class="eyebrow">ecco brand · round 2</p>
   <h1>Logo concepts</h1>
-  <p class="intro">Seven directions for <b>ecco</b>, the community platform that listens to forests. Each concept has a mark, a lockup, one-color versions and a simplified favicon. All lettering is drawn as geometry, so no font is needed in the files. <b>Click any concept</b> to try its favicon in this browser tab.</p>
+  <p class="intro">Directions for <b>ecco</b>, the community platform that listens to forests. Each concept has a mark, a lockup, one-color versions and a simplified favicon. All lettering is drawn as geometry, so no font is needed in the files. <b>Click any concept</b> to try its favicon in this browser tab.</p>
 
-  <div class="glance">
-      ${glance}
+  <div class="round r2">
+    <h2 class="round-title">Round 2 · from the spiral view</h2>
+    <p class="intro small-intro">Five marks built from the radial rays of the spiral view seen from above: plum night, dusty rose, orchid and teal.</p>
+    <div class="glance">
+      ${glance(ROUND2)}
+    </div>
+    <h3 class="sub">Pixel check</h3>
+    <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times. This is what a browser tab really shows.</p>
+    <div class="pixels">
+      ${pixels(ROUND2)}
+    </div>
+${sections(ROUND2)}
   </div>
 
-  <h3 class="sub">Pixel check</h3>
-  <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times. This is what a browser tab really shows.</p>
-  <div class="pixels">
-      ${pixels}
+  <div class="round r1">
+    <h2 class="round-title">Round 1 · first exploration</h2>
+    <p class="intro small-intro">The seven directions from the first round, kept for comparison.</p>
+    <div class="glance">
+      ${glance(ROUND1)}
+    </div>
+    <h3 class="sub">Pixel check</h3>
+    <div class="pixels">
+      ${pixels(ROUND1)}
+    </div>
+${sections(ROUND1)}
   </div>
-${sections}
 </main>
 <script>
   // Draw each SVG at its true pixel size (no retina scaling), CSS enlarges it.
@@ -679,7 +972,7 @@ ${sections}
     im.onload = () => {
       const ctx = cv.getContext('2d');
       if (cv.classList.contains('on-light')) { ctx.fillStyle = '${PAPER}'; ctx.fillRect(0, 0, px, px); }
-      if (cv.classList.contains('on-dark')) { ctx.fillStyle = '${TILE}'; ctx.fillRect(0, 0, px, px); }
+      if (cv.classList.contains('on-dark')) { ctx.fillStyle = cv.dataset.bg; ctx.fillRect(0, 0, px, px); }
       ctx.drawImage(im, 0, 0, px, px);
     };
     im.src = cv.dataset.src;
