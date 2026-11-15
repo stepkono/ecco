@@ -209,6 +209,10 @@ The reveal lands harder when the audience first feels the problem with their ear
 
 In the video: half a second of silence before the relief line, then the landscape builds up exactly on "see". Note: "your name stays on it" is an idea (A8), not built yet. In the video, say "will stay" or keep it as the outlook.
 
+### A15. Punchline · open
+Recommended: **"Hard to hear. Easy to see."** It names the problem and our answer in four words, and it is already the hinge of the video.
+Alternatives: "See the sound. Save the species." · "Help the forest listen." (current closing line) · "Every label teaches a forest to listen." · "From noise to knowledge, together." · "Turn sound into sight."
+
 ---
 
 ## Part 3: Open questions
