@@ -114,21 +114,54 @@ export class Session {
     return out;
   }
 
-  layerAudio(layer: Layer): Float32Array {
+  /** The share of each cell that belongs to this layer (overlapping layers split a cell). */
+  layerMask(layer: Layer): Float32Array {
     const n = this.spec.mag.length;
     const sum = new Float32Array(n);
     for (const l of this.layers) for (let i = 0; i < n; i++) sum[i] += l.mask[i];
     const m = new Float32Array(n);
     for (let i = 0; i < n; i++) m[i] = layer.mask[i] / Math.max(1, sum[i]);
-    return istft(this.spec, m, CLIP_LEN);
+    return m;
   }
 
-  residualAudio(): Float32Array {
+  /** What no layer has claimed yet. */
+  residualMask(): Float32Array {
     const n = this.spec.mag.length;
     const m = new Float32Array(n).fill(1);
     for (const l of this.layers) for (let i = 0; i < n; i++) m[i] -= l.mask[i];
     for (let i = 0; i < n; i++) m[i] = Math.max(0, m[i]);
-    return istft(this.spec, m, CLIP_LEN);
+    return m;
+  }
+
+  private bgMask: Float32Array | null = null;
+  /**
+   * Keeps what rises above each frequency band's steady background and fades the
+   * background itself out (soft spectral gate, same idea as "Hide background" in the view).
+   */
+  backgroundMask(): Float32Array {
+    if (this.bgMask) return this.bgMask;
+    const n = this.db.length;
+    const m = new Float32Array(n);
+    for (let t = 0; t < this.frames; t++)
+      for (let k = 0; k < N_BINS; k++) {
+        const i = t * N_BINS + k;
+        const v = (this.db[i] - this.floor[k] - 3) / 9; // 3 dB above the floor starts, 12 dB passes fully
+        m[i] = v <= 0 ? 0.03 : v >= 1 ? 1 : 0.03 + 0.97 * v * v * (3 - 2 * v);
+      }
+    return (this.bgMask = m);
+  }
+
+  /** Resynthesise the mixture through a time-frequency mask (values above 1 make cells louder). */
+  maskedAudio(mask: Float32Array): Float32Array {
+    return istft(this.spec, mask, CLIP_LEN);
+  }
+
+  layerAudio(layer: Layer): Float32Array {
+    return this.maskedAudio(this.layerMask(layer));
+  }
+
+  residualAudio(): Float32Array {
+    return this.maskedAudio(this.residualMask());
   }
 
   scores(filter: (l: Layer) => boolean = (l) => l.origin !== 'ai'): ClassScore[] {

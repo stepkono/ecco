@@ -1,22 +1,29 @@
 import './style.css';
-import { BIN_HZ, CLIP_LEN, N_BINS, FRAME_SEC, istft } from './dsp/stft';
-import { basisCentroidHz, hpss, melFilterbank, melToMask, N_MELS, nmfComponentMask, type NmfResult } from './dsp/analysis';
+import { BIN_HZ, N_BINS, FRAME_SEC } from './dsp/stft';
+import { melFilterbank, melToMask, N_MELS } from './dsp/analysis';
 import { CLASSES, MODEL_CLASSES, SOURCES, type ClassId, type SourceId } from './game/catalog';
-import { LEVELS, classSnr, decodeUpload, mixLevel, type Mixture } from './game/levels';
+import { LEVELS, decodeUpload, mixLevel, type Mixture } from './game/levels';
+import { fromLive, whenRecorded, type Challenge, type LiveClip } from './game/challenges';
+import { Backend } from './game/backend';
 import { Session, stars, type Layer, type ClassScore } from './game/session';
-import { applyComb, brush, echo, knife, trackPitch, type PaintOpts } from './game/tools';
+import { applyComb, brush, echo, eraseAll, trackPitch, type PaintOpts } from './game/tools';
 import { SpectroView, type Pick } from './view/scene';
-import { Player } from './audio/player';
-import { runWorker } from './ml/client';
+import { Transport } from './audio/transport';
 import { makeItem } from './ml/dataset';
 import { predictClip, N_CLS } from './ml/model';
 import { load, save, state } from './state';
 import { openLab, renderLabIfOpen, setLabHooks } from './ui/lab';
 import { toast } from './ui/toast';
 import { openEco, ecoCount } from './ui/eco';
-import { showIntro } from './ui/intro';
+import { brandLogo } from './ui/brand';
+import { mountWelcome } from './ui/welcome';
+import { mountVizPanel } from './ui/vizpanel';
+import { mountPuzzles } from './ui/puzzle';
+import { Timeline } from './ui/timeline';
 
 const $ = <T extends HTMLElement = HTMLElement>(sel: string) => document.querySelector(sel) as T;
+// the stylesheet is in place now (imported above), so the page may appear
+document.documentElement.classList.add('ready');
 const fmt = (v: number, d = 1) => {
   const r = v.toFixed(d);
   return (r.startsWith('-') && +r !== 0 ? '' : '+') + (+r === 0 ? (0).toFixed(d) : r);
@@ -24,11 +31,11 @@ const fmt = (v: number, d = 1) => {
 
 // ---------------- core objects ----------------
 const view = new SpectroView($('#canvas-wrap'));
-const player = new Player();
-player.onTime = (t) => view.setPlayhead(t);
-player.onStop = () => document.querySelectorAll('.btn.play').forEach((b) => b.classList.remove('on'));
+const vizPanel = mountVizPanel(view, $('.dock-left'));
+const transport = new Transport();
+const timeline = new Timeline($('#timeline'), transport);
 
-type Tool = 'view' | 'brush' | 'fork' | 'knife' | 'echo';
+type Tool = 'view' | 'brush' | 'echo' | 'fork' | 'eraser';
 const opts = {
   tool: 'brush' as Tool,
   radius: 0.45,
@@ -42,9 +49,7 @@ const opts = {
 };
 
 let uploadName: string | null = null;
-let nmfResult: NmfResult | null = null;
 let contributedThisSession = false;
-
 
 // ---------------- undo ----------------
 const undoStack: { layers: Layer[]; active: number }[] = [];
@@ -65,7 +70,6 @@ function undo() {
 
 // ---------------- level loading ----------------
 async function loadLevel(idx: number) {
-  player.stop();
   state.levelIdx = idx;
   uploadName = null;
   const level = LEVELS[idx];
@@ -73,141 +77,87 @@ async function loadLevel(idx: number) {
   startSession(new Session(level, mixture));
 }
 
+function setCrumbs(title: string, place: string) {
+  $('#crumb-title').textContent = title;
+  $('#crumb-place').textContent = place;
+}
+
 function startSession(s: Session) {
   state.session = s;
-  nmfResult = null;
   contributedThisSession = false;
   undoStack.length = 0;
-  const first = s.level?.targets[0] ?? 'unknown';
-  s.addLayer(first);
+  // a puzzle window comes back with its painting when the player switches windows
+  if (!s.layers.length) s.addLayer(s.level?.targets[0] ?? 'unknown');
   view.setSession(s);
-  $('#strands').innerHTML = '';
-  renderNodes();
-  renderNodeCard();
-  renderBrief();
-  renderLayers();
+  view.reveal();
+  transport.pause();
+  refreshAudio(true);
+  renderCounts();
+  renderLayerFilter();
   renderScores();
   renderToolOptions();
 }
 
-// ---------------- rendering: header & cards ----------------
-function renderNodes() {
-  const nav = $('#nodes');
-  nav.innerHTML = '';
-  LEVELS.forEach((l, i) => {
-    const b = document.createElement('button');
-    b.className = 'node-chip' + (i === state.levelIdx && !uploadName ? ' active' : '') + (state.completed.has(l.id) ? ' done' : '');
-    b.innerHTML = `<span class="led"></span><span class="id">${l.node}</span>${l.title}<span class="diff">${'●'.repeat(l.difficulty)}</span>`;
-    b.onclick = () => loadLevel(i);
-    nav.appendChild(b);
-  });
+// ---------------- header ----------------
+function renderCounts() {
   $('#eco-count').textContent = ecoCount();
   $('#ds-count').textContent = String(state.dataset.length);
 }
 
-function renderNodeCard() {
+// ---------------- layer filter (top left) ----------------
+function renderLayerFilter() {
   const s = state.session!;
-  const card = $('#node-card');
-  if (!s.level) {
-    card.innerHTML = `<div class="site"><span class="blink"></span>Field upload</div>
-      <h2>${uploadName}</h2>
-      <div class="muted small">No ground truth exists for this clip. Your separation <b>is</b> the label.</div>
-      <div class="chips"><span class="chip">16 kHz mono</span><span class="chip">5.0 s</span></div>`;
-    return;
-  }
-  const l = s.level;
-  const snrs = l.targets
-    .map((c) => {
-      const v = classSnr(s.mixture, c);
-      return `<span class="chip ${v < 0 ? 'bad' : ''}">SNR ${CLASSES[c].label.toLowerCase()} ${fmt(v)} dB</span>`;
+  const box = $('#layer-filter');
+  const classes: ClassId[] = s.level ? [...new Set([...s.level.targets, ...s.level.stems.map((st) => SOURCES[st.src].cls)])] : (Object.keys(CLASSES) as ClassId[]);
+  const rows = s.layers
+    .map((l, i) => {
+      const ai = l.origin === 'ai' ? `<button class="icon-btn" data-a="adopt" title="Accept this layer from the model and correct it">✓</button>` : '';
+      return `<li class="${i === s.activeLayer ? 'active' : ''}" data-i="${i}" title="Click to paint into this layer (${i + 1})">
+        <span class="sw" style="background:${l.color};opacity:${l.visible ? 1 : 0.3}"></span>
+        <span class="name">${l.name}${l.origin === 'ai' ? ' <small>model</small>' : ''}</span>
+        ${ai}
+        <button class="icon-btn" data-a="listen" title="Listen to this layer only">
+          <svg viewBox="0 0 24 24"><path d="M4 14v-2a8 8 0 0 1 16 0v2" /><rect x="3" y="14" width="4" height="6" rx="1.5" /><rect x="17" y="14" width="4" height="6" rx="1.5" /></svg></button>
+        <button class="icon-btn" data-a="vis" title="${l.visible ? 'Hide' : 'Show'}">${l.visible ? '◉' : '○'}</button>
+        <button class="icon-btn" data-a="del" title="Delete layer">✕</button>
+      </li>`;
     })
     .join('');
-  card.innerHTML = `<div class="site"><span class="blink"></span>Node ${l.node} · ${l.site}</div>
-    <h2>${l.title}</h2>
-    <div class="muted small">Beamed from Arduino Nano 33 BLE Sense · PDM mic · 16 kHz · 5.0 s</div>
-    <div class="chips">${snrs}</div>`;
-}
-
-function renderBrief() {
-  const s = state.session!;
-  const box = $('#brief');
-  if (!s.level) {
-    box.innerHTML = `<h3>Field clip</h3><p>Untangle what you hear. Pick a class for each layer, then contribute. Field labels are exactly the edge cases the node needs.</p>`;
-    return;
-  }
-  const t = s.level.targets
-    .map((c) => `<div class="target"><span class="dot" style="background:${CLASSES[c].color}"></span><div><b>${CLASSES[c].label}</b><span class="muted">${CLASSES[c].hint}</span></div></div>`)
-    .join('');
-  const noise = [...new Set(s.level.stems.map((st) => SOURCES[st.src].cls))].filter((c) => !s.level!.targets.includes(c));
-  const n = noise.map((c) => `<span class="chip">${CLASSES[c].label}</span>`).join(' ');
-  box.innerHTML = `<h3>Mission</h3><p>${s.level.brief}</p>${t}<div class="target"><span class="dot" style="background:#2c4550"></span><div><b>Interference</b>${n}</div></div>`;
-}
-
-function renderLayers() {
-  const s = state.session!;
-  const add = $('#add-layer');
-  const classes: ClassId[] = s.level ? [...new Set([...s.level.targets, ...s.level.stems.map((st) => SOURCES[st.src].cls)])] : (Object.keys(CLASSES) as ClassId[]);
-  add.innerHTML = '';
-  for (const c of classes) {
-    const b = document.createElement('button');
-    b.title = `New ${CLASSES[c].label} layer`;
-    b.innerHTML = `<span class="sw" style="background:${CLASSES[c].color}"></span>+ ${CLASSES[c].label.split(' ')[0]}`;
-    b.onclick = () => {
-      snapshot();
-      s.addLayer(c);
-      afterEdit();
-    };
-    add.appendChild(b);
-  }
-  const ul = $('#layers');
-  ul.innerHTML = '';
-  if (!s.layers.length) {
-    ul.innerHTML = '<li class="empty">No layers yet. Add one above.</li>';
-    return;
-  }
-  s.layers.forEach((l, i) => {
-    let cover = 0;
-    let energy = 0;
-    let total = 0;
-    for (let j = 0; j < l.mask.length; j++) {
-      const e = s.spec.mag[j] * s.spec.mag[j];
-      total += e;
-      energy += e * l.mask[j];
-      if (l.mask[j] > 0.5) cover++;
-    }
-    const li = document.createElement('li');
-    li.className = i === s.activeLayer ? 'active' : '';
-    const badge = l.origin === 'ai' ? `<span class="badge" style="color:#56c8ff">edge AI</span>` : l.origin === 'assist' ? `<span class="badge" style="color:#8fa7bf">DSP</span>` : '';
-    li.innerHTML = `<span class="sw" style="background:${l.color};opacity:${l.visible ? 1 : 0.3}"></span>
-      <div class="name"><span>${l.name}${badge}</span><small>${((100 * energy) / (total || 1)).toFixed(1)}% energy · ${cover} cells</small></div>
-      <div class="acts">
-        ${l.origin === 'ai' ? '<button class="icon-btn" data-a="adopt" title="Adopt: accept this AI layer as your own and correct it">✓</button>' : ''}
-        <button class="icon-btn" data-a="play" title="Listen">▶</button>
-        <button class="icon-btn" data-a="vis" title="Show/hide">${l.visible ? '◉' : '○'}</button>
-        <button class="icon-btn" data-a="clear" title="Clear mask">⌫</button>
-        <button class="icon-btn" data-a="del" title="Delete layer">✕</button>
-      </div>`;
+  box.innerHTML = `<div class="lf-head"><h6>Layers</h6>
+      <select id="lf-add" title="Add a layer for another sound" aria-label="Add layer"><option value="">+ Add</option>
+        ${classes.map((c) => `<option value="${c}">${CLASSES[c].label}</option>`).join('')}</select></div>
+    <ul>${rows || '<li class="empty">No layers yet</li>'}</ul>`;
+  const add = box.querySelector<HTMLSelectElement>('#lf-add')!;
+  add.onchange = () => {
+    if (!add.value) return;
+    snapshot();
+    s.addLayer(add.value as ClassId);
+    afterEdit();
+  };
+  box.querySelectorAll<HTMLLIElement>('li[data-i]').forEach((li) => {
     li.onclick = (e) => {
+      const i = +li.dataset.i!;
+      const l = s.layers[i];
       const a = (e.target as HTMLElement).closest('[data-a]')?.getAttribute('data-a');
-      if (a === 'play') return playBuffer(s.layerAudio(l), 'layer-' + l.id, '#play-layer');
-      if (a === 'vis') l.visible = !l.visible;
-      else if (a === 'clear') {
-        snapshot();
-        l.mask.fill(0);
-      } else if (a === 'del') {
+      if (a === 'listen') {
+        s.activeLayer = i;
+        setPlayMode('layer');
+        void transport.play();
+      } else if (a === 'vis') l.visible = !l.visible;
+      else if (a === 'del') {
         snapshot();
         s.removeLayer(i);
       } else if (a === 'adopt') {
         l.origin = 'player';
-        l.name = l.name + ' (from AI)';
-        toast('Layer adopted. Fix what the model got wrong, then contribute: that correction is the most valuable label.', 'info');
+        l.name = l.name + ' (from model)';
+        toast('Layer accepted. Fix what the model got wrong. That correction is the most valuable label.', 'info');
       } else s.activeLayer = i;
-      afterEdit(a === 'vis' || a === 'del' || a === 'clear' || a === 'adopt');
+      afterEdit(a === 'vis' || a === 'del' || a === 'adopt');
     };
-    ul.appendChild(li);
   });
 }
 
+// ---------------- separation score ----------------
 function scoreRow(sc: ClassScore, aiScore?: ClassScore) {
   const c = CLASSES[sc.cls];
   const st = stars(sc.progress);
@@ -216,13 +166,17 @@ function scoreRow(sc: ClassScore, aiScore?: ClassScore) {
   const hi = sc.oracle + 2;
   const pos = (v: number) => `${(100 * (v - lo)) / (hi - lo)}%`;
   const you = sc.player ?? sc.baseline;
-  const ai = aiScore?.player != null ? `<div class="score-nums" style="margin-top:3px"><span style="color:#56c8ff">edge AI ${aiScore.player.toFixed(1)} dB (${fmt(aiScore.player - aiScore.baseline)} dB)</span></div>` : '';
+  const ai = aiScore?.player != null ? `<div class="score-nums" style="margin-top:3px"><span style="color:#56c8ff">model ${aiScore.player.toFixed(1)} dB (${fmt(aiScore.player - aiScore.baseline)} dB)</span></div>` : '';
   return `<div class="score">
     <div class="score-head"><span>${c.label}</span><span class="stars">${starHtml}</span></div>
     <div class="bar"><div class="fill" style="width:${pos(you)};background:${c.color}"></div>
       <div class="tick" style="left:${pos(sc.baseline)}" title="raw mixture"></div>
       <div class="tick" style="left:${pos(sc.oracle)};background:#ffe08a" title="ideal ratio mask ceiling"></div></div>
-    <div class="score-nums"><span>mix ${sc.baseline.toFixed(1)}</span><span>you <b>${sc.player === null ? '–' : sc.player.toFixed(1)}</b> ${sc.player === null ? '' : `(${fmt(sc.player - sc.baseline)})`}</span><span>ceiling ${sc.oracle.toFixed(1)}</span></div>
+    <div class="score-nums">
+      <span><small>mix</small><b>${sc.baseline.toFixed(1)}</b></span>
+      <span class="you"><small>you</small><b>${sc.player === null ? '–' : sc.player.toFixed(1)}</b>${sc.player === null ? '' : `<em>${fmt(sc.player - sc.baseline)}</em>`}</span>
+      <span class="ceil"><small>ceiling</small><b>${sc.oracle.toFixed(1)}</b></span>
+    </div>
     ${ai}
   </div>`;
 }
@@ -231,7 +185,7 @@ function renderScores() {
   const s = state.session!;
   const box = $('#scores');
   if (!s.hasTruth) {
-    box.innerHTML = `<p class="muted small">Field clips have no clean reference, so they cannot be scored. They still make great training labels.</p>`;
+    box.innerHTML = `<p class="muted small">Real recordings have no clean reference, so they cannot be scored. They still make great training labels.</p>`;
     return;
   }
   const sc = s.scores();
@@ -239,7 +193,7 @@ function renderScores() {
   const ai = hasAi ? s.scores((l) => l.origin === 'ai') : [];
   box.innerHTML =
     sc.map((x, i) => scoreRow(x, ai[i])).join('') +
-    `<p class="muted small" style="margin:8px 0 0">Ceiling = ideal ratio mask: the best any STFT mask can do on this clip.</p>`;
+    `<p class="score-note">Ceiling: the best result any painting can reach on this clip.</p>`;
   checkUnlocks(sc);
 }
 
@@ -271,18 +225,24 @@ function checkUnlocks(sc: ClassScore[]) {
   }
   if (changed) {
     save();
-    renderNodes();
+    renderCounts();
   }
 }
 
 // ---------------- after edits ----------------
 let scoreTimer = 0;
+let audioTimer = 0;
 function afterEdit(heights = false) {
   if (heights || view.unfold > 0) view.markHeightsDirty();
   view.refresh();
-  renderLayers();
+  renderLayerFilter();
   clearTimeout(scoreTimer);
   scoreTimer = window.setTimeout(renderScores, 180);
+  // layer, rest, boosted and background-free playback follow the painting
+  if (playMode !== 'mix' || view.unfold > 0 || view.whiten) {
+    clearTimeout(audioTimer);
+    audioTimer = window.setTimeout(() => refreshAudio(), 250);
+  }
 }
 
 function ensureLayer(): number {
@@ -291,31 +251,33 @@ function ensureLayer(): number {
   return s.activeLayer;
 }
 
-const paintOpts = (erase: boolean): PaintOpts => ({ strength: opts.strength, grip: opts.grip, erase, exclusive: opts.exclusive });
+const paintOpts = (erase = false): PaintOpts => ({ strength: opts.strength, grip: opts.grip, erase, exclusive: opts.exclusive });
+
+/** Bring the cells under the eraser back to the untouched recording, in every layer. */
+function eraseAt(p: Pick) {
+  eraseAll(state.session!, view.map, p.x, p.z, opts.radius);
+}
 
 // ---------------- tool options ----------------
 function renderToolOptions() {
   const box = $('#tool-options');
-  const slider = (id: string, label: string, min: number, max: number, step: number, v: number, unit = '') =>
-    `<label title="${label}">${label} <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}"><span class="val" id="${id}-v">${v}${unit}</span></label>`;
+  const slider = (id: string, label: string, min: number, max: number, step: number, v: number, unit = '', title = label) =>
+    `<label title="${title}">${label} <input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}"><span class="val" id="${id}-v">${v}${unit}</span></label>`;
+  const grip = slider('o-grip', 'Grip', -10, 25, 1, opts.grip, ' dB', 'How far above the quiet background a cell must be to get painted');
   let html = '';
-  if (opts.tool === 'brush') {
-    html = slider('o-radius', 'Size', 0.1, 1.5, 0.05, opts.radius) + slider('o-strength', 'Flow', 0.1, 1, 0.05, opts.strength) + slider('o-grip', 'Grip', -10, 25, 1, opts.grip, ' dB');
-  } else if (opts.tool === 'fork') {
+  if (opts.tool === 'brush') html = slider('o-radius', 'Size', 0.1, 1.5, 0.05, opts.radius) + slider('o-strength', 'Flow', 0.1, 1, 0.05, opts.strength) + grip;
+  else if (opts.tool === 'eraser') html = slider('o-radius', 'Size', 0.1, 1.5, 0.05, opts.radius);
+  else if (opts.tool === 'fork')
     html =
-      slider('o-sal', 'Salience', 1, 15, 0.5, opts.forkSalience, ' dB') +
-      slider('o-pers', 'Persistence', 0, 30, 1, opts.forkPersistence) +
-      slider('o-grip', 'Grip', -10, 25, 1, opts.grip, ' dB') +
-      `<label><input type="checkbox" id="o-steady" ${opts.forkSteady ? 'checked' : ''}> Steady comb</label>`;
-  } else if (opts.tool === 'knife') {
-    html = slider('o-grip', 'Grip', -10, 25, 1, opts.grip, ' dB') + slider('o-strength', 'Flow', 0.1, 1, 0.05, opts.strength);
-  } else if (opts.tool === 'echo') {
-    html = slider('o-thr', 'Match', 0.2, 0.9, 0.05, opts.echoThreshold) + slider('o-grip', 'Grip', -10, 25, 1, opts.grip, ' dB');
-  } else {
-    html = '<span class="muted">Left-drag orbit · right-drag orbit · middle-drag pan · wheel zoom</span>';
-  }
-  if (opts.tool !== 'view') html += `<label title="Painting a cell into one layer removes it from the others"><input type="checkbox" id="o-excl" ${opts.exclusive ? 'checked' : ''}> Exclusive</label>`;
+      slider('o-sal', 'Salience', 1, 15, 0.5, opts.forkSalience, ' dB', 'How much the line must stand out to be followed') +
+      slider('o-pers', 'Persistence', 0, 30, 1, opts.forkPersistence, '', 'How many quiet frames the fork bridges') +
+      grip +
+      `<label title="Select the same pitch across the whole clip"><input type="checkbox" id="o-steady" ${opts.forkSteady ? 'checked' : ''}> Steady</label>`;
+  else if (opts.tool === 'echo') html = slider('o-thr', 'Match', 0.2, 0.9, 0.05, opts.echoThreshold, '', 'How similar a repeat must be') + grip;
+  if (opts.tool === 'brush' || opts.tool === 'echo' || opts.tool === 'fork')
+    html += `<label title="Painting a cell into one layer removes it from the others"><input type="checkbox" id="o-excl" ${opts.exclusive ? 'checked' : ''}> Exclusive</label>`;
   box.innerHTML = html;
+  box.hidden = !html;
   const bind = (id: string, key: keyof typeof opts) => {
     const inp = document.getElementById(id) as HTMLInputElement | null;
     if (!inp) return;
@@ -333,7 +295,13 @@ function renderToolOptions() {
   bind('o-steady', 'forkSteady');
   bind('o-thr', 'echoThreshold');
   bind('o-excl', 'exclusive');
-  document.querySelectorAll('.tool[data-tool]').forEach((b) => b.classList.toggle('active', b.getAttribute('data-tool') === opts.tool));
+  document.querySelectorAll('.tool[data-tool]').forEach((b) => {
+    const on = b.getAttribute('data-tool') === opts.tool;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-checked', String(on));
+    // the options sit right under the tool they belong to
+    if (on) b.after(box);
+  });
   view.setViewMode(opts.tool === 'view');
   $('#canvas-wrap').classList.toggle('cursor-tool', opts.tool !== 'view');
   view.clearOverlays();
@@ -343,11 +311,11 @@ function setTool(t: Tool) {
   opts.tool = t;
   renderToolOptions();
   const hints: Record<Tool, string> = {
-    view: 'Orbit around the sound sculpture',
-    brush: 'Paint energy into the active layer. Shift = erase. Grip ignores cells near the noise floor.',
-    fork: 'Hover a harmonic strand at its lowest line, click to track it. Shift-click = steady comb.',
-    knife: 'Drag a box to claim a time-frequency band. Shift = erase.',
-    echo: 'Drag a box around one call. Echo finds its rhythm and copies the mask to every repeat.',
+    view: 'Drag to rotate. Shift+drag slides, W A S D moves.',
+    brush: 'Paint the sound into the active layer. Grip ignores the quiet background.',
+    echo: 'Drag a box around one call. Echo finds its repeats.',
+    fork: 'Click the lowest line of a call. Fork selects it together with its harmonics.',
+    eraser: 'Paint over cells to bring them back to the untouched recording.',
   };
   setHint(hints[t]);
 }
@@ -359,7 +327,40 @@ function setHint(text: string, sticky = false) {
   if (!sticky) hintTimer = window.setTimeout(() => ($('#hint').textContent = ''), 5000);
 }
 
-// ---------------- pointer interaction ----------------
+// ---------------- navigation that works with every tool ----------------
+// Shift+drag slides over the ground, Shift+Cmd (or Ctrl)+drag moves up and down,
+// Alt+drag orbits. These run before the tools see the pointer.
+let nav: { kind: 'ground' | 'vertical' | 'orbit'; x: number; y: number } | null = null;
+$('#canvas-wrap').addEventListener(
+  'pointerdown',
+  (e) => {
+    if (e.button !== 0 || !(e.shiftKey || e.altKey)) return;
+    e.stopPropagation();
+    e.preventDefault();
+    nav = { kind: e.altKey ? 'orbit' : e.metaKey || e.ctrlKey ? 'vertical' : 'ground', x: e.clientX, y: e.clientY };
+    view.controls.enabled = false;
+    $('#canvas-wrap').classList.add('navigating');
+  },
+  true,
+);
+window.addEventListener('pointermove', (e) => {
+  if (!nav) return;
+  const dx = e.clientX - nav.x;
+  const dy = e.clientY - nav.y;
+  nav.x = e.clientX;
+  nav.y = e.clientY;
+  if (nav.kind === 'ground') view.panGround(dx, dy);
+  else if (nav.kind === 'vertical') view.panVertical(dy);
+  else view.orbitBy(dx * 0.008, dy * 0.006);
+});
+window.addEventListener('pointerup', () => {
+  if (!nav) return;
+  nav = null;
+  view.controls.enabled = true;
+  $('#canvas-wrap').classList.remove('navigating');
+});
+
+// ---------------- pointer interaction (tools) ----------------
 const canvas = view.renderer.domElement;
 let dragging = false;
 let dragStart: Pick | null = null;
@@ -374,12 +375,12 @@ function describe(p: Pick) {
   const i = t * N_BINS + k;
   const hz = p.k * BIN_HZ;
   const above = s.db[i] - s.floor[k];
-  return `t ${(t * FRAME_SEC).toFixed(2)} s · f ${hz >= 1000 ? (hz / 1000).toFixed(2) + ' kHz' : hz.toFixed(0) + ' Hz'} · ${above >= 0 ? '+' : ''}${above.toFixed(0)} dB over floor`;
+  return `${(t * FRAME_SEC).toFixed(2)} s · ${hz >= 1000 ? (hz / 1000).toFixed(2) + ' kHz' : hz.toFixed(0) + ' Hz'} · ${above >= 0 ? '+' : ''}${above.toFixed(0)} dB over background`;
 }
 
 function handleMove(e: PointerEvent) {
   const s = state.session;
-  if (!s) return;
+  if (!s || nav) return;
   const p = view.pick(e.clientX, e.clientY);
   lastPick = p;
   if (!p) {
@@ -388,16 +389,17 @@ function handleMove(e: PointerEvent) {
     return;
   }
   setHint(describe(p), true);
-  if (opts.tool === 'brush') {
+  if (opts.tool === 'brush' || opts.tool === 'eraser') {
     view.showCursor(p, opts.radius);
     if (dragging) {
-      brush(s, view.map, ensureLayer(), p.x, p.z, opts.radius, paintOpts(e.shiftKey));
+      if (opts.tool === 'brush') brush(s, view.map, ensureLayer(), p.x, p.z, opts.radius, paintOpts());
+      else eraseAt(p);
       view.refresh();
     }
   } else if (opts.tool === 'fork') {
     view.showFork(p, p.k * BIN_HZ);
-  } else if ((opts.tool === 'knife' || opts.tool === 'echo') && dragging && dragStart) {
-    view.showBox(dragStart, p, opts.tool === 'echo' ? 0xff7ac8 : e.shiftKey ? 0xff5a5a : 0xffffff);
+  } else if (opts.tool === 'echo' && dragging && dragStart) {
+    view.showBox(dragStart, p, 0xff7ac8);
   }
 }
 
@@ -416,30 +418,38 @@ canvas.addEventListener('pointerdown', (e) => {
   const s = state.session;
   const p = view.pick(e.clientX, e.clientY);
   if (!p) return;
-  canvas.setPointerCapture(e.pointerId);
+  try {
+    canvas.setPointerCapture(e.pointerId);
+  } catch {
+    /* synthetic pointers (tests) cannot be captured */
+  }
   snapshot();
-  const li = ensureLayer();
   if (opts.tool === 'brush') {
     dragging = true;
-    brush(s, view.map, li, p.x, p.z, opts.radius, paintOpts(e.shiftKey));
+    brush(s, view.map, ensureLayer(), p.x, p.z, opts.radius, paintOpts());
+    view.refresh();
+  } else if (opts.tool === 'eraser') {
+    dragging = true;
+    eraseAt(p);
     view.refresh();
   } else if (opts.tool === 'fork') {
+    const li = ensureLayer();
     const track = trackPitch(s, p.t, p.k * BIN_HZ, {
       minSalience: opts.forkSalience,
       persistence: opts.forkPersistence,
       tolerance: 0.04,
-      steady: opts.forkSteady || e.shiftKey,
+      steady: opts.forkSteady,
     });
     if (track.size < 3) {
-      toast('The fork found no harmonic strand here. Lower the salience or click the lowest bright line of a call.', 'warn');
+      toast('The fork found no clear line here. Lower the salience or click the lowest bright line of a call.', 'warn');
       undoStack.pop();
       return;
     }
-    applyComb(s, li, track, paintOpts(false));
+    applyComb(s, li, track, paintOpts());
     view.showFork(p, p.k * BIN_HZ, track);
     const fs = [...track.values()];
     const mean = fs.reduce((a, b) => a + b, 0) / fs.length;
-    setHint(`Fork locked: ${track.size} frames (${(track.size * FRAME_SEC).toFixed(2)} s) · mean f0 ${mean.toFixed(0)} Hz`);
+    setHint(`Fork: ${(track.size * FRAME_SEC).toFixed(2)} s of a call at ${mean.toFixed(0)} Hz and its harmonics`);
     afterEdit();
   } else {
     dragging = true;
@@ -452,24 +462,16 @@ canvas.addEventListener('pointerup', (e) => {
   dragging = false;
   const s = state.session!;
   const end = view.pick(e.clientX, e.clientY) ?? lastPick;
-  if ((opts.tool === 'knife' || opts.tool === 'echo') && dragStart && end) {
+  if (opts.tool === 'echo' && dragStart && end) {
     const li = ensureLayer();
-    if (opts.tool === 'knife') {
-      knife(s, li, dragStart.t, end.t, dragStart.k, end.k, { ...paintOpts(e.shiftKey), strength: e.shiftKey ? 1 : opts.strength });
-    } else {
-      const r = echo(s, li, dragStart.t, end.t, dragStart.k, end.k, opts.grip, opts.echoThreshold);
-      view.showMarkers(r.matches.map((m) => m.t), Math.min(dragStart.k, end.k), Math.max(dragStart.k, end.k));
-      if (r.matches.length <= 1) toast('No repeats found. Box exactly one call, or lower the match threshold.', 'warn');
-      else
-        toast(
-          `Echo found <b>${r.matches.length}</b> occurrences${r.periodSec ? ` · rhythm period <b>${r.periodSec.toFixed(2)} s</b> (${(1 / r.periodSec).toFixed(1)} calls/s)` : ''}`,
-          'info',
-        );
-    }
+    const r = echo(s, li, dragStart.t, end.t, dragStart.k, end.k, opts.grip, opts.echoThreshold);
+    view.showMarkers(r.matches.map((m) => m.t), Math.min(dragStart.k, end.k), Math.max(dragStart.k, end.k));
+    if (r.matches.length <= 1) toast('No repeats found. Box exactly one call, or lower the match value.', 'warn');
+    else toast(`Echo found <b>${r.matches.length}</b> repeats${r.periodSec ? `, one every <b>${r.periodSec.toFixed(2)} s</b>` : ''}`, 'info');
     setTimeout(() => view.showBox(null, null), 600);
   }
   dragStart = null;
-  afterEdit();
+  afterEdit(opts.tool === 'eraser');
 });
 
 canvas.addEventListener('pointerleave', () => {
@@ -478,150 +480,102 @@ canvas.addEventListener('pointerleave', () => {
 });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
-// ---------------- transport ----------------
-function playBuffer(x: Float32Array, tag: string, btnSel: string) {
-  if (player.playing === tag) return player.stop();
-  player.play(x, tag);
-  document.querySelectorAll('.btn.play').forEach((b) => b.classList.remove('on'));
-  $(btnSel)?.classList.add('on');
-}
-$('#play-mix').onclick = () => playBuffer(state.session!.mixture.mix, 'mix', '#play-mix');
-$('#play-layer').onclick = () => {
+// ---------------- player ----------------
+type PlayMode = 'mix' | 'layer' | 'res';
+let playMode: PlayMode = 'mix';
+
+/** Boost at full strength makes the painted layers this much louder in the full mix. */
+const BOOST_MAX = 4; // about +12 dB
+
+function currentAudio(): Float32Array {
   const s = state.session!;
-  if (!s.active) return toast('No active layer.', 'warn');
-  playBuffer(s.layerAudio(s.active), 'layer-' + s.active.id, '#play-layer');
-};
-$('#play-res').onclick = () => playBuffer(state.session!.residualAudio(), 'res', '#play-res');
-$('#stop').onclick = () => player.stop();
+  const boost = view.unfold;
+  const hide = view.whiten;
+  let m: Float32Array | null = null;
+  if (playMode === 'layer' && s.active) m = s.layerMask(s.active);
+  else if (playMode === 'res') m = s.residualMask();
+  if (!m && !hide && boost <= 0) return s.mixture.mix;
+  const n = s.spec.mag.length;
+  if (!m) m = new Float32Array(n).fill(1);
+  if (playMode === 'mix' && boost > 0) {
+    // painted cells get louder, the rest stays as it is
+    const g = 1 + (BOOST_MAX - 1) * boost;
+    for (const l of s.layers) {
+      if (!l.visible) continue;
+      for (let i = 0; i < n; i++) if (l.mask[i] > 0) m[i] *= 1 + (g - 1) * Math.min(1, l.mask[i]);
+    }
+  }
+  if (hide) {
+    const bg = s.backgroundMask();
+    for (let i = 0; i < n; i++) m[i] *= bg[i];
+  }
+  const x = s.maskedAudio(m);
+  // keep it out of clipping when boosted
+  let peak = 0;
+  for (let i = 0; i < x.length; i++) peak = Math.max(peak, Math.abs(x[i]));
+  if (peak > 0.95) for (let i = 0; i < x.length; i++) x[i] *= 0.95 / peak;
+  return x;
+}
+
+function refreshAudio(resetPosition = false) {
+  if (!state.session) return;
+  const x = currentAudio();
+  transport.setBuffer(x, resetPosition);
+  timeline.setAudio(x);
+}
+
+function setPlayMode(m: PlayMode) {
+  if (m === 'layer' && !state.session?.active) return toast('Pick a layer first.', 'warn');
+  playMode = m;
+  document.querySelectorAll<HTMLElement>('[data-pm]').forEach((b) => b.classList.toggle('on', b.dataset.pm === m));
+  refreshAudio();
+}
+
+transport.onChange = () => $('#play').classList.toggle('playing', transport.playing);
+$('#play').onclick = () => transport.toggle();
+$('#to-start').onclick = () => transport.seek(0);
+document.querySelectorAll<HTMLElement>('[data-pm]').forEach((b) => (b.onclick = () => setPlayMode(b.dataset.pm as PlayMode)));
+
+// playhead in the 3D view and the time readout
+(function tick() {
+  const pos = transport.position;
+  const show = transport.playing || transport.holding || pos > 0.005;
+  view.setPlayhead(show ? pos : null);
+  $('#time').textContent = `${pos.toFixed(2)} s`;
+  requestAnimationFrame(tick);
+})();
+
+// ---------------- view bar ----------------
+// both change what you see and what you hear
 ($('#whiten') as HTMLInputElement).onchange = (e) => {
   view.whiten = (e.target as HTMLInputElement).checked;
   view.markHeightsDirty();
   view.refresh();
+  refreshAudio();
 };
 ($('#unfold') as HTMLInputElement).oninput = (e) => {
   view.unfold = parseFloat((e.target as HTMLInputElement).value);
   view.markHeightsDirty();
   view.refresh();
+  clearTimeout(audioTimer);
+  audioTimer = window.setTimeout(() => refreshAudio(), 150);
 };
-document.querySelectorAll<HTMLElement>('[data-cam]').forEach((b) => (b.onclick = () => view.resetCamera(b.dataset.cam as 'top')));
+const camButtons = document.querySelectorAll<HTMLElement>('[data-cam]');
+function setCam(cam: 'perspective' | 'top' | 'side') {
+  view.resetCamera(cam);
+  camButtons.forEach((b) => b.classList.toggle('on', b.dataset.cam === cam));
+}
+camButtons.forEach((b) => (b.onclick = () => setCam(b.dataset.cam as 'top')));
+camButtons[0].classList.add('on');
 document.querySelectorAll<HTMLElement>('.tool[data-tool]').forEach((b) => (b.onclick = () => setTool(b.dataset.tool as Tool)));
 $('#btn-undo').onclick = undo;
 
-// ---------------- classic DSP assist ----------------
-$('#btn-hpss').onclick = () => {
-  const s = state.session!;
-  snapshot();
-  const { percussive } = hpss(s.spec.mag, s.frames);
-  let li = s.layers.findIndex((l) => l.cls === 'rain');
-  if (li < 0) {
-    const prev = s.activeLayer;
-    s.addLayer('rain', 'assist', 'Rain (HPSS)');
-    li = s.layers.length - 1;
-    if (prev >= 0) s.activeLayer = prev;
-  }
-  const rain = s.layers[li];
-  for (let i = 0; i < rain.mask.length; i++) {
-    let others = 0;
-    for (let j = 0; j < s.layers.length; j++) if (j !== li) others += s.layers[j].mask[i];
-    const a = percussive[i] * percussive[i] * Math.max(0, 1 - others);
-    rain.mask[i] = Math.max(rain.mask[i], a);
-  }
-  afterEdit(true);
-  toast('HPSS: percussive energy (vertical streaks) moved to a Rain layer. Harmonic calls stay unclaimed for you.', 'info');
-};
-
-$('#btn-nmf').onclick = async () => {
-  const s = state.session!;
-  const box = $('#strands');
-  box.innerHTML = '<div class="muted small">Factorising the spectrogram into 10 strands…</div><div class="progress"><div id="nmf-p"></div></div>';
-  const btn = $('#btn-nmf') as HTMLButtonElement;
-  btn.disabled = true;
-  try {
-    const r = await runWorker<NmfResult>({ type: 'nmf', mag: s.spec.mag, frames: s.frames, K: 10, iters: 80 }, (m) => {
-      const p = document.getElementById('nmf-p');
-      if (p) p.style.width = `${m.progress * 100}%`;
-    });
-    if (state.session !== s) return;
-    nmfResult = r;
-    renderStrands();
-  } finally {
-    btn.disabled = false;
-  }
-};
-
-function renderStrands() {
-  const s = state.session!;
-  const r = nmfResult;
-  const box = $('#strands');
-  if (!r) return;
-  box.innerHTML = '<div class="muted small">Strands sorted by pitch. ▶ listen, + add to active layer.</div>';
-  const order = [...Array(r.K).keys()].sort((a, b) => basisCentroidHz(r, a) - basisCentroidHz(r, b));
-  for (const k of order) {
-    const row = document.createElement('div');
-    row.className = 'strand';
-    const cv = document.createElement('canvas');
-    cv.width = 120;
-    cv.height = 30;
-    drawStrand(cv, r, k);
-    const hz = basisCentroidHz(r, k);
-    let act = 0;
-    for (let t = 0; t < r.frames; t++) act += r.H[k * r.frames + t];
-    row.appendChild(cv);
-    const info = document.createElement('span');
-    info.className = 'mono small';
-    info.textContent = `~${hz >= 1000 ? (hz / 1000).toFixed(1) + 'k' : hz.toFixed(0)} Hz`;
-    row.appendChild(info);
-    const acts = document.createElement('span');
-    acts.innerHTML = `<button class="icon-btn" data-a="p" title="Listen">▶</button><button class="icon-btn" data-a="a" title="Add to active layer">+</button>`;
-    acts.onclick = (e) => {
-      const a = (e.target as HTMLElement).closest('[data-a]')?.getAttribute('data-a');
-      const mask = nmfComponentMask(r, k);
-      if (a === 'p') playBuffer(istft(s.spec, mask, CLIP_LEN), 'nmf-' + k, '#play-layer');
-      if (a === 'a') {
-        snapshot();
-        const li = ensureLayer();
-        const L = s.layers[li];
-        for (let i = 0; i < mask.length; i++) {
-          const v = mask[i];
-          L.mask[i] += v * (1 - L.mask[i]);
-          if (opts.exclusive) for (let j = 0; j < s.layers.length; j++) if (j !== li) s.layers[j].mask[i] *= 1 - v;
-        }
-        afterEdit();
-      }
-    };
-    row.appendChild(acts);
-    box.appendChild(row);
-  }
-}
-
-function drawStrand(cv: HTMLCanvasElement, r: NmfResult, k: number) {
-  const ctx = cv.getContext('2d')!;
-  const img = ctx.createImageData(cv.width, cv.height);
-  let max = 0;
-  const val = (x: number, y: number) => {
-    const t = Math.floor((x / cv.width) * r.frames);
-    const f = Math.floor(((cv.height - 1 - y) / cv.height) ** 2 * (N_BINS - 1));
-    return r.W[k * N_BINS + f] * r.H[k * r.frames + t];
-  };
-  for (let y = 0; y < cv.height; y++) for (let x = 0; x < cv.width; x++) max = Math.max(max, val(x, y));
-  for (let y = 0; y < cv.height; y++)
-    for (let x = 0; x < cv.width; x++) {
-      const v = Math.max(0, 1 + Math.log10(val(x, y) / max + 1e-9) / 3);
-      const i = (y * cv.width + x) * 4;
-      img.data[i] = 40 + 120 * v;
-      img.data[i + 1] = 60 + 190 * v;
-      img.data[i + 2] = 70 + 120 * v;
-      img.data[i + 3] = 255;
-    }
-  ctx.putImageData(img, 0, 0);
-}
-
 // ---------------- contribute ----------------
-$('#btn-contribute').onclick = () => {
+function contribute() {
   const s = state.session!;
   const masks = s.classMasks((l) => l.origin !== 'ai');
   const useful = MODEL_CLASSES.filter((c) => masks[c]?.some((v) => v > 0.3));
-  if (!useful.length) return toast('Nothing to contribute yet: separate at least one frog, hornet, chainsaw or cicada layer.', 'warn');
+  if (!useful.length) return toast('Nothing to contribute yet: paint at least one frog, hornet, chainsaw or cicada layer.', 'warn');
   const label = s.level ? `${s.level.node} · ${s.level.title}` : `Field · ${uploadName}`;
   if (contributedThisSession) {
     const idx = state.dataset.findIndex((d) => d.origin === 'player' && d.label === label);
@@ -630,10 +584,10 @@ $('#btn-contribute').onclick = () => {
   state.dataset.push(makeItem(s.spec.mag, s.frames, masks, 'player', label));
   contributedThisSession = true;
   save();
-  renderNodes();
+  renderCounts();
   renderLabIfOpen();
-  toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b> masks (${s.frames} frames). Open the Edge AI Lab to retrain.`);
-};
+  toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b>. Open the Model lab to retrain.`);
+}
 
 // ---------------- edge AI deployment on current clip ----------------
 function deployToCurrent() {
@@ -660,7 +614,7 @@ function deployToCurrent() {
     s.activeLayer = prev >= 0 ? prev : s.layers.length - 1;
   }
   afterEdit(true);
-  toast('The int8 edge model now listens to this clip. Blue-badged layers show what the sensor hears. Adopt and correct them.', 'info', 6000);
+  toast('The model now listens to this clip. Layers marked "model" show what it hears. Accept and correct them.', 'info', 6000);
 }
 
 // ---------------- upload ----------------
@@ -669,44 +623,137 @@ function deployToCurrent() {
   if (!f) return;
   try {
     const x = await decodeUpload(f);
-    player.stop();
     uploadName = f.name;
     const mixture: Mixture = { mix: x, stems: [], refs: {} };
     startSession(new Session(null, mixture));
-    toast(`Loaded ${f.name}: first 5 s, resampled to 16 kHz mono like the edge node.`, 'info');
+    setCrumbs('Your recording', f.name);
+    toast(`Loaded ${f.name}: the first 5 s.`, 'info');
   } catch (err) {
     toast('Could not decode that file: ' + String(err), 'warn');
   }
   (e.target as HTMLInputElement).value = '';
 };
 
-setLabHooks({ deploy: deployToCurrent, refresh: () => renderNodes() });
+setLabHooks({ deploy: deployToCurrent, refresh: () => renderCounts() });
 $('#btn-lab').onclick = () => openLab();
 $('#btn-eco').onclick = () => openEco();
+// recordings from the listening posts (Python backend on port 8000)
+const puzzles = mountPuzzles($('#labeling'), {
+  start: (s, part) => {
+    uploadName = part;
+    startSession(s);
+    const c = queue[qi];
+    if (c?.kind === 'live') setCrumbs(c.title, `${c.place} · ${whenRecorded(c.recorded)} · ${part}`);
+  },
+  next: () => openNext(),
+  contribute,
+});
+
+// ---------------- the list the player picked from ----------------
+// "Next" walks through exactly the list shown on the challenges page, in its order.
+let queue: Challenge[] = [];
+let qi = -1;
+
+function openChallenge(i: number) {
+  qi = i;
+  const c = queue[i];
+  setCrumbs(c.title, `${c.place} · ${whenRecorded(c.recorded)}`);
+  if (c.kind === 'practice') {
+    puzzles.practice(c.title);
+    void loadLevel(c.levelIndex!);
+  } else puzzles.open(c.id);
+}
+
+function openNext() {
+  if (qi + 1 < queue.length) return openChallenge(qi + 1);
+  toast('That was the last one in this list. Pick the next list on the challenges page.', 'info');
+  showWelcome();
+}
+
+// ---------------- welcome screen ----------------
+$('#brand-logo').innerHTML = brandLogo();
+const backend = new Backend();
+const welcome = mountWelcome($('#welcome'), {
+  pick: (c, list) => {
+    enterWorkspace();
+    queue = list;
+    openChallenge(list.indexOf(c));
+  },
+  live: async () => {
+    const r = await fetch(`${backend.base}/clips`);
+    if (!r.ok) return null;
+    return ((await r.json()) as LiveClip[]).map(fromLive);
+  },
+  remove: async (ids) => {
+    const urls = ids ? ids.map((id) => `${backend.base}/clips/${encodeURIComponent(id)}`) : [`${backend.base}/clips`];
+    for (const u of urls) {
+      const r = await fetch(u, { method: 'DELETE' });
+      if (!r.ok && r.status !== 404) throw new Error(`delete failed: ${r.status}`);
+    }
+  },
+});
+function enterWorkspace() {
+  welcome.hide();
+  view.controls.autoRotate = false;
+  // the landscape behind the welcome screen builds up again as the workspace opens
+  view.reveal();
+}
+function showWelcome() {
+  transport.pause();
+  view.controls.autoRotate = true;
+  view.controls.autoRotateSpeed = 0.35;
+  welcome.show();
+}
+$('#btn-home').onclick = showWelcome;
+$('#crumb-home').onclick = showWelcome;
+
+// the 3D view changed theme, so layer colours may have changed
+function themeTimeline() {
+  timeline.setColors({ wave: view.theme.accent2, played: view.theme.accent, needle: '#ffffff' });
+}
+window.addEventListener('viz-theme', () => {
+  themeTimeline();
+  if (!state.session) return;
+  renderLayerFilter();
+  renderScores();
+});
 
 // ---------------- keyboard ----------------
+const NAV_KEYS = new Set(['w', 'a', 's', 'd', 'arrowleft', 'arrowright', 'arrowup', 'arrowdown']);
+function typing(e: KeyboardEvent) {
+  const t = e.target as HTMLElement;
+  return t.tagName === 'SELECT' || t.tagName === 'TEXTAREA' || (t.tagName === 'INPUT' && !['range', 'checkbox'].includes((t as HTMLInputElement).type));
+}
 window.addEventListener('keydown', (e) => {
-  if ((e.target as HTMLElement).tagName === 'INPUT' && (e.target as HTMLInputElement).type !== 'range' && (e.target as HTMLInputElement).type !== 'checkbox') return;
-  if (!$('#lab').hidden || !$('#eco').hidden || !$('#intro').hidden) {
-    if (e.key === 'Escape') ['#lab', '#eco', '#intro'].forEach((s) => ($(s).hidden = true));
+  if (typing(e)) return;
+  if (!$('#lab').hidden || !$('#eco').hidden) {
+    if (e.key === 'Escape') ['#lab', '#eco'].forEach((s) => ($(s).hidden = true));
     return;
   }
+  if (welcome.visible) return;
   const s = state.session;
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
     e.preventDefault();
     return undo();
   }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
   const k = e.key.toLowerCase();
+  if (NAV_KEYS.has(k)) {
+    e.preventDefault();
+    view.keys.add(k);
+    return;
+  }
   if (k === 'v') setTool('view');
   else if (k === 'b') setTool('brush');
-  else if (k === 'f') setTool('fork');
-  else if (k === 'k') setTool('knife');
   else if (k === 'e') setTool('echo');
+  else if (k === 'f') setTool('fork');
+  else if (k === 'x') setTool('eraser');
   else if (k === ' ') {
     e.preventDefault();
-    $('#play-mix').click();
-  } else if (k === 'l') $('#play-layer').click();
-  else if (k === 'r') $('#play-res').click();
+    transport.toggle();
+  } else if (k === 'home') transport.seek(0);
+  else if (k === 'l') setPlayMode(playMode === 'layer' ? 'mix' : 'layer');
+  else if (k === 'r') setPlayMode(playMode === 'res' ? 'mix' : 'res');
   else if (k === '[') {
     opts.radius = Math.max(0.1, opts.radius - 0.05);
     renderToolOptions();
@@ -715,16 +762,26 @@ window.addEventListener('keydown', (e) => {
     renderToolOptions();
   } else if (s && /^[1-9]$/.test(k) && +k <= s.layers.length) {
     s.activeLayer = +k - 1;
-    renderLayers();
+    renderLayerFilter();
+    if (playMode === 'layer') refreshAudio();
   }
 });
+window.addEventListener('keyup', (e) => view.keys.delete(e.key.toLowerCase()));
+window.addEventListener('blur', () => view.keys.clear());
+
+// dev only: lets browser tests inspect the app
+if (import.meta.env.DEV) Object.assign(window, { __bs: { state, view, transport } });
 
 // ---------------- boot ----------------
 async function boot() {
-  const returning = load();
+  load();
+  // the welcome screen does not need a recording, so it appears at once
+  showWelcome();
   await loadLevel(0);
   setTool('brush');
-  if (!returning) showIntro();
+  view.setIso(true);
+  vizPanel.render();
+  themeTimeline();
 }
 boot().catch((err) => {
   console.error(err);
