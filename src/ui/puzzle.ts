@@ -102,8 +102,8 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
         if (skipped && seen.size) {
           // nothing else is open: start over with the skipped ones
           seen.clear();
-          note('No other open puzzles. Press the button again to go back to the skipped ones.');
-        } else note('No open puzzles right now. Let the post listen a bit longer.');
+          note('You have seen every waiting recording. Press the button again to go back to the ones you skipped.');
+        } else note('All recordings are labelled. New ones arrive as the posts keep listening.');
         return;
       }
       const [x, g] = await Promise.all([be.audio(p), be.grid(p)]);
