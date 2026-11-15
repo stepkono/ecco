@@ -47,14 +47,6 @@ export const THEMES: Theme[] = [
     light: false,
   },
   {
-    // shade under the trees (blue-violet) -> dusty rose -> peach -> apricot -> cream
-    id: 'orchard', name: 'Orchard',
-    ramp: ['#2d2b55', '#a0587a', '#f0957a', '#f8c98a', '#fdf3d0'],
-    bg: '#14122a', fog: '#4a3858', accent: '#f8c98a', accent2: '#b9b2ff',
-    paint: ['#5cc8ff', '#8a7dff', '#ffe45c', '#ff4f7b', '#4fd1e0', '#e6e6ff', '#ffa94d'],
-    light: false,
-  },
-  {
     // soft plum night, mauve and rose up to a blush white, cyan and cream labels
     id: 'plum', name: 'Plum',
     ramp: ['#341a44', '#6e3f7c', '#b8638f', '#eea0b2', '#fbe3ea'],
@@ -63,35 +55,11 @@ export const THEMES: Theme[] = [
     light: false,
   },
   {
-    // coral architecture rising out of a mint fog
-    id: 'coral', name: 'Coral',
-    ramp: ['#79b0a3', '#cfae8c', '#f0a07f', '#e46a55', '#ffd08a'],
-    bg: '#dcf1e6', fog: '#a9d6c3', accent: '#f6a58c', accent2: '#ffd36e',
-    paint: ['#1f8a9a', '#5b4bc4', '#ffd23f', '#b8325a', '#2d5d7b', '#f7f1e3', '#8a6d3b'],
-    light: true,
-  },
-  {
-    // periwinkle, lavender, pink and cream on a pale green morning
-    id: 'pastel', name: 'Pastel',
-    ramp: ['#6f78c8', '#a99ae4', '#eeb2cf', '#f6d8b8', '#fff6e0'],
-    bg: '#e8f6e8', fog: '#cbe8d6', accent: '#c9b6ff', accent2: '#f6b3cf',
-    paint: ['#2aa198', '#e0457b', '#4b3fbf', '#f2a33a', '#1d6fb8', '#8b3fa8', '#d9534f'],
-    light: true,
-  },
-  {
-    // deep navy night, icy cyan structures, a small yellow light
-    id: 'icenight', name: 'Ice night',
-    ramp: ['#173a5c', '#2a6f96', '#4fa3c4', '#9fd8e6', '#eefaff'],
-    bg: '#0b1f36', fog: '#123a5a', accent: '#a9e6f5', accent2: '#ffd23f',
-    paint: ['#ffd23f', '#ff7a59', '#ff9ed2', '#b48cff', '#fff4c2', '#ff4d6d', '#f7a8ff'],
-    light: false,
-  },
-  {
-    // teal sky into navy, slate valleys, orange-red slopes and cream tops
-    id: 'tealcream', name: 'Teal & cream',
-    ramp: ['#28395a', '#2f6f7e', '#d9634c', '#f3b27a', '#fce9b8'],
-    bg: '#2a9d9c', fog: '#2b3a55', accent: '#fce0a8', accent2: '#ff8a5c',
-    paint: ['#4fd0e8', '#e8432f', '#b48cff', '#ffd23f', '#ff7ab8', '#f6f1e7', '#ffa24c'],
+    // black night, an electric blue that melts through a dusty violet into a hot orange glow
+    id: 'horizon', name: 'Horizon',
+    ramp: ['#10153f', '#2a3dc8', '#5468f0', '#e2625a', '#ffa060'],
+    bg: '#05060c', fog: '#161c46', accent: '#ff8a4c', accent2: '#6f86ff',
+    paint: ['#5ee0ff', '#ffe066', '#ff5fa2', '#7cf2c4', '#f4f1ff', '#c6ff6b', '#c9a6ff'],
     light: false,
   },
   {
@@ -107,8 +75,8 @@ export const THEMES: Theme[] = [
 /** Default theme per level id. */
 export const LEVEL_THEME: Record<string, string> = {
   l1: 'plum', // wetland edge, dusk
-  l2: 'coral', // orchard hedge, noon
-  l3: 'pastel', // old-growth margin, morning
+  l2: 'horizon', // orchard hedge, noon
+  l3: 'dawn', // old-growth margin, morning
   l4: 'glacier', // storm front, night
   l5: 'lagoon', // sedge pond, rain
 };
