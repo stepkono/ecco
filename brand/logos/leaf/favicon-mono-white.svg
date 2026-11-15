@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Waveleaf favicon (mono-white)</title>
+<mask id="leaf-fav-mono-white-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+  <rect width="64" height="64" fill="#fff"/>
+  <path d="M-22 0Q-14.67 -5.2 -7.33 0Q0 10 7.33 0Q14.67 -8 22 0" transform="translate(34 30) rotate(-45)" fill="none" stroke="#000" stroke-width="5.5" stroke-linecap="round"/>
+</mask>
+<g mask="url(#leaf-fav-mono-white-cut)">
+  <path d="M12 52C6 30 24 8 56 8C56 40 34 58 12 52Z" fill="#ffffff"/>
+  <path d="M13 51L6 58" stroke="#ffffff" stroke-width="7" stroke-linecap="round"/>
+</g>
+</svg>

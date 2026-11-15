@@ -754,6 +754,7 @@ function hueGrid(c, { cell, gap, x0, rx, ring, dot }) {
 // runs clockwise, in degrees. Rays are grouped into color bins so each bin is
 // one path. outer(a, i) gives the ray's end radius, tip draws a dot at the end.
 function rays(c, { cx = 32, cy = 32, n, from = 0, to = 360, r0 = 0, outer, w, gaps = [], color, bins = 12, tip = 0, opacity = 1 }) {
+  if (c.t.mono) bins = 1; // one color needs only one path
   const span = to - from;
   const closed = span >= 360;
   const groups = [];
@@ -887,6 +888,15 @@ for (const concept of CONCEPTS) {
       body: `<rect width="64" height="64" rx="15" fill="${concept.tile || TILE}"/>\n<g transform="translate(7 7) scale(0.78125)">\n${favBody}\n</g>`,
     }),
   );
+
+  // one-color favicon: the same simplified mark, no tile, transparent
+  for (const key of ['mono', 'mono-white']) {
+    const mc = makeCtx(THEMES[key], `${concept.id}-fav-${key}`);
+    write(
+      `favicon-${key}.svg`,
+      svgFile({ w: 64, h: 64, title: `ecco, ${concept.name} favicon (${key})`, defs: mc.defs, body: concept.fav(mc) }),
+    );
+  }
 }
 
 // ---------------------------------------------------------------- overview
