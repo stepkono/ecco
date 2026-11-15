@@ -11,7 +11,7 @@
 </p>
 
 <p align="center">
-  <a href="https://stepkono.github.io/spectrum/"><b>▶ Try the live demo</b></a> (website with the built-in challenges, no board needed)
+  <a href="https://stepkono.github.io/ecco/"><b>▶ Try the live demo</b></a> (website with the built-in challenges, no board needed)
 </p>
 
 ![A recording of a storm chorus as a 3D landscape of drop lines](assets/readme/25-drop-lines-orbit-horizon.jpg)
@@ -143,8 +143,8 @@ flowchart LR
 You need Node.js 20 or newer, Python 3.11 and [`uv`](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/stepkono/spetrum.git
-cd spetrum
+git clone https://github.com/stepkono/ecco.git
+cd ecco
 ```
 
 ```bash
@@ -171,7 +171,7 @@ npm install && npm run dev
 
 The website works without the server too. Then it shows the built-in practice challenges.
 
-`npm run build:static` builds a server-free demo for any static host (GitHub Pages, Netlify, a USB stick): only the built-in challenges, and the archive stays in the browser. The [live demo](https://stepkono.github.io/spectrum/) is that build, published from the `gh-pages` branch.
+`npm run build:static` builds a server-free demo for any static host (GitHub Pages, Netlify, a USB stick): only the built-in challenges, and the archive stays in the browser. The [live demo](https://stepkono.github.io/ecco/) is that build, published from the `gh-pages` branch.
 
 ### The full loop on a laptop, no board needed
 
@@ -186,7 +186,7 @@ This starts a server and a laptop listening post that plays a scripted set of so
 On the board (no sudo needed):
 
 ```bash
-git clone https://github.com/stepkono/spetrum.git && bash spetrum/tools/board_setup.sh
+git clone https://github.com/stepkono/ecco.git spetrum && bash spetrum/tools/board_setup.sh
 ```
 
 Copy `data/prototypes/` from the laptop to the board, point `device.backend_url` in `config.local.yaml` at the laptop, then start the board console:

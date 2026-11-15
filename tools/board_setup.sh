@@ -10,7 +10,7 @@
 set -euo pipefail
 
 UV_VERSION=0.13.8
-REPO=https://github.com/stepkono/spetrum.git
+REPO=https://github.com/stepkono/ecco.git
 DIR="$HOME/spetrum"
 UV="$HOME/.local/bin/uv"
 
