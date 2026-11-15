@@ -16,6 +16,11 @@ export const U = {
   /** water: x = wave height, y = world height of the crests (full light cyan), z = how much the water blues cover the paint (0..1). Caustic tint in waterTint */
   water: { value: new THREE.Vector4(0.035, 1.2, 0.5, 0) },
   waterTint: { value: new THREE.Color(0xffffff) },
+  /**
+   * reveal when a landscape opens: x = time axis (0 = world x, the slices grow in height,
+   * 1 = world y, the slices only appear), y = front position, z = width of the growing zone, w = on (1) or off (0)
+   */
+  reveal: { value: new THREE.Vector4(0, 0, 1, 0) },
   /** playhead: x = axis (0 = world x, 1 = world y), y = playhead coordinate, z = on (1) or off (0), w = soft edge width */
   play: { value: new THREE.Vector4(0, 0, 0, 0.12) },
 };
@@ -99,11 +104,32 @@ export function withFog<T extends THREE.Material>(mat: T): T {
       s.uniforms.uHFog = U.hfog;
       s.uniforms.uFogT = U.time;
       s.uniforms.uPlay = U.play;
+      s.uniforms.uReveal = U.reveal;
+      // every slice of time rises with a slight spring as the reveal front passes it
+      s.vertexShader = s.vertexShader
+        .replace('#include <common>', '#include <common>\nuniform vec4 uReveal;')
+        .replace(
+          '#include <project_vertex>',
+          `vec4 rvW = vec4( transformed, 1.0 );
+          #ifdef USE_INSTANCING
+            rvW = instanceMatrix * rvW;
+          #endif
+          rvW = modelMatrix * rvW;
+          if ( uReveal.w > 0.5 && uReveal.x < 0.5 ) {
+            float rvP = clamp( ( uReveal.y - rvW.x ) / uReveal.z, 0.0, 1.0 );
+            float rvS = rvP <= 0.0 ? 0.0 : 1.0 - exp( -5.5 * rvP ) * cos( 10.0 * rvP );
+            rvW.y *= rvS;
+          }
+          vec4 mvPosition = viewMatrix * rvW;
+          gl_Position = projectionMatrix * mvPosition;`,
+        );
       s.fragmentShader = s.fragmentShader
-        .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nuniform vec4 uHFog;\nuniform float uFogT;\nuniform vec4 uPlay;\n' + FOG_NOISE_GLSL)
+        .replace('#include <fog_pars_fragment>', '#include <fog_pars_fragment>\nuniform vec4 uHFog;\nuniform float uFogT;\nuniform vec4 uPlay;\nuniform vec4 uReveal;\n' + FOG_NOISE_GLSL)
         .replace(
           '#include <fog_fragment>',
-          `// what the playhead has not reached yet is nearly grey, so you see where it came from and where it goes
+          `// parts of the time axis the reveal front has not reached yet are not there at all
+          if ( uReveal.w > 0.5 && ( uReveal.x < 0.5 ? vWPos.x : vWPos.y ) > uReveal.y ) discard;
+          // what the playhead has not reached yet is nearly grey, so you see where it came from and where it goes
           if ( uPlay.z > 0.5 ) {
             float plC = uPlay.x < 0.5 ? vWPos.x : vWPos.y;
             float ahead = smoothstep( uPlay.y, uPlay.y + uPlay.w, plC );

@@ -91,6 +91,7 @@ function startSession(s: Session) {
   // a puzzle window comes back with its painting when the player switches windows
   if (!s.layers.length) s.addLayer(s.level?.targets[0] ?? 'unknown');
   view.setSession(s);
+  view.reveal();
   transport.pause();
   refreshAudio(true);
   renderCounts();
@@ -667,6 +668,8 @@ const welcome = mountWelcome($('#welcome'), {
 function enterWorkspace() {
   welcome.hide();
   view.controls.autoRotate = false;
+  // the landscape behind the welcome screen builds up again as the workspace opens
+  view.reveal();
 }
 function showWelcome() {
   transport.pause();

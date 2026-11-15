@@ -499,6 +499,38 @@ export class SpectroView {
     this.ampLine.geometry.setFromPoints(pts);
   }
 
+  // ---------------- reveal when a landscape opens ----------------
+
+  private revealStart = -1;
+  /** seconds the reveal takes */
+  static REVEAL_SECONDS = 0.75;
+
+  /** Build the landscape up along the time axis, from 0 s to the end, with a slight spring. */
+  reveal() {
+    this.revealStart = performance.now();
+    this.stepReveal();
+  }
+
+  private stepReveal() {
+    if (this.revealStart < 0) return;
+    const p = (performance.now() - this.revealStart) / 1000 / SpectroView.REVEAL_SECONDS;
+    if (p >= 1) {
+      this.revealStart = -1;
+      U.reveal.value.w = 0;
+      return;
+    }
+    // the front decelerates softly; each slice then springs up on its own
+    const ease = 1 - (1 - p) ** 2;
+    if (this.mode === 'spiral') {
+      const h = VIZ.spiral.height * this.axis.t;
+      U.reveal.value.set(1, -0.5 + (h + 1) * ease, 1, 1);
+      return;
+    }
+    const half = (WORLD_W * this.axis.t) / 2;
+    const zone = WORLD_W * this.axis.t * 0.3;
+    U.reveal.value.set(0, -half + (2 * half + zone) * ease, zone, 1);
+  }
+
   /** Called every frame: lean the amplitude axis by how much the camera looks down. */
   private updateAmpLean() {
     const d = tmpV.copy(this.camera.position).sub(this.controls.target).normalize();
@@ -2132,6 +2164,7 @@ export class SpectroView {
     const fog = this.scene.fog as THREE.Fog;
     this.stepKeys(dt);
     this.updateAmpLean();
+    this.stepReveal();
     U.hfog.value.z = this.hfogDensity;
     this.controls.update();
     const dist = this.camera.position.distanceTo(this.controls.target);
