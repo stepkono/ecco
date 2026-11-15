@@ -215,6 +215,8 @@ Runs on the laptop: `python -m backend.app` (port 8000). Storage: `data/backend/
 | `GET /clips` | waiting recordings with post location, views and disagreement |
 | `GET /clips/{id}` | one recording's details |
 | `DELETE /clips/{id}`, `DELETE /clips` | delete one waiting recording, or all of them (labelled and gold clips stay) |
+| `POST /prototypes/reset` | forget everything learned: publish the starting sounds as a new version (older versions stay) |
+| `POST /prototypes/forget/{label}` | forget one sound class and publish that as a new version |
 | `GET /events`, `GET /stats` | recent events, counts, players, prototype version, label options |
 
 The labeling page at `/play` is the older 2D stand-in for the game: spectrogram (log frequency), drag boxes, play all or the selection, label buttons, a live feed and keyboard control (`N`, `P`, `S`, `C`, `1`–`5`).
@@ -370,6 +372,7 @@ The soundscape tool pulls single recordings out of the remote Zenodo archives (4
 
 ## Change log
 
+* **2026-11-15** Server page at `/` lists waiting recordings (listen, delete one or all) and the known sounds (forget one, reset to the starting sounds). Devices now follow the server's prototype version also downward.
 * **2026-11-15** New web interface merged into main: welcome screen, Newest with live recordings, challenges, labeling card, DJ timeline, View lab, delete recordings. Backend status page at `/`, labeling page moved to `/play`. ecco logo concepts added.
 * **2026-11-14** Phase 4: one-command demo (`make demo`), scripted 5-step scenario, event screen, verified demo set, demo reset. 3/3 runs on the laptop and on the UNO Q. Fixed: a device on the backend's machine could overwrite the backend's seed file.
 * **2026-11-14** Phase 2 backend: events become puzzles, gold clips, reliability, consensus, learning from the player's selection, prototype versions, install confirmation, event stream, 2D labeling page. Full loop verified with the UNO Q.

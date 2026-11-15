@@ -188,3 +188,21 @@ def test_delete_recordings(tmp_path):
     assert client.delete("/clips/c0").status_code == 404
     assert sorted(client.delete("/clips").json()["deleted"]) == ["c1", "c2"]
     assert client.get("/clips").json() == []
+
+
+def test_reset_and_forget_learned_sounds(tmp_path):
+    """Forgetting one class and resetting to the starting sounds publish new versions the devices follow."""
+    from fastapi.testclient import TestClient
+
+    from backend.app import create_app
+
+    client = TestClient(create_app(cfg_copy(gold_rate=0.0), data_dir=tmp_path / "backend"))
+    st = client.get("/stats").json()
+    start, v0 = dict(st["starting_classes"]), st["prototype_version"]
+    first = next(iter(start))
+    r = client.post(f"/prototypes/forget/{first}").json()
+    assert first not in r["classes"] and r["version"] == v0 + 1
+    assert client.post("/prototypes/forget/no-such-sound").status_code == 404
+    r = client.post("/prototypes/reset").json()
+    assert r["classes"] == start and r["version"] == v0 + 2
+    assert client.get("/stats").json()["prototype_version"] == v0 + 2

@@ -5,65 +5,167 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ecco server</title>
 <style>
-  :root { --bg: #0b0d16; --panel: #141826; --edge: rgba(255,255,255,.18); --text: #f3f5fa; --muted: rgba(243,245,250,.62); --ok: #5cf29a; --bad: #ff6b6b; }
+  :root { --bg: #0b0d16; --panel: #141826; --edge: rgba(255,255,255,.18); --soft: rgba(255,255,255,.07); --text: #f3f5fa; --muted: rgba(243,245,250,.62); --ok: #5cf29a; --bad: #ff6b6b; --accent: #a9b8ff; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, sans-serif; }
-  main { max-width: 760px; margin: 0 auto; padding: 48px 24px; }
+  main { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
   h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: -.02em; }
   p { margin: 0 0 18px; color: var(--muted); }
   section { background: var(--panel); border: 1px solid var(--edge); border-radius: 6px; padding: 18px 20px; margin: 14px 0; }
-  h2 { margin: 0 0 10px; font-size: 13px; font-weight: 500; color: var(--muted); }
-  .row { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-top: 1px solid rgba(255,255,255,.06); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+  h2 { margin: 0; font-size: 13px; font-weight: 500; color: var(--muted); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 7px 0; border-top: 1px solid var(--soft); }
   .row:first-of-type { border-top: 0; }
   .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--muted); }
   .ok { background: var(--ok); } .bad { background: var(--bad); }
-  a { color: #a9b8ff; }
-  code { font: 13px ui-monospace, Menlo, monospace; }
+  a { color: var(--accent); }
+  button { font: inherit; font-size: 13px; color: var(--text); background: transparent; border: 1px solid var(--edge); border-radius: 5px; padding: 5px 11px; cursor: pointer; }
+  button:hover { border-color: rgba(255,255,255,.4); }
+  button.danger:hover { color: var(--bad); border-color: var(--bad); }
+  button:disabled { opacity: .4; cursor: default; }
+  .tag { font-size: 11px; color: var(--accent); border: 1px solid rgba(169,184,255,.4); border-radius: 4px; padding: 0 5px; margin-left: 8px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px 6px 0; }
+  td { padding: 6px 8px 6px 0; border-top: 1px solid var(--soft); vertical-align: middle; }
+  td.r { text-align: right; white-space: nowrap; }
+  audio { height: 30px; width: 190px; }
+  .scroll { max-height: 460px; overflow-y: auto; }
+  #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #222738; border: 1px solid var(--edge); border-radius: 6px; padding: 10px 16px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.on { opacity: 1; }
 </style>
 </head>
 <body>
 <main>
   <h1>ecco server</h1>
-  <p>This is the server. It runs on this laptop and connects the listening posts with the website. It has no interface of its own: listening posts send their recordings here, and the website fetches them from here.</p>
+  <p>This is the server. It runs on this laptop and connects the listening posts with the website. Listening posts send their recordings here, and the website fetches them from here. Here you can see its state and tidy up.</p>
 
   <section>
-    <h2>Right now</h2>
+    <div class="head"><h2>Right now</h2></div>
     <div class="row"><span>Waiting recordings</span><b id="open">–</b></div>
     <div class="row"><span>Labelled recordings</span><b id="solved">–</b></div>
     <div class="row"><span>Version of the known sounds</span><b id="ver">–</b></div>
   </section>
 
   <section>
-    <h2>Listening posts</h2>
+    <div class="head"><h2>Listening posts</h2></div>
     <div id="posts">–</div>
   </section>
 
   <section>
-    <h2>Where to go</h2>
-    <div class="row"><span>The website (label recordings)</span><a id="site" href="http://localhost:5176/">open</a></div>
+    <div class="head">
+      <h2>Known sounds</h2>
+      <button class="danger" id="reset" title="Forget everything the posts learned from labels. Older versions stay stored.">Reset to the starting sounds</button>
+    </div>
+    <p class="small">What the listening posts recognize. Sounds marked "learned" came from labels. The posts follow every change within a few seconds.</p>
+    <div id="classes">–</div>
+  </section>
+
+  <section>
+    <div class="head">
+      <h2>Waiting recordings</h2>
+      <button class="danger" id="del-all">Delete all</button>
+    </div>
+    <p class="small">Sounds the posts could not recognize, newest first. Deleting removes the audio and any labels on it for good.</p>
+    <div class="scroll"><table>
+      <thead><tr><th>Recorded</th><th>Post</th><th>The post's guess</th><th>Length</th><th>Listen</th><th></th></tr></thead>
+      <tbody id="clips"><tr><td colspan="6" class="muted">–</td></tr></tbody>
+    </table></div>
+  </section>
+
+  <section>
+    <div class="head"><h2>Where to go</h2></div>
+    <div class="row"><span>The website (label recordings)</span><a href="http://localhost:5173/">open</a></div>
     <div class="row"><span>Stage screen for the pitch</span><a href="/screen">open</a></div>
-    <div class="row"><span>Simple 2D labeling page (old)</span><a href="/play">open</a></div>
   </section>
 </main>
+<div id="toast"></div>
 <script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const ago = (s) => s < 90 ? `${Math.round(s)} s ago` : s < 5400 ? `${Math.round(s / 60)} min ago` : `${Math.round(s / 3600)} h ago`;
-async function tick() {
+const pretty = (l) => !l ? '–' : l.startsWith('noise:') ? `${l.slice(6)} noise` : l.replace(/_/g, ' ');
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('on'), 2600); }
+async function api(method, path) { const r = await fetch(path, { method }); if (!r.ok) throw new Error(await r.text()); return r.json(); }
+
+async function loadStats() {
   try {
     const d = await (await fetch('/stats')).json();
-    document.getElementById('open').textContent = d.clips.open ?? 0;
-    document.getElementById('solved').textContent = d.clips.solved ?? 0;
-    document.getElementById('ver').textContent = 'v' + d.prototype_version;
-    document.getElementById('posts').innerHTML = d.devices.length ? d.devices.map((p) => {
+    $('open').textContent = d.clips.open ?? 0;
+    $('solved').textContent = d.clips.solved ?? 0;
+    $('ver').textContent = 'v' + d.prototype_version;
+    $('posts').innerHTML = d.devices.length ? d.devices.map((p) => {
       const s = d.time - p.last_seen;
       const online = s < 30;
-      return `<div class="row"><span><span class="dot ${online ? 'ok' : 'bad'}"></span>${p.id}${p.location ? ' · ' + p.location : ''}</span><span>${online ? 'online' : 'last seen ' + ago(s)}</span></div>`;
+      const synced = p.proto_version === d.prototype_version;
+      return `<div class="row"><span><span class="dot ${online ? 'ok' : 'bad'}"></span>${esc(p.id)}${p.location ? ' · ' + esc(p.location) : ''}</span>
+        <span class="small">${online ? 'online' : 'last seen ' + ago(s)} · knows v${p.proto_version ?? '–'}${synced ? '' : ' (updating)'}</span></div>`;
     }).join('') : '<p>No listening post has connected yet.</p>';
+    const start = d.starting_classes || {};
+    const rows = Object.entries(d.prototype_classes).map(([k, n]) => {
+      const learned = !(k in start) || n !== start[k];
+      return `<div class="row"><span>${esc(pretty(k))}${learned ? '<span class="tag">learned</span>' : ''}</span>
+        <span class="small muted">${n} example${n === 1 ? '' : 's'} ${learned ? `<button class="danger" data-forget="${esc(k)}" style="margin-left:10px">Forget</button>` : ''}</span></div>`;
+    });
+    $('classes').innerHTML = rows.join('') || '<p>No known sounds.</p>';
+    $('reset').disabled = JSON.stringify(start) === JSON.stringify(d.prototype_classes);
   } catch {
-    document.getElementById('posts').textContent = 'Could not read the server status.';
+    $('posts').textContent = 'Could not read the server status.';
   }
 }
-tick();
-setInterval(tick, 3000);
+
+async function loadClips() {
+  try {
+    const list = await (await fetch('/clips')).json();
+    $('del-all').disabled = !list.length;
+    $('clips').innerHTML = list.length ? list.map((c) => `<tr>
+      <td>${new Date(c.recorded_at * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' })}</td>
+      <td>${esc(c.post)}</td>
+      <td>${esc(pretty(c.device_guess))}${c.device_score != null ? ` <span class="muted small">${Math.round(c.device_score * 100)}%</span>` : ''}</td>
+      <td>${c.duration_s != null ? Math.round(c.duration_s) + ' s' : '–'}</td>
+      <td><audio controls preload="none" src="/clips/${encodeURIComponent(c.clip_id)}/audio"></audio></td>
+      <td class="r"><button class="danger" data-del="${esc(c.clip_id)}">Delete</button></td></tr>`).join('')
+      : '<tr><td colspan="6" class="muted">No waiting recordings.</td></tr>';
+  } catch {
+    $('clips').innerHTML = '<tr><td colspan="6" class="muted">Could not load the recordings.</td></tr>';
+  }
+}
+
+document.addEventListener('click', async (e) => {
+  const del = e.target.closest('[data-del]');
+  const forget = e.target.closest('[data-forget]');
+  try {
+    if (del) {
+      if (!confirm('Delete this recording for good? This cannot be undone.')) return;
+      await api('DELETE', `/clips/${encodeURIComponent(del.dataset.del)}`);
+      toast('Recording deleted.');
+    } else if (forget) {
+      if (!confirm(`Forget the sound "${pretty(forget.dataset.forget)}"? The posts stop recognizing it within seconds.`)) return;
+      await api('POST', `/prototypes/forget/${encodeURIComponent(forget.dataset.forget)}`);
+      toast('Sound forgotten. The posts follow within seconds.');
+    } else if (e.target.id === 'del-all') {
+      const n = $('open').textContent;
+      if (!confirm(`Delete all ${n} waiting recordings for good? This cannot be undone.`)) return;
+      const r = await api('DELETE', '/clips');
+      toast(`${r.deleted.length} recordings deleted.`);
+    } else if (e.target.id === 'reset') {
+      if (!confirm('Reset to the starting sounds? Everything learned from labels is forgotten. Older versions stay stored.')) return;
+      const r = await api('POST', '/prototypes/reset');
+      toast(`Back to the starting sounds (v${r.version}). The posts follow within seconds.`);
+    } else return;
+    loadStats(); loadClips();
+  } catch (err) {
+    toast('That did not work: ' + err.message);
+  }
+});
+
+loadStats(); loadClips();
+setInterval(loadStats, 3000);
+// the list follows the server: new or deleted recordings show up on their own
+new EventSource('/events/stream').onmessage = (m) => {
+  try { const ev = JSON.parse(m.data); if (['clip_received', 'clips_deleted', 'label_accepted'].includes(ev.type)) loadClips(); } catch {}
+};
 </script>
 </body>
 </html>

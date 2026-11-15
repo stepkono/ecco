@@ -349,6 +349,13 @@ class Backend:
         self.store.run("DELETE FROM clips WHERE id NOT IN (SELECT clip_id FROM gold_clips)")
         self._spec_cache.clear()
         # the seeded version from the database: a device on the same machine may overwrite the seed file
+        r = self.reset_prototypes(emit_demo=True)
+        return r
+
+    # ------------------------------------------------------------ manage what the posts know
+    def reset_prototypes(self, emit_demo: bool = False) -> dict:
+        """Forget everything learned: publish the starting sounds (the seeded version) as a new version.
+        Older versions stay stored. Devices follow the server, so they drop what they learned within seconds."""
         seed = self.store.first_prototypes(self.model_id)
         if seed is None:
             raise ValueError("no seed prototypes stored")
@@ -357,10 +364,33 @@ class Backend:
             self.head.import_json(seed["json"])
             self.head.version = nxt
             self.store.save_prototypes(self.model_id, nxt, self.head.export_json())
-        self.emit("demo_reset", {"version": nxt})
+        if emit_demo:
+            self.emit("demo_reset", {"version": nxt})
         self.emit("prototype_published", {"version": nxt, "model_id": self.model_id, "classes": self.head.classes,
                                           "reset": True})
         return {"version": nxt, "classes": self.head.classes}
+
+    def forget_class(self, label: str) -> dict:
+        """Remove one sound class (all its examples) and publish that as a new version."""
+        with self._learn:
+            d = json.loads(self.head.export_json())
+            if label not in d.get("classes", {}):
+                raise KeyError(f"unknown class {label}")
+            d["classes"].pop(label)
+            d["version"] = self.head.version + 1
+            self.head.import_json(json.dumps(d))
+            self.store.save_prototypes(self.model_id, self.head.version, self.head.export_json())
+        self.emit("prototype_published", {"version": self.head.version, "model_id": self.model_id,
+                                          "classes": self.head.classes, "forgot": label})
+        return {"version": self.head.version, "classes": self.head.classes}
+
+    def starting_classes(self) -> dict[str, int]:
+        seed = self.store.first_prototypes(self.model_id)
+        if seed is None:
+            return {}
+        h = PrototypeHead(self.model.model_id, self.model.model_version, self.model.embedding_dim)
+        h.import_json(seed["json"])
+        return h.classes
 
     # ------------------------------------------------------------ gold + stats
     def add_gold(self, wav_path: str, true_label: str) -> str:
@@ -382,5 +412,6 @@ class Backend:
             "prototype_version": self.head.version, "prototype_classes": self.head.classes, "model_id": self.model_id,
             "consensus_needed": 1 if self.b.get("demo_mode") else int(self.b.get("consensus_n", 2)),
             "label_options": self.labels,
+            "starting_classes": self.starting_classes(),
             "time": time.time(),
         }

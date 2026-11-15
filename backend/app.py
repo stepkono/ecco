@@ -10,6 +10,8 @@ Endpoints (see docs/SYSTEM.md):
   GET  /clips                          waiting recordings (time, post, views, disagreement)
   DELETE /clips/{id}                   remove one recording for good (audio, labels)
   DELETE /clips                        remove every waiting recording
+  POST /prototypes/reset               forget everything learned (back to the starting sounds)
+  POST /prototypes/forget/{label}      forget one sound class
   GET  /clips/{id}/audio               WAV
   GET  /clips/{id}/spectrogram         dB grid with time and frequency axes
   POST /clips/{id}/preview             {"mask"} -> masked audio (WAV)
@@ -118,6 +120,18 @@ def create_app(cfg: dict | None = None, data_dir: str | Path | None = None) -> F
     def delete_open_clips():
         """Remove every waiting recording (not the labelled ones, not gold test clips)."""
         return be.delete_clips(None)
+
+    @app.post("/prototypes/reset")
+    def reset_prototypes():
+        """Forget everything learned: back to the starting sounds (a new version, older ones stay stored)."""
+        return be.reset_prototypes()
+
+    @app.post("/prototypes/forget/{label}")
+    def forget_class(label: str):
+        try:
+            return be.forget_class(label)
+        except KeyError as e:
+            not_found(e)
 
     @app.post("/demo/reset")
     def demo_reset():
