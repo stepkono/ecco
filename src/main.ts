@@ -3,7 +3,7 @@ import { BIN_HZ, N_BINS, FRAME_SEC } from './dsp/stft';
 import { melFilterbank, melToMask, N_MELS } from './dsp/analysis';
 import { CLASSES, MODEL_CLASSES, SOURCES, type ClassId, type SourceId } from './game/catalog';
 import { LEVELS, decodeUpload, mixLevel, type Mixture } from './game/levels';
-import { CHALLENGES, whenRecorded } from './game/challenges';
+import { fromLive, whenRecorded, type Challenge, type LiveClip } from './game/challenges';
 import { Backend } from './game/backend';
 import { Session, stars, type Layer, type ClassScore } from './game/session';
 import { applyComb, brush, echo, eraseAll, trackPitch, type PaintOpts } from './game/tools';
@@ -75,8 +75,6 @@ async function loadLevel(idx: number) {
   const level = LEVELS[idx];
   const mixture = await mixLevel(level);
   startSession(new Session(level, mixture));
-  const c = CHALLENGES[idx];
-  setCrumbs(level.title, `${c.place} · ${whenRecorded(c.recorded)}`);
 }
 
 function setCrumbs(title: string, place: string) {
@@ -573,7 +571,7 @@ document.querySelectorAll<HTMLElement>('.tool[data-tool]').forEach((b) => (b.onc
 $('#btn-undo').onclick = undo;
 
 // ---------------- contribute ----------------
-$('#btn-contribute').onclick = () => {
+function contribute() {
   const s = state.session!;
   const masks = s.classMasks((l) => l.origin !== 'ai');
   const useful = MODEL_CLASSES.filter((c) => masks[c]?.some((v) => v > 0.3));
@@ -588,8 +586,8 @@ $('#btn-contribute').onclick = () => {
   save();
   renderCounts();
   renderLabIfOpen();
-  toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b>. Open the Edge AI Lab to retrain.`);
-};
+  toast(`Contributed <b>${useful.map((c) => CLASSES[c].label).join(', ')}</b>. Open the Model lab to retrain.`);
+}
 
 // ---------------- edge AI deployment on current clip ----------------
 function deployToCurrent() {
@@ -641,28 +639,50 @@ $('#btn-lab').onclick = () => openLab();
 $('#btn-eco').onclick = () => openEco();
 // recordings from the listening posts (Python backend on port 8000)
 const puzzles = mountPuzzles($('#labeling'), {
-  start: (s, name) => {
-    uploadName = name;
+  start: (s, part) => {
+    uploadName = part;
     startSession(s);
-    setCrumbs('Live recording', name);
+    const c = queue[qi];
+    if (c?.kind === 'live') setCrumbs(c.title, `${c.place} · ${whenRecorded(c.recorded)} · ${part}`);
   },
+  next: () => openNext(),
+  contribute,
 });
+
+// ---------------- the list the player picked from ----------------
+// "Next" walks through exactly the list shown on the challenges page, in its order.
+let queue: Challenge[] = [];
+let qi = -1;
+
+function openChallenge(i: number) {
+  qi = i;
+  const c = queue[i];
+  setCrumbs(c.title, `${c.place} · ${whenRecorded(c.recorded)}`);
+  if (c.kind === 'practice') {
+    puzzles.practice(c.title);
+    void loadLevel(c.levelIndex!);
+  } else puzzles.open(c.id);
+}
+
+function openNext() {
+  if (qi + 1 < queue.length) return openChallenge(qi + 1);
+  toast('That was the last one in this list. Pick the next list on the challenges page.', 'info');
+  showWelcome();
+}
 
 // ---------------- welcome screen ----------------
 $('#brand-logo').innerHTML = brandLogo();
 const backend = new Backend();
 const welcome = mountWelcome($('#welcome'), {
-  pick: (c) => {
+  pick: (c, list) => {
     enterWorkspace();
-    void loadLevel(c.index);
+    queue = list;
+    openChallenge(list.indexOf(c));
   },
-  live: () => {
-    enterWorkspace();
-    puzzles.next();
-  },
-  liveCount: async () => {
-    const st = (await backend.stats()) as { clips?: { open?: number } };
-    return st.clips?.open ?? 0;
+  live: async () => {
+    const r = await fetch(`${backend.base}/clips`);
+    if (!r.ok) return null;
+    return ((await r.json()) as LiveClip[]).map(fromLive);
   },
 });
 function enterWorkspace() {

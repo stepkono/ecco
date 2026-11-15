@@ -12,8 +12,12 @@ import { toast } from './toast';
  * backend's spectrogram grid and sent with the chosen label.
  */
 export interface PuzzleHooks {
-  /** show this session in the 3D view (name goes on the node card) */
+  /** show this session in the 3D view */
   start(s: Session, name: string): void;
+  /** go to the next challenge of the list the player picked from */
+  next(): void;
+  /** practice clips: add the painted layers to the training set */
+  contribute(): void;
 }
 
 interface Win {
@@ -34,8 +38,9 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
   let label = '';
   /** one short line for the player: what happened last, never technical details */
   let message = '';
-  /** events skipped or answered here, so Skip moves on to a different one */
-  const seen = new Set<string>();
+  /** practice clip on screen (no live recording): its title */
+  let practice: string | null = null;
+  let labelOptions: string[] | null = null;
 
   const note = (msg: string) => {
     message = msg;
@@ -46,9 +51,15 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
 
   function render() {
     let body: string;
-    if (!puzzle) {
-      body = `<p class="muted small">${message || (online ? 'Recordings the listening posts could not recognize are waiting for you.' : 'No recordings to label right now.')}</p>
-        <button class="btn primary wide" id="pz-next" ${busy || !online ? 'disabled' : ''}>${busy ? 'Loading…' : 'Next recording'}</button>`;
+    let title = 'Labeling';
+    if (practice !== null && !puzzle) {
+      // practice clips have known answers: no label to send, the painting itself is the contribution
+      title = 'Practice';
+      body = `<p class="muted small">A practice clip with a known answer. Paint each sound into its own layer, then contribute it. The score below shows how clean your separation is.</p>
+        <button class="btn primary wide" id="pz-contrib" title="Your painted layers become training examples for the model">Contribute to training set</button>
+        <button class="btn wide" id="pz-next-ch">Next challenge →</button>`;
+    } else if (!puzzle) {
+      body = `<p class="muted small">${busy ? 'Loading the recording…' : message || 'Pick a recording on the challenges page.'}</p>`;
     } else {
       const chips = wins
         .map((w, i) => `<button class="pz-win ${i === active ? 'on' : ''}" data-win="${i}" title="Show seconds ${w.start.toFixed(0)} to ${(w.start + CLIP_SECONDS).toFixed(0)} of the recording. Each part keeps its own painting.">${painted(w.session) ? '● ' : ''}Part ${i + 1} · ${w.start.toFixed(0)}–${(w.start + CLIP_SECONDS).toFixed(0)} s</button>`)
@@ -56,24 +67,23 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
       const total = puzzle.duration_s;
       body = `${wins.length > 1 ? `<p class="muted small">This recording is ${total.toFixed(0)} s long. The landscape shows ${CLIP_SECONDS.toFixed(0)} s at a time, so it comes in ${wins.length} parts.</p><div class="pz-wins">${chips}</div>` : ''}
         <div class="pz-row"><span>Label</span><select id="pz-label" aria-label="Label">${puzzle.labels.map((l) => `<option ${l === label ? 'selected' : ''}>${l}</option>`).join('')}</select>
-          <button class="btn ghost" id="pz-skip" ${busy ? 'disabled' : ''} title="Load the next recording without answering">Skip</button></div>
-        <p class="muted small">Paint the sound with any tool. Unpainted means the whole event.</p>
-        <button class="btn primary wide" id="pz-send" ${busy ? 'disabled' : ''} title="Send the painted mask of all parts with this label">Send label</button>`;
+</div>
+        <p class="muted small">Paint the sound with any tool. Unpainted means the whole recording.</p>
+        <button class="btn primary wide" id="pz-send" ${busy ? 'disabled' : ''} title="Send the painted part of all parts with this label">Send label</button>
+        <button class="btn wide" id="pz-skip" ${busy ? 'disabled' : ''} title="Leave this one without an answer and open the next in your list">Next recording →</button>`;
     }
-    card.innerHTML = `<div class="card-head"><h3>Labeling</h3></div>${body}`;
+    card.innerHTML = `<div class="card-head"><h3>${title}</h3></div>${body}`;
     bind();
   }
 
   function bind() {
     const q = <T extends HTMLElement>(id: string) => card.querySelector<T>('#' + id);
-    const next = q('pz-next');
-    if (next) next.onclick = () => void load();
     const skip = q('pz-skip');
-    if (skip)
-      skip.onclick = () => {
-        if (puzzle) seen.add(puzzle.clip_id);
-        void load();
-      };
+    if (skip) skip.onclick = () => hooks.next();
+    const nextCh = q('pz-next-ch');
+    if (nextCh) nextCh.onclick = () => hooks.next();
+    const contrib = q('pz-contrib');
+    if (contrib) contrib.onclick = () => hooks.contribute();
     const send = q('pz-send');
     if (send) send.onclick = () => void submit();
     const sel = q<HTMLSelectElement>('pz-label');
@@ -90,22 +100,18 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
     render();
   }
 
-  async function load() {
+  /** Open exactly this live recording. */
+  async function open(clipId: string) {
+    practice = null;
+    puzzle = null;
+    wins = [];
     busy = true;
     render();
     try {
-      const p = await be.nextPuzzleExcept(seen);
-      if (!p) {
-        const skipped = puzzle !== null || seen.size > 0;
-        puzzle = null;
-        wins = [];
-        if (skipped && seen.size) {
-          // nothing else is open: start over with the skipped ones
-          seen.clear();
-          note('You have seen every waiting recording. Press the button again to go back to the ones you skipped.');
-        } else note('All recordings are labelled. New ones arrive as the posts keep listening.');
-        return;
-      }
+      if (!labelOptions) labelOptions = ((await be.stats()) as { label_options?: string[] }).label_options ?? ['other'];
+      const info = await (await fetch(`${be.base}/clips/${encodeURIComponent(clipId)}`)).json() as { duration_s: number | null };
+      const opts = [...labelOptions.filter((l) => l !== 'other'), 'noise', 'other'].filter((l, i, a) => a.indexOf(l) === i);
+      const p: Puzzle = { clip_id: clipId, duration_s: info.duration_s ?? 5, labels: opts, audio_url: `/clips/${clipId}/audio`, spectrogram_url: `/clips/${clipId}/spectrogram` };
       const [x, g] = await Promise.all([be.audio(p), be.grid(p)]);
       puzzle = p;
       grid = g;
@@ -138,7 +144,7 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
       message = '';
       show(best);
     } catch (e) {
-      console.warn('puzzle load failed', e);
+      console.warn('recording load failed', e);
       note('This recording could not be loaded. Try the next one.');
     } finally {
       busy = false;
@@ -193,14 +199,13 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
     try {
       const mask = buildGrid();
       const r = await be.submit(puzzle.clip_id, label, mask);
-      seen.add(puzzle.clip_id);
       if (r.gold) toast(r.correct ? `Well done. It was <b>${r.true_label}</b>.` : `Good try. This one was <b>${r.true_label}</b>.`, 'info');
       else if (r.accepted) toast(`Thank you. Your label <b>${label}</b> was accepted.`, 'info');
       else toast('Thank you. Your label counts once a few more people agree.', 'info');
       if (!mask) toast('No painting found, so the whole event was sent.', 'info');
       puzzle = null;
       wins = [];
-      await load();
+      hooks.next();
     } catch (e) {
       console.warn('label submit failed', e);
       toast('Your label could not be sent. Please try again.', 'warn');
@@ -219,7 +224,7 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
         render();
         be.listen((ev) => {
           if (ev.type === 'device_updated') toast('A listening post just learned from your labels.', 'info', 6000);
-          if (ev.type === 'clip_received' && !puzzle) note('A new recording is waiting for you.');
+          if (ev.type === 'clip_received') toast('A listening post sent a new recording. You find it on the challenges page.', 'info');
         });
       }
     } catch {
@@ -231,7 +236,13 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
   render();
   void connect();
   return {
-    /** load the next live recording (used by the welcome screen) */
-    next: () => void load(),
+    open: (clipId: string) => void open(clipId),
+    /** a practice clip is on screen: show its actions instead of a live recording */
+    practice(title: string) {
+      practice = title;
+      puzzle = null;
+      wins = [];
+      render();
+    },
   };
 }

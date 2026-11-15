@@ -1,25 +1,30 @@
-import { CATEGORIES, DIFFICULTY, coords, partOfDay, sortChallenges, whenRecorded, type Category, type Challenge } from '../game/challenges';
+import { CATEGORIES, DIFFICULTY, PRACTICE, coords, partOfDay, sortChallenges, whenRecorded, type Category, type Challenge } from '../game/challenges';
 import { brandLogo } from './brand';
 import { FINLAND, LAKES, MAP_H, MAP_W, NEIGHBOURS, project } from './finland-map';
 
 /**
  * Welcome screen: the mission, a three-step mental model of the task, and the
- * challenge picker. Cards and map pins are two views of the same list, so
- * hovering one highlights the other.
+ * challenge list. The list has two sources: live recordings the listening posts
+ * could not recognize (real), and practice clips with known answers. What you
+ * click is exactly what opens, and "Next" in the workspace follows this list.
+ * Cards and map pins are two views of the same list, so hovering one highlights the other.
  */
 export interface WelcomeHooks {
-  pick(c: Challenge): void;
-  /** start labeling live recordings from the listening posts */
-  live(): void;
-  /** number of live recordings waiting, or null when the posts are offline */
-  liveCount(): Promise<number | null>;
+  /** open this challenge; `list` is the list it came from, in the order shown */
+  pick(c: Challenge, list: Challenge[]): void;
+  /** live recordings waiting at the backend, or null when it cannot be reached */
+  live(): Promise<Challenge[] | null>;
 }
+
+type Source = 'live' | 'practice';
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const views = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
 export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   let cat: Category = 'newest';
+  let source: Source = 'live';
+  let live: Challenge[] | null = null;
   let focus: string | null = null;
 
   root.innerHTML = `
@@ -35,19 +40,25 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
           <li><span class="n">3</span><div><b>Label</b><small>Name it and send it to the post</small></div></li>
         </ol>
         <div class="wl-cta">
-          <button class="btn primary big" id="wl-start">Start the newest challenge</button>
-          <button class="btn ghost big" id="wl-live" hidden></button>
+          <button class="btn primary big" id="wl-start">Start the first challenge</button>
+          <p class="wl-status" id="wl-status"></p>
         </div>
       </section>
       <section class="wl-board glass" aria-labelledby="wl-h">
         <header class="wl-head">
           <h2 id="wl-h">Challenges</h2>
+          <div class="seg src" role="tablist" aria-label="Which recordings">
+            <button role="tab" data-src="live" title="Real recordings the listening posts could not recognize">Live <span class="pill" id="wl-live-n">–</span></button>
+            <button role="tab" data-src="practice" title="Sample clips with known answers, to learn the tools">Practice <span class="pill">${PRACTICE.length}</span></button>
+          </div>
+        </header>
+        <div class="wl-sub">
           <div class="seg cats" role="tablist" aria-label="Sort challenges">
             ${CATEGORIES.map((c) => `<button role="tab" data-cat="${c.id}" title="${c.help}" aria-selected="${c.id === cat}">${c.label}</button>`).join('')}
             <span class="seg-pill" aria-hidden="true"></span>
           </div>
-        </header>
-        <p class="wl-help" id="wl-help"></p>
+          <p class="wl-help" id="wl-help"></p>
+        </div>
         <div class="wl-body">
           <ul class="wl-list" id="wl-list"></ul>
           <figure class="wl-map">
@@ -63,7 +74,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
                 <g id="wl-pins"></g>
               </g>
               <g class="m-north" transform="translate(${MAP_W - 18} 22)"><path d="M0 -10 L5 4 L0 1 L-5 4 Z" /><text y="17" text-anchor="middle">N</text></g>
-              <g class="m-scale" transform="translate(14 ${MAP_H - 14})"><line x1="0" x2="${100 / 111 * 40}" /><text x="0" y="-5">100 km</text></g>
+              <g class="m-scale" transform="translate(14 ${MAP_H - 14})"><line x1="0" x2="${(100 / 111) * 40}" /><text x="0" y="-5">100 km</text></g>
             </svg>
             <figcaption id="wl-cap"></figcaption>
           </figure>
@@ -71,76 +82,127 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       </section>
     </div>`;
 
-  const list = root.querySelector<HTMLUListElement>('#wl-list')!;
-  const pins = root.querySelector<SVGGElement>('#wl-pins')!;
-  const cap = root.querySelector<HTMLElement>('#wl-cap')!;
-  const help = root.querySelector<HTMLElement>('#wl-help')!;
-  const segPill = root.querySelector<HTMLElement>('.seg-pill')!;
+  const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
+  const list = q<HTMLUListElement>('#wl-list');
+  const pinLayer = q<SVGGElement>('#wl-pins');
+  const cap = q<HTMLElement>('#wl-cap');
+  const help = q<HTMLElement>('#wl-help');
+  const segPill = q<HTMLElement>('.seg-pill');
+  const status = q<HTMLElement>('#wl-status');
+  const startBtn = q<HTMLButtonElement>('#wl-start');
+  /** one card element per challenge id, reused so cards can glide to new places */
+  const cards = new Map<string, HTMLLIElement>();
+  let shown: Challenge[] = [];
 
-  const metric = (c: Challenge) =>
-    cat === 'hottest' ? `${Math.round(c.disagreement * 100)}% disagree` : cat === 'newest' ? whenRecorded(c.recorded) : `${views(c.views)} views`;
+  const current = () => (source === 'live' ? live ?? [] : PRACTICE);
+  const placeKey = (c: Challenge) => `${c.lat.toFixed(3)},${c.lon.toFixed(3)}`;
 
-  // one card and one pin per challenge, created once and reordered on category changes
-  const items = sortChallenges(cat).map((c) => {
-    const li = document.createElement('li');
-    li.className = 'ch-card';
-    li.dataset.id = c.level.id;
-    li.tabIndex = 0;
-    li.setAttribute('role', 'button');
-    li.setAttribute('aria-label', `${c.level.title}, ${c.place}`);
-    const [x, y] = project(c.lat, c.lon);
-    const pin = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    pin.setAttribute('class', 'm-pin');
-    pin.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
-    pin.dataset.id = c.level.id;
-    pin.innerHTML = `<circle class="halo" r="11" /><circle class="dot" r="4.5" /><text ${x > MAP_W * 0.6 ? 'x="-9" text-anchor="end"' : 'x="9"'} y="4">${esc(c.place.replace(' National Park', ''))}</text>`;
-    pins.appendChild(pin);
-    return { c, li, pin };
-  });
+  const metric = (c: Challenge) => {
+    if (cat === 'hottest') return c.labels ? `${Math.round(c.disagreement * 100)}% disagree` : 'No answers yet';
+    if (cat === 'newest') return whenRecorded(c.recorded);
+    return `${views(c.views)} view${c.views === 1 ? '' : 's'}`;
+  };
+
+  function cardHtml(c: Challenge) {
+    const right =
+      c.kind === 'practice'
+        ? `<span class="ch-diff" title="Difficulty: ${DIFFICULTY[c.difficulty!]}"><span class="bars">${[1, 2, 3, 4, 5].map((i) => `<i class="${i <= c.difficulty! ? 'on' : ''}"></i>`).join('')}</span>${DIFFICULTY[c.difficulty!]}</span>`
+        : `<span class="ch-diff">${Math.round(c.durationS)} s</span>`;
+    return `<div class="ch-main">
+        <b class="ch-title">${c.kind === 'live' ? '<span class="live-dot" title="Live recording"></span>' : ''}${esc(c.title)}</b>
+        <span class="ch-place">${esc(c.place)}${c.region ? ` · ${esc(c.region)}` : ''}</span>
+        ${c.guess ? `<span class="ch-guess">${esc(c.guess)}</span>` : ''}
+      </div>
+      <div class="ch-meta"><span class="ch-metric">${metric(c)}</span>${right}</div>
+      <svg class="ch-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>`;
+  }
 
   function card(c: Challenge) {
-    const d = c.level.difficulty;
-    const bars = [1, 2, 3, 4, 5].map((i) => `<i class="${i <= d ? 'on' : ''}"></i>`).join('');
-    return `<div class="ch-main">
-        <b class="ch-title">${esc(c.level.title)}</b>
-        <span class="ch-place">${esc(c.place)} · ${esc(c.region)}</span>
-      </div>
-      <div class="ch-meta">
-        <span class="ch-metric">${metric(c)}</span>
-        <span class="ch-diff" title="Difficulty: ${DIFFICULTY[d]}"><span class="bars">${bars}</span>${DIFFICULTY[d]}</span>
-      </div>
-      <svg class="ch-go" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>`;
+    let li = cards.get(c.id);
+    if (!li) {
+      li = document.createElement('li');
+      li.className = 'ch-card';
+      li.tabIndex = 0;
+      li.setAttribute('role', 'button');
+      li.onclick = () => open(li!.dataset.id!);
+      li.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          open(li!.dataset.id!);
+        }
+      };
+      li.onmouseenter = li.onfocus = () => setFocus(li!.dataset.id!);
+      cards.set(c.id, li);
+    }
+    li.dataset.id = c.id;
+    li.setAttribute('aria-label', `${c.title}, ${c.place}, ${whenRecorded(c.recorded)}`);
+    li.innerHTML = cardHtml(c);
+    return li;
+  }
+
+  function open(id: string) {
+    const c = shown.find((x) => x.id === id);
+    if (c) hooks.pick(c, shown);
+  }
+
+  /** Pins: one per place, with the number of recordings there. */
+  function renderPins() {
+    pinLayer.innerHTML = '';
+    const groups = new Map<string, Challenge[]>();
+    for (const c of shown) groups.set(placeKey(c), [...(groups.get(placeKey(c)) ?? []), c]);
+    for (const [key, items] of groups) {
+      const c = items[0];
+      const [x, y] = project(c.lat, c.lon);
+      const pin = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      pin.setAttribute('class', 'm-pin');
+      pin.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`);
+      pin.dataset.key = key;
+      const name = esc(c.place.replace(' National Park', '')) + (items.length > 1 ? ` · ${items.length}` : '');
+      pin.innerHTML = `<circle class="halo" r="11" /><circle class="dot" r="${items.length > 1 ? 6 : 4.5}" />${items.length > 1 ? `<text class="count" text-anchor="middle" y="3">${items.length}</text>` : ''}<text class="name" ${x > MAP_W * 0.6 ? 'x="-10" text-anchor="end"' : 'x="10"'} y="4">${name}</text>`;
+      pin.addEventListener('mouseenter', () => setFocus(items[0].id));
+      pin.addEventListener('click', () => open(items[0].id));
+      pinLayer.appendChild(pin);
+    }
   }
 
   function setFocus(id: string | null) {
     focus = id;
-    for (const it of items) {
-      const on = it.c.level.id === id;
-      it.li.classList.toggle('focus', on);
-      it.pin.classList.toggle('focus', on);
-    }
-    const c = items.find((it) => it.c.level.id === id)?.c ?? sortChallenges(cat)[0];
-    cap.innerHTML = `<b>${esc(c.place)}</b><span>${esc(c.region)}</span><span class="mono">${coords(c)}</span><span>${partOfDay(c.recorded)} · ${whenRecorded(c.recorded)}</span>`;
-    // keep the focused pin on top
-    const pin = items.find((it) => it.c.level.id === id)?.pin;
-    if (pin) pins.appendChild(pin);
+    const c = shown.find((x) => x.id === id) ?? shown[0];
+    for (const [cid, li] of cards) li.classList.toggle('focus', cid === c?.id);
+    pinLayer.querySelectorAll<SVGGElement>('.m-pin').forEach((p) => {
+      const on = !!c && p.dataset.key === placeKey(c);
+      p.classList.toggle('focus', on);
+      if (on) pinLayer.appendChild(p); // keep the focused pin on top
+    });
+    cap.innerHTML = c
+      ? `<b>${esc(c.place)}</b>${c.region ? `<span>${esc(c.region)}</span>` : ''}<span class="mono">${coords(c)}</span><span>${partOfDay(c.recorded)} · ${whenRecorded(c.recorded)}</span>`
+      : '';
   }
 
   /** Reorder with a FLIP animation: cards glide to their new places. */
   function render(animate: boolean) {
-    const before = new Map(items.map((it) => [it.li, it.li.getBoundingClientRect().top]));
-    const order = sortChallenges(cat);
-    order.forEach((c, i) => {
-      const it = items.find((x) => x.c === c)!;
-      it.li.innerHTML = card(c);
-      it.li.style.setProperty('--i', String(i));
-      list.appendChild(it.li);
+    const before = new Map([...cards.values()].map((li) => [li, li.isConnected ? li.getBoundingClientRect().top : NaN]));
+    shown = sortChallenges(current(), cat);
+    const keep = new Set(shown.map((c) => c.id));
+    for (const [id, li] of cards) if (!keep.has(id)) li.remove();
+    shown.forEach((c, i) => {
+      const li = card(c);
+      li.style.setProperty('--i', String(i));
+      list.appendChild(li);
     });
+    if (!shown.length)
+      list.innerHTML =
+        source === 'live'
+          ? `<li class="ch-empty">${live === null ? 'The listening posts cannot be reached right now.' : 'No live recordings are waiting. Every sound the posts heard has a name.'} Try the practice clips meanwhile.</li>`
+          : '';
+    else list.querySelector('.ch-empty')?.remove();
     if (animate)
-      for (const it of items) {
-        const dy = before.get(it.li)! - it.li.getBoundingClientRect().top;
-        if (!dy) continue;
-        it.li.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
+      for (const c of shown) {
+        const li = cards.get(c.id)!;
+        const y0 = before.get(li);
+        if (y0 === undefined || Number.isNaN(y0)) continue;
+        const dy = y0 - li.getBoundingClientRect().top;
+        if (dy) li.animate([{ transform: `translateY(${dy}px)` }, { transform: 'translateY(0)' }], { duration: 420, easing: 'cubic-bezier(.2,.8,.2,1)' });
       }
     root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) => {
       const on = b.dataset.cat === cat;
@@ -150,23 +212,15 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
         segPill.style.transform = `translateX(${b.offsetLeft - 3}px)`;
       }
     });
-    help.textContent = CATEGORIES.find((x) => x.id === cat)!.help + '.';
-    setFocus(focus ?? order[0].level.id);
+    root.querySelectorAll<HTMLButtonElement>('[data-src]').forEach((b) => b.classList.toggle('on', b.dataset.src === source));
+    help.textContent = CATEGORIES.find((x) => x.id === cat)!.help + (source === 'live' ? ', from the listening posts.' : ', practice clips with known answers.');
+    q<HTMLElement>('#wl-live-n').textContent = live === null ? '–' : String(live.length);
+    startBtn.disabled = !shown.length;
+    startBtn.textContent = shown.length ? `Start: ${shown[0].title}` : 'Nothing to start';
+    renderPins();
+    setFocus(shown.some((c) => c.id === focus) ? focus : shown[0]?.id ?? null);
   }
 
-  for (const it of items) {
-    const start = () => hooks.pick(it.c);
-    it.li.onclick = start;
-    it.li.onkeydown = (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        start();
-      }
-    };
-    it.li.onmouseenter = it.li.onfocus = () => setFocus(it.c.level.id);
-    it.pin.addEventListener('mouseenter', () => setFocus(it.c.level.id));
-    it.pin.addEventListener('click', start);
-  }
   root.querySelectorAll<HTMLButtonElement>('[data-cat]').forEach((b) => {
     b.onclick = () => {
       cat = b.dataset.cat as Category;
@@ -174,14 +228,25 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       render(true);
     };
   });
-  root.querySelector<HTMLButtonElement>('#wl-start')!.onclick = () => hooks.pick(sortChallenges('newest')[0]);
-  const liveBtn = root.querySelector<HTMLButtonElement>('#wl-live')!;
-  liveBtn.onclick = () => hooks.live();
+  root.querySelectorAll<HTMLButtonElement>('[data-src]').forEach((b) => {
+    b.onclick = () => {
+      source = b.dataset.src as Source;
+      focus = null;
+      render(false);
+    };
+  });
+  startBtn.onclick = () => shown[0] && hooks.pick(shown[0], shown);
 
   async function refreshLive() {
-    const n = await hooks.liveCount().catch(() => null);
-    liveBtn.hidden = !n;
-    if (n) liveBtn.innerHTML = `<span class="live-dot"></span>${n} live recording${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} help`;
+    live = await hooks.live().catch(() => null);
+    const n = live?.length ?? 0;
+    status.innerHTML =
+      live === null
+        ? 'The listening posts cannot be reached right now.'
+        : `<span class="live-dot"></span>${n} live recording${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} your ears`;
+    // open on the live list when there is something to do, otherwise on practice
+    if (source === 'live' && !n) source = 'practice';
+    render(false);
   }
 
   function show() {
@@ -217,4 +282,3 @@ function graticule() {
   }
   return g;
 }
-

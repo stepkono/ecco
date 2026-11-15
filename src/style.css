@@ -397,9 +397,10 @@ table.eval th.num { text-align: right; }
 .m-pin { cursor: pointer; }
 .m-pin .dot { fill: var(--text); stroke: rgba(0, 0, 0, 0.35); stroke-width: 1; transition: fill var(--fast); }
 .m-pin .halo { fill: var(--accent); opacity: 0; transform-box: fill-box; transform-origin: center; }
-.m-pin text { fill: var(--text); font: 600 9px var(--sans); opacity: 0; transition: opacity var(--fast); paint-order: stroke; stroke: rgba(5, 6, 12, 0.7); stroke-width: 3px; }
+.m-pin text.name { fill: var(--text); font: 600 9px var(--sans); opacity: 0; transition: opacity var(--fast); paint-order: stroke; stroke: rgba(5, 6, 12, 0.7); stroke-width: 3px; }
+.m-pin text.count { fill: #12131c; font: 700 7px var(--sans); pointer-events: none; }
 .m-pin:hover .dot, .m-pin.focus .dot { fill: var(--accent); }
-.m-pin.focus text, .m-pin:hover text { opacity: 1; }
+.m-pin.focus text.name, .m-pin:hover text.name { opacity: 1; }
 .m-pin.focus .halo { animation: halo 1.8s var(--ease) infinite; }
 @keyframes halo { 0% { opacity: 0.55; transform: scale(0.4); } 100% { opacity: 0; transform: scale(1.6); } }
 .wl-map figcaption { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: var(--muted); min-height: 66px; }
@@ -426,3 +427,16 @@ body.welcoming .topbar, body.welcoming .hint, body.welcoming .labels-layer { opa
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; transition-duration: 1ms !important; }
 }
+
+/* ---------- challenge list: live and practice ---------- */
+.wl-sub { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 6px; }
+.wl-sub .wl-help { margin: 0; }
+.seg.src button { display: inline-flex; align-items: center; gap: 6px; }
+.seg.src button .pill { font-size: 10px; padding: 0 5px; }
+.seg.src button.on .pill { background: rgba(18, 19, 28, 0.15); }
+.wl-list { max-height: min(56vh, 520px); overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
+.ch-title { display: flex; align-items: center; gap: 8px; }
+.ch-guess { font-size: 11px; color: var(--faint); }
+.ch-empty { list-style: none; padding: 18px 16px; border: 1px dashed var(--edge-soft); border-radius: 6px; color: var(--muted); font-size: 13px; line-height: 1.5; }
+.wl-status { margin: 4px 0 0; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.wl-cta .btn { overflow: hidden; text-overflow: ellipsis; }

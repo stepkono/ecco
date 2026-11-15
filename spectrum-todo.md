@@ -42,9 +42,9 @@ Status: **open**, **in progress**, **done**.
 
 ## Open after round 2
 
-- **open** · In a practice challenge, "Next recording" is the orange primary button, although the task there is to contribute. Make the primary action follow the context: Contribute for practice, Send label for live recordings.
+- **done** · The labeling card follows the context: Contribute and Next challenge for practice clips, Send label and Next recording for live recordings.
 - **open** · The brand mark in the top bar is a placeholder until a logo is chosen.
-- **open** · Challenge places, times, views and disagreement are demo data. Connect them to real post locations and real statistics.
+- **done** · Live recordings are the challenges: real recording time, post location (set per post in config.yaml), views and disagreement come from the backend. Only the practice clips use demo data.
 - **open** · The difficulty grade is fixed per sample. Compute it from the recording (see "User flow").
 
 ## Open after round 3

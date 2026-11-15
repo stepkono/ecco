@@ -1,23 +1,33 @@
-import { LEVELS, type Level } from './levels';
+import { LEVELS } from './levels';
 
 /**
- * Practice challenges for the welcome screen. The recordings are the built-in
- * sample levels. Places, times, views and disagreement are made-up demo data.
+ * Everything the challenge list can show: live recordings from the listening
+ * posts (real, from the backend) and the built-in practice clips (sample
+ * levels with known answers; their places, times and numbers are demo data).
  */
 export interface Challenge {
-  level: Level;
-  index: number; // position in LEVELS
+  kind: 'live' | 'practice';
+  id: string; // clip id (live) or level id (practice)
+  title: string;
+  /** live: the post's uncertain guess, in words */
+  guess?: string;
   place: string;
   region: string;
   lat: number;
   lon: number;
-  recorded: Date; // local time of the recording
+  recorded: Date;
+  durationS: number;
   views: number;
-  /** share of players who disagree with the most common label */
+  /** share of people who disagree with the most common answer */
   disagreement: number;
+  labels: number;
+  /** practice only: 1 (easy) to 5 (hard) */
+  difficulty?: number;
+  /** practice only: index into LEVELS */
+  levelIndex?: number;
 }
 
-const DATA: Record<string, Omit<Challenge, 'level' | 'index'>> = {
+const PRACTICE_DATA: Record<string, { place: string; region: string; lat: number; lon: number; recorded: Date; views: number; disagreement: number }> = {
   l1: { place: 'Nuuksio National Park', region: 'Espoo, Uusimaa', lat: 60.315, lon: 24.502, recorded: new Date(2026, 10, 14, 16, 48), views: 412, disagreement: 0.12 },
   l2: { place: 'Ruissalo', region: 'Turku, Southwest Finland', lat: 60.43, lon: 22.16, recorded: new Date(2026, 10, 13, 12, 5), views: 1240, disagreement: 0.21 },
   l3: { place: 'Patvinsuo National Park', region: 'Lieksa, North Karelia', lat: 63.12, lon: 30.7, recorded: new Date(2026, 10, 14, 7, 22), views: 860, disagreement: 0.34 },
@@ -25,7 +35,62 @@ const DATA: Record<string, Omit<Challenge, 'level' | 'index'>> = {
   l5: { place: 'Linnansaari National Park', region: 'Saimaa, South Savo', lat: 62.13, lon: 28.5, recorded: new Date(2026, 10, 14, 21, 10), views: 96, disagreement: 0.28 },
 };
 
-export const CHALLENGES: Challenge[] = LEVELS.map((level, index) => ({ level, index, ...DATA[level.id] }));
+export const PRACTICE: Challenge[] = LEVELS.map((level, index) => ({
+  kind: 'practice',
+  id: level.id,
+  title: level.title,
+  durationS: 5,
+  labels: 0,
+  difficulty: level.difficulty,
+  levelIndex: index,
+  ...PRACTICE_DATA[level.id],
+}));
+
+/** One waiting recording as the backend lists it (GET /clips). */
+export interface LiveClip {
+  clip_id: string;
+  device_id: string;
+  post: string;
+  region: string;
+  lat: number | null;
+  lon: number | null;
+  recorded_at: number;
+  duration_s: number | null;
+  heard_count: number;
+  device_guess: string | null;
+  device_score: number | null;
+  views: number;
+  labels: number;
+  disagreement: number;
+}
+
+/** "noise:wind" -> "Wind noise", "chirping_birds" -> "Chirping birds" */
+export function prettyLabel(label: string): string {
+  if (label.startsWith('noise:')) return `${cap(label.slice(6))} noise`;
+  if (label === 'noise') return 'Background noise';
+  return cap(label.replace(/_/g, ' '));
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+
+export function fromLive(c: LiveClip): Challenge {
+  const guess = c.device_guess ? prettyLabel(c.device_guess) : null;
+  return {
+    kind: 'live',
+    id: c.clip_id,
+    // the post was not sure: its best guess, as a question
+    title: guess ? `${guess}?` : 'Unknown sound',
+    guess: guess ? `The post's guess: ${guess.toLowerCase()} (${Math.round((c.device_score ?? 0) * 100)}%)` : undefined,
+    place: c.post,
+    region: c.region,
+    lat: c.lat ?? 60.315,
+    lon: c.lon ?? 24.502,
+    recorded: new Date(c.recorded_at * 1000),
+    durationS: c.duration_s ?? 5,
+    views: c.views,
+    disagreement: c.disagreement,
+    labels: c.labels,
+  };
+}
 
 export type Category = 'newest' | 'hottest' | 'most' | 'least';
 
@@ -36,13 +101,14 @@ export const CATEGORIES: { id: Category; label: string; help: string }[] = [
   { id: 'least', label: 'Least viewed', help: 'Recordings that still need fresh ears' },
 ];
 
-export function sortChallenges(c: Category): Challenge[] {
-  const list = [...CHALLENGES];
-  if (c === 'newest') list.sort((a, b) => b.recorded.getTime() - a.recorded.getTime());
-  if (c === 'hottest') list.sort((a, b) => b.disagreement - a.disagreement);
-  if (c === 'most') list.sort((a, b) => b.views - a.views);
-  if (c === 'least') list.sort((a, b) => a.views - b.views);
-  return list;
+export function sortChallenges(list: Challenge[], c: Category): Challenge[] {
+  const out = [...list];
+  const newest = (a: Challenge, b: Challenge) => b.recorded.getTime() - a.recorded.getTime();
+  if (c === 'newest') out.sort(newest);
+  if (c === 'hottest') out.sort((a, b) => b.disagreement - a.disagreement || b.labels - a.labels || newest(a, b));
+  if (c === 'most') out.sort((a, b) => b.views - a.views || newest(a, b));
+  if (c === 'least') out.sort((a, b) => a.views - b.views || newest(a, b));
+  return out;
 }
 
 export const DIFFICULTY = ['', 'Easy', 'Easy', 'Medium', 'Hard', 'Hard'];
@@ -58,7 +124,7 @@ export function whenRecorded(d: Date, now = new Date()): string {
   return `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}, ${fmtTime(d)}`;
 }
 
-/** Time of day in words, for the card subtitle. */
+/** Time of day in words, for the map caption. */
 export function partOfDay(d: Date): string {
   const h = d.getHours();
   if (h < 5) return 'Night';
