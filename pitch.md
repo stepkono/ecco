@@ -40,6 +40,10 @@ Last updated: 2026-11-15
 - Turning audio into 3D graphics is what sets us apart. The pitch video should build up to it, so the reveal feels like a satisfying relief.
 - Current wording: "When ecco hears an unknown or uncertain sound, it triggers a community-driven, human-in-the-loop pipeline, sending a short snippet to ecco and turning tedious data labeling into a visual exploration tool. We extend sound into 3D space. Users can rotate, switch between views and color-code patterns until the hidden call clicks. Every solved sound creates verified human training data and becomes a unique Sound Stamp in the archive. If you label a new acoustic fingerprint first, your name stays on it."
 
+### Video script (team draft, 2026-11-15)
+- Arc: forests full of voices, almost nobody listening → labeling is the bottleneck, slow and locked behind AI monopolies → ecco posts on the Arduino UNO Q work locally and remove speech, so they can stand in busy places like national parks → unsure sounds go to the community → "look at it, touch it, paint it": sound becomes a 3D landscape → every solved sound is verified training data and a Sound Stamp → the data tunes the on-device models, a community owned by people.
+- Open: how to end it. The team's draft ending: "ecco. Explore your data. Derive new insights. Apply them to help your environment thrive."
+
 ### Why a human and not just another algorithm
 - Pattern recognition picks the most likely pattern, the one that sticks out the most.
 - A human can actually hear the sound, so they have context. They don't just search for the obvious thing that sticks out.
