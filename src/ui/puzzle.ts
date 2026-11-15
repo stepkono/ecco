@@ -1,5 +1,5 @@
 import { BIN_HZ, CLIP_LEN, CLIP_SECONDS, FRAME_SEC, N_BINS, SR } from '../dsp/stft';
-import { Backend, type GridInfo, type Puzzle } from '../game/backend';
+import { STATIC_DEMO, Backend, type GridInfo, type Puzzle } from '../game/backend';
 import { Session } from '../game/session';
 import { toast } from './toast';
 
@@ -239,7 +239,8 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
     }
   };
   render();
-  void connect();
+  // the static demo has no server to connect to
+  if (!STATIC_DEMO) void connect();
   return {
     open: (clipId: string) => void open(clipId),
     /** a challenge with a known answer is on screen: show its actions instead of a live recording */

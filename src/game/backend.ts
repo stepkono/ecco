@@ -39,6 +39,12 @@ export interface LabelResult {
 
 const PLAYER_KEY = 'biospectra.backend.player';
 
+/**
+ * Static demo build (VITE_STATIC=1 npm run build): no server, only the built-in
+ * challenges, and the archive stays in this browser. `?backend=<url>` still connects one.
+ */
+export const STATIC_DEMO = import.meta.env.VITE_STATIC === '1' && !new URLSearchParams(location.search).get('backend');
+
 export function backendUrl() {
   const q = new URLSearchParams(location.search).get('backend');
   if (q) return q.replace(/\/$/, '');

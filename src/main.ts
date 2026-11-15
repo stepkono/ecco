@@ -4,7 +4,7 @@ import { melFilterbank, melToMask, N_MELS } from './dsp/analysis';
 import { CLASSES, MODEL_CLASSES, SOURCES, type ClassId, type SourceId } from './game/catalog';
 import { LEVELS, decodeUpload, mixLevel, type Mixture } from './game/levels';
 import { PRACTICE, fromLive, whenRecorded, type Challenge, type LiveClip } from './game/challenges';
-import { Backend } from './game/backend';
+import { Backend, STATIC_DEMO } from './game/backend';
 import { Session, stars, type Layer, type ClassScore } from './game/session';
 import { applyComb, brush, echo, eraseAll, trackPitch, type PaintOpts } from './game/tools';
 import { SpectroView, type Pick } from './view/scene';
@@ -741,11 +741,13 @@ const welcome = mountWelcome($('#welcome'), {
     openChallenge(list.indexOf(c));
   },
   live: async () => {
+    if (STATIC_DEMO) return [];
     const r = await fetch(`${backend.base}/clips`);
     if (!r.ok) return null;
     return ((await r.json()) as LiveClip[]).map(fromLive);
   },
   subscribe: (changed) => {
+    if (STATIC_DEMO) return;
     backend.listen((ev) => {
       if (ev.type === 'clip_received' || ev.type === 'clips_deleted' || ev.type === 'label_accepted') changed();
       if (ev.type === 'stamp_added' || ev.type === 'stamps_cleared') window.dispatchEvent(new Event('archive-changed'));

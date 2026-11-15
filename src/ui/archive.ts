@@ -1,4 +1,4 @@
-import { backendUrl } from '../game/backend';
+import { STATIC_DEMO, backendUrl } from '../game/backend';
 
 /**
  * The community archive: every labelled landscape becomes a "sound stamp", a small
@@ -47,13 +47,14 @@ function saveArchive(list: ArchiveEntry[]) {
  * `local: false` shares it with the community only, without marking it as yours.
  */
 export function addToArchive(e: ArchiveEntry, opts: { local?: boolean } = {}): Promise<unknown> {
-  if (opts.local !== false) {
+  if (opts.local !== false || STATIC_DEMO) {
     const list = loadArchive().filter((x) => x.id !== e.id);
     list.unshift(e);
     saveArchive(list.slice(0, 200));
     window.dispatchEvent(new Event('archive-changed'));
   }
-  // share it with the community
+  // share it with the community (the static demo has no server: the archive stays in this browser)
+  if (STATIC_DEMO) return Promise.resolve(undefined);
   return fetch(`${backendUrl()}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e) })
     .then(() => window.dispatchEvent(new Event('archive-changed')))
     .catch(() => undefined);
@@ -61,6 +62,7 @@ export function addToArchive(e: ArchiveEntry, opts: { local?: boolean } = {}): P
 
 /** Everyone's stamps from the server. Falls back to this browser's own when the server is away. */
 export async function loadCommunity(): Promise<{ list: ArchiveEntry[]; online: boolean }> {
+  if (STATIC_DEMO) return { list: loadArchive(), online: true };
   try {
     const r = await fetch(`${backendUrl()}/archive`);
     if (!r.ok) throw new Error(String(r.status));
@@ -100,7 +102,7 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
   async function render() {
     const { list, online } = await loadCommunity();
     shown = list;
-    const mine = new Set(loadArchive().map((e) => e.id));
+    const mine = new Set(loadArchive().filter((e) => e.player !== 'ecco team').map((e) => e.id));
     const own = list.filter((e) => mine.has(e.id)).length;
     const labels = [...new Set(list.map((e) => e.label))];
     if (filter !== 'all' && filter !== 'mine' && !labels.includes(filter)) filter = 'all';
@@ -148,6 +150,8 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
         await hooks.seed();
         void render();
       };
+    // the online demo has no community yet: fill it with the example stamps right away
+    if (seed && STATIC_DEMO) seed.click();
     root.querySelectorAll<HTMLButtonElement>('.ar-chip').forEach((b) => {
       b.onclick = () => {
         filter = b.dataset.filter!;

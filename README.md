@@ -10,6 +10,10 @@
   <b>Built in one weekend at Junction 2026.</b>
 </p>
 
+<p align="center">
+  <a href="https://stepkono.github.io/spectrum/"><b>▶ Try the live demo</b></a> (website with the built-in challenges, no board needed)
+</p>
+
 ![A recording of a storm chorus as a 3D landscape of drop lines](assets/readme/25-drop-lines-orbit-horizon.jpg)
 
 ---
@@ -166,6 +170,8 @@ npm install && npm run dev
 ```
 
 The website works without the server too. Then it shows the built-in practice challenges.
+
+`npm run build:static` builds a server-free demo for any static host (GitHub Pages, Netlify, a USB stick): only the built-in challenges, and the archive stays in the browser. The [live demo](https://stepkono.github.io/spectrum/) is that build, published from the `gh-pages` branch.
 
 ### The full loop on a laptop, no board needed
 

@@ -267,7 +267,9 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
     status.innerHTML =
       live === null
         ? 'The listening posts cannot be reached right now.'
-        : `<span class="live-dot"></span>${n} live recording${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} your ears`;
+        : n
+          ? `<span class="live-dot"></span>${n} live recording${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} your ears`
+          : 'Every live recording has a name. The challenges are ready for you.';
   }
 
   async function refreshLive() {
