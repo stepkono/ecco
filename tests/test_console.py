@@ -89,3 +89,13 @@ def test_live_playlist_and_clips(console):
     assert z[:2] == b"PK"
     n = json.loads(call(base, "/api/clips/delete", b"{}", method="POST")[1])["deleted"]
     assert n == len(clips) and json.loads(call(base, "/api/clips")[1]) == []
+
+
+def test_keep_speech_switch(console):
+    """The privacy switch is off by default, can be turned on and off, and reaches the listener."""
+    base, ctl = console
+    assert json.loads(call(base, "/api/status")[1])["keep_speech"] is False
+    st = json.loads(call(base, "/api/privacy", json.dumps({"keep_speech": True}).encode())[1])
+    assert st["keep_speech"] is True and ctl.listener.keep_speech is True
+    st = json.loads(call(base, "/api/privacy", json.dumps({"keep_speech": False}).encode())[1])
+    assert st["keep_speech"] is False and ctl.listener.keep_speech is False

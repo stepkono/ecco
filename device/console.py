@@ -206,6 +206,14 @@ class Controller:
         self.bus.publish({"type": "status", **st})
         return st
 
+    def set_keep_speech(self, on: bool) -> dict:
+        """Privacy switch: True keeps speech (it is analysed and can be sent), False drops it again."""
+        self.listener.keep_speech = bool(on)
+        log.warning("privacy filter %s: speech is %s", "OFF" if on else "on", "kept" if on else "dropped")
+        st = self.status()
+        self.bus.publish({"type": "status", **st})
+        return st
+
     def set_knob(self, value: float) -> dict:
         self.hw.knob = min(1.0, max(0.0, float(value)))
         lo, hi = self.listener.knob_lo, self.listener.knob_hi
@@ -238,6 +246,7 @@ class Controller:
             "mode": self.mode, "mode_detail": self.mode_detail,
             "model_id": L.model.model_id, "privacy_model_id": L.privacy.model.model_id,
             "t_known": L.t_known, "knob": self.hw.knob, "t_noise": L.t_noise, "margin": L.margin,
+            "keep_speech": L.keep_speech,
             "proto_version": version, "proto_classes": classes,
             "queue_pending": L.queue.count(only_pending=True), "queue_total": L.queue.count(),
             "sync": self.sync.status, "mic": self.mic_info(),
@@ -433,6 +442,8 @@ def make_handler(ctl: Controller, token: str | None):
                     return self._json(ctl.demo_reset())
                 if path == "/api/knob":
                     return self._json(ctl.set_knob(body["value"]))
+                if path == "/api/privacy":
+                    return self._json(ctl.set_keep_speech(bool(body.get("keep_speech", False))))
                 if path == "/api/clips/delete":
                     ids = body.get("ids") or [c.id for c in ctl.listener.queue.all()]
                     n = sum(ctl.listener.queue.delete(i) for i in ids)
