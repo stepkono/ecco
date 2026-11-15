@@ -39,3 +39,6 @@ data/
 
 # per-machine settings (backend address on the board, ...)
 config.local.yaml
+
+# screen recordings and screenshots for the pitch video
+footage/
