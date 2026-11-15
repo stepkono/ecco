@@ -44,14 +44,19 @@ function saveArchive(list: ArchiveEntry[]) {
   }
 }
 
-/** Add or update an entry (the same recording labelled again replaces its stamp). */
-export function addToArchive(e: ArchiveEntry) {
-  const list = loadArchive().filter((x) => x.id !== e.id);
-  list.unshift(e);
-  saveArchive(list.slice(0, 200));
-  window.dispatchEvent(new Event('archive-changed'));
+/**
+ * Add or update an entry (the same recording labelled again replaces its stamp).
+ * `local: false` shares it with the community only, without marking it as yours.
+ */
+export function addToArchive(e: ArchiveEntry, opts: { local?: boolean } = {}): Promise<unknown> {
+  if (opts.local !== false) {
+    const list = loadArchive().filter((x) => x.id !== e.id);
+    list.unshift(e);
+    saveArchive(list.slice(0, 200));
+    window.dispatchEvent(new Event('archive-changed'));
+  }
   // share it with the community
-  void fetch(`${backendUrl()}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e) })
+  return fetch(`${backendUrl()}/archive`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(e) })
     .then(() => window.dispatchEvent(new Event('archive-changed')))
     .catch(() => undefined);
 }
@@ -148,6 +153,8 @@ const when = (ms: number) => new Date(ms).toLocaleString('en-GB', { day: 'numeri
 
 export interface ArchiveHooks {
   open(e: ArchiveEntry): void;
+  /** add the practice landscapes as example stamps */
+  seed(): Promise<void>;
 }
 
 /** The archive page: a grid of stamps. */
@@ -180,10 +187,19 @@ export function mountArchive(root: HTMLElement, hooks: ArchiveHooks) {
           </button>`,
               )
               .join('')}</div>`
-          : `<div class="ar-empty">No stamps yet. Label a recording with “Send label”, or contribute a challenge, and its landscape lands here.</div>`
+          : `<div class="ar-empty">No stamps yet. Label a recording with “Send label”, or contribute a challenge, and its landscape lands here.
+              ${online ? '<br><button class="btn ghost" id="ar-seed">Add the practice landscapes as examples</button>' : ''}</div>`
       }
     </div>`;
     root.querySelector<HTMLButtonElement>('#ar-close')!.onclick = hide;
+    const seed = root.querySelector<HTMLButtonElement>('#ar-seed');
+    if (seed)
+      seed.onclick = async () => {
+        seed.disabled = true;
+        seed.textContent = 'Drawing the stamps…';
+        await hooks.seed();
+        void render();
+      };
     root.querySelectorAll<HTMLButtonElement>('.stamp').forEach((b) => {
       b.onclick = () => {
         const e = shown.find((x) => x.id === b.dataset.id);

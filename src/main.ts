@@ -3,7 +3,7 @@ import { BIN_HZ, N_BINS, FRAME_SEC } from './dsp/stft';
 import { melFilterbank, melToMask, N_MELS } from './dsp/analysis';
 import { CLASSES, MODEL_CLASSES, SOURCES, type ClassId, type SourceId } from './game/catalog';
 import { LEVELS, decodeUpload, mixLevel, type Mixture } from './game/levels';
-import { fromLive, whenRecorded, type Challenge, type LiveClip } from './game/challenges';
+import { PRACTICE, fromLive, whenRecorded, type Challenge, type LiveClip } from './game/challenges';
 import { Backend } from './game/backend';
 import { Session, stars, type Layer, type ClassScore } from './game/session';
 import { applyComb, brush, echo, eraseAll, trackPitch, type PaintOpts } from './game/tools';
@@ -682,7 +682,26 @@ const archive = mountArchive($('#archive'), {
       void loadLevel(e.levelIndex);
     }
   },
+  seed: seedArchive,
 });
+/** The practice landscapes as example stamps, shared with everyone, so the archive is not empty. */
+async function seedArchive() {
+  for (const [i, level] of LEVELS.entries()) {
+    const s = new Session(level, await mixLevel(level));
+    const hue = hueOf(level.id);
+    const c = PRACTICE[i];
+    await addToArchive(
+      {
+        id: level.id, kind: 'challenge', title: level.title,
+        label: level.targets.map((t) => CLASSES[t].label.toLowerCase()).join(' + '),
+        place: c.place, recorded: c.recorded.getTime(), labelled: Date.now() - (LEVELS.length - i) * 600_000,
+        stamp: renderStamp(s, hue), hue, levelIndex: i, player: 'ecco team',
+      },
+      { local: false },
+    ).catch(() => undefined);
+  }
+  window.dispatchEvent(new Event('archive-changed'));
+}
 const updateArchiveCount = async () => ($('#archive-count').textContent = String(await archive.count()));
 updateArchiveCount();
 window.addEventListener('archive-changed', updateArchiveCount);
@@ -742,8 +761,7 @@ const welcome = mountWelcome($('#welcome'), {
 function enterWorkspace() {
   welcome.hide();
   view.controls.autoRotate = false;
-  // the landscape behind the welcome screen builds up again as the workspace opens
-  view.reveal();
+  // no reveal here: the landscape that opens next plays it once, in startSession
 }
 function showWelcome() {
   transport.pause();
