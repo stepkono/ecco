@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Fiddlehead mark (dark)</title>
+<defs>
+<linearGradient id="fern-mark-dark-g" gradientUnits="userSpaceOnUse" x1="22" y1="58" x2="40" y2="10"><stop offset="0" stop-color="#b6f06a"/><stop offset="0.5" stop-color="#5fe0a8"/><stop offset="1" stop-color="#4cc9f0"/></linearGradient>
+</defs>
+<path d="M36 60C36 49 16 46 16 27A17 17 0 0 1 50 27A11 11 0 0 1 28 27A6 6 0 0 1 40 27" fill="none" stroke="url(#fern-mark-dark-g)" stroke-width="6.5" stroke-linecap="round"/>
+<path d="M32 53.5C37 46 45 45.5 51 48C46 55 38 56 32 53.5Z" fill="#b6f06a"/>
+</svg>

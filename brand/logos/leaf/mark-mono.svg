@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Waveleaf mark (mono)</title>
+<mask id="leaf-mark-mono-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+  <rect width="64" height="64" fill="#fff"/>
+  <path d="M-22 0Q-18.33 -2 -14.67 0Q-11 4.6 -7.33 0Q-3.67 -7.2 0 0Q3.67 7.6 7.33 0Q11 -5.2 14.67 0Q18.33 2.6 22 0" transform="translate(34 30) rotate(-45)" fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round"/>
+</mask>
+<g mask="url(#leaf-mark-mono-cut)">
+  <path d="M12 52C6 30 24 8 56 8C56 40 34 58 12 52Z" fill="#11242c"/>
+  <path d="M13 51L6 58" stroke="#11242c" stroke-width="4.5" stroke-linecap="round"/>
+</g>
+</svg>

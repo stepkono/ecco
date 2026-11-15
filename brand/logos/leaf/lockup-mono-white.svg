@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 218.6 64" width="218.6" height="64" role="img" aria-label="ecco">
+<title>ecco, Waveleaf lockup (mono-white)</title>
+<mask id="leaf-lockup-mono-white-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="64" height="64">
+  <rect width="64" height="64" fill="#fff"/>
+  <path d="M-22 0Q-18.33 -2 -14.67 0Q-11 4.6 -7.33 0Q-3.67 -7.2 0 0Q3.67 7.6 7.33 0Q11 -5.2 14.67 0Q18.33 2.6 22 0" transform="translate(34 30) rotate(-45)" fill="none" stroke="#000" stroke-width="3.2" stroke-linecap="round"/>
+</mask>
+<g mask="url(#leaf-lockup-mono-white-cut)">
+  <path d="M12 52C6 30 24 8 56 8C56 40 34 58 12 52Z" fill="#ffffff"/>
+  <path d="M13 51L6 58" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round"/>
+</g>
+<g fill="none" stroke-width="3.9" stroke-linecap="round">
+  <path d="M82.95 32H109.05A13.05 13.05 0 1 0 106.28 40.03" stroke="#ffffff"/>
+  <path d="M141.67 22.61A13.05 13.05 0 1 0 141.67 41.39" stroke="#ffffff"/>
+  <path d="M176.17 22.61A13.05 13.05 0 1 0 176.17 41.39" stroke="#ffffff"/>
+  <circle cx="201.6" cy="32" r="13.05" stroke="#ffffff"/>
+  </g>
+</svg>

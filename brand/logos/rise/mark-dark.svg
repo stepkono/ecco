@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Dawn Chorus mark (dark)</title>
+<path d="M23 43A9 9 0 0 1 41 43Z" fill="#f59ac6"/>
+<path d="M20.61 41.4L10.76 40.02M20.83 40.25L10.47 37.69M21.17 39.12L9.7 35.01" stroke="#7ccde3" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M21.63 38.04L10.51 32.72M22.19 37L11.53 30.49M22.85 36.03L10.91 26.95" stroke="#97bce8" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M23.61 35.14L10.78 23.11M24.46 34.32L14.84 23.26" stroke="#b2aaee" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M25.38 33.6L13.2 16.29M26.37 32.97L15.78 14.07M27.43 32.45L19.75 14.73" stroke="#cb9cee" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M28.53 32.04L23.06 14.78M29.67 31.74L25.05 9.5M30.83 31.56L28.94 13.18" stroke="#e09bda" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M32 31.5L32 12.02M33.17 31.56L35.26 11.23" stroke="#f59ac6" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M34.33 31.74L38.54 11.47M35.47 32.04L42.51 9.81M36.57 32.45L43.55 16.35" stroke="#e09bda" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M37.63 32.97L47.54 15.29M38.62 33.6L48.45 19.62M39.54 34.32L52.16 19.81" stroke="#cb9cee" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M40.39 35.14L51.99 24.26M41.15 36.03L55.6 25.03" stroke="#b2aaee" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M41.81 37L54.8 29.07M42.37 38.04L56.52 31.27M42.83 39.12L52.88 35.52" stroke="#97bce8" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M43.17 40.25L52.34 37.98M43.39 41.4L50.88 40.35" stroke="#7ccde3" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+<path d="M4 46H60" stroke="#6fd6e0" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M20 51.5V53.26M24 51.5V56.95M28 51.5V57.96M32 51.5V59.26M36 51.5V57.96M40 51.5V56.95M44 51.5V53.26" stroke="#c79cf2" stroke-width="1.8" stroke-linecap="round" opacity="0.6"/>
+</svg>

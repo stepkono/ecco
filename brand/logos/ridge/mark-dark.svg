@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Voxel Ridge mark (dark)</title>
+<rect x="2" y="52" width="10" height="10" rx="2.5" fill="#7b8cff"/>
+<rect x="2" y="39.5" width="10" height="10" rx="2.5" fill="#4cc9f0"/>
+<rect x="14.5" y="52" width="10" height="10" rx="2.5" fill="#7b8cff"/>
+<rect x="14.5" y="39.5" width="10" height="10" rx="2.5" fill="#4cc9f0"/>
+<rect x="14.5" y="27" width="10" height="10" rx="2.5" fill="#5fe0a8"/>
+<rect x="14.5" y="14.5" width="10" height="10" rx="2.5" fill="#b6f06a"/>
+<rect x="27" y="52" width="10" height="10" rx="2.5" fill="#7b8cff"/>
+<rect x="27" y="39.5" width="10" height="10" rx="2.5" fill="#4cc9f0"/>
+<rect x="27" y="27" width="10" height="10" rx="2.5" fill="#5fe0a8"/>
+<rect x="27" y="14.5" width="10" height="10" rx="2.5" fill="#b6f06a"/>
+<rect x="27" y="2" width="10" height="10" rx="2.5" fill="#ffc15e"/>
+<rect x="39.5" y="52" width="10" height="10" rx="2.5" fill="#7b8cff"/>
+<rect x="39.5" y="39.5" width="10" height="10" rx="2.5" fill="#4cc9f0"/>
+<rect x="39.5" y="27" width="10" height="10" rx="2.5" fill="#5fe0a8"/>
+<rect x="52" y="52" width="10" height="10" rx="2.5" fill="#7b8cff"/>
+<rect x="52" y="2" width="10" height="10" rx="2.5" fill="#ff8fc7"/>
+</svg>

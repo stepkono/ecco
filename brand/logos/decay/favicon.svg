@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Decay favicon</title>
+<defs>
+<linearGradient id="decay-fav-g" gradientUnits="userSpaceOnUse" x1="2" y1="9" x2="48" y2="55"><stop offset="0" stop-color="#c58cff"/><stop offset="1" stop-color="#ff8fc7"/></linearGradient>
+</defs>
+<rect width="64" height="64" rx="15" fill="#0b1820"/>
+<g transform="translate(7 7) scale(0.78125)">
+<path d="M7.25 32H42.75A17.75 17.75 0 1 0 37.33 44.77" fill="none" stroke="url(#decay-fav-g)" stroke-width="10.5" stroke-linecap="round"/>
+<circle cx="56.5" cy="32" r="5" fill="#ff8fc7" opacity="0.6"/>
+</g>
+</svg>
