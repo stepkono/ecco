@@ -598,7 +598,7 @@ mountPuzzles($('#labeling'), {
 
 // the 3D view changed theme, so layer colours may have changed
 function themeTimeline() {
-  timeline.setColors({ wave: view.theme.accent2, played: view.theme.accent, needle: view.theme.light ? '#1b2328' : '#ffffff' });
+  timeline.setColors({ wave: view.theme.accent2, played: view.theme.accent, needle: '#ffffff' });
 }
 window.addEventListener('viz-theme', () => {
   themeTimeline();

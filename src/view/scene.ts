@@ -452,9 +452,7 @@ export class SpectroView {
     cv.height = 256;
     const ctx = cv.getContext('2d')!;
     const grad = ctx.createLinearGradient(0, 0, 0, 256);
-    grad.addColorStop(0, t.bg);
-    grad.addColorStop(0.55, t.bg);
-    grad.addColorStop(1, t.fog);
+    for (const [at, c] of t.sky ?? [[0, t.bg], [0.55, t.bg], [1, t.fog]] as [number, string][]) grad.addColorStop(at, c);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 2, 256);
     const tex = new THREE.CanvasTexture(cv);

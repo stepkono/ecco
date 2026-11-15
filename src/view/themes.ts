@@ -20,6 +20,8 @@ export interface Theme {
   paint: string[];
   /** true for light, pastel backdrops */
   light: boolean;
+  /** optional sky gradient from the top of the screen (0) to the bottom (1); default is bg melting into fog */
+  sky?: [number, string][];
 }
 
 export const THEMES: Theme[] = [
@@ -55,12 +57,14 @@ export const THEMES: Theme[] = [
     light: false,
   },
   {
-    // black night, an electric blue that melts through a dusty violet into a hot orange glow
+    // a glowing sky, electric blue above melting into orange, with ink-navy hills
+    // that rise into white peaks, like white type on the orange card of the reference
     id: 'horizon', name: 'Horizon',
-    ramp: ['#10153f', '#2a3dc8', '#5468f0', '#e2625a', '#ffa060'],
-    bg: '#05060c', fog: '#161c46', accent: '#ff8a4c', accent2: '#6f86ff',
-    paint: ['#5ee0ff', '#ffe066', '#ff5fa2', '#7cf2c4', '#f4f1ff', '#c6ff6b', '#c9a6ff'],
-    light: false,
+    ramp: ['#16163a', '#2a2c66', '#55569a', '#c9c3ea', '#ffffff'],
+    bg: '#4a63ff', fog: '#ff8c55', accent: '#ff8a4c', accent2: '#6f86ff',
+    sky: [[0, '#4a63ff'], [0.3, '#9a78d8'], [0.6, '#ff9a6a'], [1, '#ff6b1f']],
+    paint: ['#3fe0ff', '#ffd23f', '#ff4fa0', '#b6ff5c', '#b48cff', '#5cf2c0', '#ff7a2f'],
+    light: true,
   },
   {
     // a warm paper morning: sand lowlands, loud ridges in dusty blue and slate
