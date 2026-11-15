@@ -43,7 +43,8 @@ Status: **open**, **in progress**, **done**.
 ## Open after round 2
 
 - **done** · The labeling card follows the context: Contribute and Next challenge for challenges, Send label and Next recording for live recordings.
-- **open** · The brand mark in the top bar is a placeholder until a logo is chosen.
+- **done** · The ecco logo (Echo Rays) is in the top bar, on the welcome screen and as the favicon.
+- **open** · Gallery of solved landscapes: every labelled recording becomes an abstract "sound stamp" (top view of its landscape, with its own colour gradient). Players collect the stamps in a personal library and can open each landscape again. Not started.
 - **done** · "Newest" lists the live recordings from the posts (real time, post location from config.yaml). Hottest, Most viewed and Least viewed keep the challenges with demo data.
 - **open** · Connect Hottest, Most viewed and Least viewed to real statistics once enough people label.
 - **open** · The difficulty grade is fixed per sample. Compute it from the recording (see "User flow").
