@@ -4,9 +4,10 @@ import { FINLAND, LAKES, MAP_H, MAP_W, NEIGHBOURS, project } from './finland-map
 
 /**
  * Welcome screen: the mission, a three-step mental model of the task, and the
- * challenge list. The list has two sources: live recordings the listening posts
- * could not recognize (real), and practice clips with known answers. What you
- * click is exactly what opens, and "Next" in the workspace follows this list.
+ * challenge list. "Newest" lists the live recordings the listening posts could
+ * not recognize (real, from the backend). The other categories list the
+ * challenges. What you click is exactly what opens, and "Next" in the workspace
+ * follows the list on screen.
  * Cards and map pins are two views of the same list, so hovering one highlights the other.
  */
 export interface WelcomeHooks {
@@ -16,14 +17,11 @@ export interface WelcomeHooks {
   live(): Promise<Challenge[] | null>;
 }
 
-type Source = 'live' | 'practice';
-
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const views = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
 
 export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   let cat: Category = 'newest';
-  let source: Source = 'live';
   let live: Challenge[] | null = null;
   let focus: string | null = null;
 
@@ -47,18 +45,12 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       <section class="wl-board glass" aria-labelledby="wl-h">
         <header class="wl-head">
           <h2 id="wl-h">Challenges</h2>
-          <div class="seg src" role="tablist" aria-label="Which recordings">
-            <button role="tab" data-src="live" title="Real recordings the listening posts could not recognize">Live <span class="pill" id="wl-live-n">–</span></button>
-            <button role="tab" data-src="practice" title="Sample clips with known answers, to learn the tools">Practice <span class="pill">${PRACTICE.length}</span></button>
-          </div>
-        </header>
-        <div class="wl-sub">
           <div class="seg cats" role="tablist" aria-label="Sort challenges">
             ${CATEGORIES.map((c) => `<button role="tab" data-cat="${c.id}" title="${c.help}" aria-selected="${c.id === cat}">${c.label}</button>`).join('')}
             <span class="seg-pill" aria-hidden="true"></span>
           </div>
-          <p class="wl-help" id="wl-help"></p>
-        </div>
+        </header>
+        <p class="wl-help" id="wl-help"></p>
         <div class="wl-body">
           <ul class="wl-list" id="wl-list"></ul>
           <figure class="wl-map">
@@ -94,7 +86,8 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
   const cards = new Map<string, HTMLLIElement>();
   let shown: Challenge[] = [];
 
-  const current = () => (source === 'live' ? live ?? [] : PRACTICE);
+  // Newest: what the listening posts heard most recently. The other categories: the challenges.
+  const current = () => (cat === 'newest' ? live ?? [] : PRACTICE);
   const placeKey = (c: Challenge) => `${c.lat.toFixed(3)},${c.lon.toFixed(3)}`;
 
   const metric = (c: Challenge) => {
@@ -192,8 +185,8 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
     });
     if (!shown.length)
       list.innerHTML =
-        source === 'live'
-          ? `<li class="ch-empty">${live === null ? 'The listening posts cannot be reached right now.' : 'No live recordings are waiting. Every sound the posts heard has a name.'} Try the practice clips meanwhile.</li>`
+        cat === 'newest'
+          ? `<li class="ch-empty">${live === null ? 'The listening posts cannot be reached right now.' : 'No new recordings are waiting. Every sound the posts heard has a name.'} The other categories have challenges meanwhile.</li>`
           : '';
     else list.querySelector('.ch-empty')?.remove();
     if (animate)
@@ -212,9 +205,7 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
         segPill.style.transform = `translateX(${b.offsetLeft - 3}px)`;
       }
     });
-    root.querySelectorAll<HTMLButtonElement>('[data-src]').forEach((b) => b.classList.toggle('on', b.dataset.src === source));
-    help.textContent = CATEGORIES.find((x) => x.id === cat)!.help + (source === 'live' ? ', from the listening posts.' : ', practice clips with known answers.');
-    q<HTMLElement>('#wl-live-n').textContent = live === null ? '–' : String(live.length);
+    help.textContent = cat === 'newest' ? 'The most recent recordings from the listening posts, live.' : CATEGORIES.find((x) => x.id === cat)!.help + '.';
     startBtn.disabled = !shown.length;
     startBtn.textContent = shown.length ? `Start: ${shown[0].title}` : 'Nothing to start';
     renderPins();
@@ -228,13 +219,6 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       render(true);
     };
   });
-  root.querySelectorAll<HTMLButtonElement>('[data-src]').forEach((b) => {
-    b.onclick = () => {
-      source = b.dataset.src as Source;
-      focus = null;
-      render(false);
-    };
-  });
   startBtn.onclick = () => shown[0] && hooks.pick(shown[0], shown);
 
   async function refreshLive() {
@@ -244,8 +228,6 @@ export function mountWelcome(root: HTMLElement, hooks: WelcomeHooks) {
       live === null
         ? 'The listening posts cannot be reached right now.'
         : `<span class="live-dot"></span>${n} live recording${n === 1 ? '' : 's'} need${n === 1 ? 's' : ''} your ears`;
-    // open on the live list when there is something to do, otherwise on practice
-    if (source === 'live' && !n) source = 'practice';
     render(false);
   }
 

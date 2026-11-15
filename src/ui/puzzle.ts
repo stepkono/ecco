@@ -38,7 +38,7 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
   let label = '';
   /** one short line for the player: what happened last, never technical details */
   let message = '';
-  /** practice clip on screen (no live recording): its title */
+  /** a challenge with a known answer is on screen (no live recording): its title */
   let practice: string | null = null;
   let labelOptions: string[] | null = null;
 
@@ -54,8 +54,8 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
     let title = 'Labeling';
     if (practice !== null && !puzzle) {
       // practice clips have known answers: no label to send, the painting itself is the contribution
-      title = 'Practice';
-      body = `<p class="muted small">A practice clip with a known answer. Paint each sound into its own layer, then contribute it. The score below shows how clean your separation is.</p>
+      title = 'Challenge';
+      body = `<p class="muted small">This challenge has a known answer. Paint each sound into its own layer, then contribute it. The score below shows how clean your separation is.</p>
         <button class="btn primary wide" id="pz-contrib" title="Your painted layers become training examples for the model">Contribute to training set</button>
         <button class="btn wide" id="pz-next-ch">Next challenge →</button>`;
     } else if (!puzzle) {
@@ -237,7 +237,7 @@ export function mountPuzzles(card: HTMLElement, hooks: PuzzleHooks) {
   void connect();
   return {
     open: (clipId: string) => void open(clipId),
-    /** a practice clip is on screen: show its actions instead of a live recording */
+    /** a challenge with a known answer is on screen: show its actions instead of a live recording */
     practice(title: string) {
       practice = title;
       puzzle = null;
