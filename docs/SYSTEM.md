@@ -152,7 +152,7 @@ First-time setup of a board: `git clone https://github.com/stepkono/spetrum.git 
 .venv/bin/python -m bench.app                                # Phase 0 model bench
 .venv/bin/python -m backend.app                              # backend + labeling page, http://localhost:8000
 .venv/bin/python -m tools.seed_gold                          # optional: hidden gold clips
-.venv/bin/python -m pytest -q tests                          # 29 tests
+.venv/bin/python -m pytest -q tests                          # 30 tests
 npm install && npm run dev                                   # web interface (Vite), talks to the backend on port 8000
 ```
 
@@ -330,7 +330,7 @@ docs/      this document
 
 ## Verified results
 
-* **Tests:** 29 pass on the Mac (`pytest -q tests`). 11 of them need `data/prototypes/` and `data/playlist/` and are skipped without them.
+* **Tests:** 30 pass on the Mac (`pytest -q tests`). 11 of them need `data/prototypes/` and `data/playlist/` and are skipped without them.
 * **Web build:** `npm run build` passes.
 * **Phase 4 acceptance:** 3 of 3 scripted runs in a row, on the laptop (21 s loop) and with the UNO Q (24 s loop). See [The end-to-end demo](#the-end-to-end-demo-phase-4).
 * **Phase 2 acceptance:** automated with a real backend server: the device's events appear as puzzles, a label with a box selection publishes a new version, the device installs it and recognizes the sound on the next play.
