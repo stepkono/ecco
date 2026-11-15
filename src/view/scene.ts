@@ -481,11 +481,15 @@ export class SpectroView {
     this.ampLean = lean;
     const x0 = WORLD_W / 2;
     const z0 = -WORLD_D / 2;
-    const out = new THREE.Vector3(1, 0, -1).normalize();
-    const at = (h: number) => new THREE.Vector3(x0, h * (1 - lean), z0).addScaledVector(out, h * lean * 1.25);
+    // the axis group is stretched like the landscape (time by axis.t, frequency by axis.f, height by axis.a),
+    // so directions are given in screen-true (world) units and divided by that stretch
+    const { t: ax, f: az, a: ay } = this.axis;
+    const world = (x: number, z: number) => new THREE.Vector3(x / ax, 0, z / az);
+    const out = world(Math.SQRT1_2, -Math.SQRT1_2); // exactly 45 degrees, away from the landscape
+    const at = (h: number) => new THREE.Vector3(x0, h * (1 - lean), z0).addScaledVector(out, h * ay * lean * 1.25);
     const pts = [at(0), at(WORLD_H)];
     // tick marks and labels sit beside the axis, on the side away from the landscape
-    const side = new THREE.Vector3(1, 0, 1).normalize().multiplyScalar(lean).add(new THREE.Vector3(1 - lean, 0, 0));
+    const side = world(Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(lean).add(world(1 - lean, 0));
     for (const t of this.ampTicks) {
       const p = at(t.h);
       pts.push(p, p.clone().addScaledVector(side, 0.25));
@@ -795,6 +799,7 @@ export class SpectroView {
   }
 
   setAxis(t: number, f: number, a: number) {
+    this.ampLean = -1; // the amplitude axis follows the new stretch
     const footprint = t !== this.axis.t || f !== this.axis.f;
     this.axis.t = t;
     this.axis.f = f;
