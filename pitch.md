@@ -210,8 +210,10 @@ The reveal lands harder when the audience first feels the problem with their ear
 In the video: half a second of silence before the relief line, then the landscape builds up exactly on "see". Note: "your name stays on it" is an idea (A8), not built yet. In the video, say "will stay" or keep it as the outlook.
 
 ### A15. Punchline · open
-Recommended: **"Hard to hear. Easy to see."** It names the problem and our answer in four words, and it is already the hinge of the video.
-Alternatives: "See the sound. Save the species." · "Help the forest listen." (current closing line) · "Every label teaches a forest to listen." · "From noise to knowledge, together." · "Turn sound into sight."
+- **Recommended:** "ecco. Arduino ears in the forest, human eyes in 3D."
+- Wordplay: "The forest's Ear-duino."
+- Short and descriptive: "Hear it on the edge. See it in 3D. Teach it together."
+- Bonus fact: "ecco" is Italian for "there it is!", and Arduino comes from Italy too. That is exactly the moment a hidden call becomes visible in the landscape.
 
 ---
 
