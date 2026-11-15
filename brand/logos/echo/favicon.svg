@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Echo favicon</title>
+<rect width="64" height="64" rx="15" fill="#0b1820"/>
+<g transform="translate(7 7) scale(0.78125)">
+<g fill="none" stroke-width="9" stroke-linecap="round">
+  <path d="M53.15 15.93A25 25 0 1 0 53.15 48.07" stroke="#4cc9f0"/>
+  <path d="M40.31 22.99A11 11 0 1 0 40.31 41.01" stroke="#5fe0a8"/>
+</g>
+</g>
+</svg>

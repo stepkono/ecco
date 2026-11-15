@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ecco logo concepts</title>
+<link id="favicon" rel="icon" type="image/svg+xml" href="echo/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #071118;
+    --surface: #0b1820;
+    --line: #1c3340;
+    --text: #e8f1ee;
+    --muted: #8fa9ad;
+    --accent: #5fe0a8;
+    --paper: #f4f6f1;
+    --paper-line: #dde3dc;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 "Space Grotesk", system-ui, sans-serif;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 48px 24px 96px; }
+  .eyebrow, .num, figcaption, .tag, .files, dt, .glance-name {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+  }
+  .eyebrow { color: var(--accent); font-size: 13px; letter-spacing: .08em; text-transform: uppercase; margin: 0 0 8px; }
+  h1 { font-size: clamp(32px, 5vw, 52px); line-height: 1.05; margin: 0 0 16px; font-weight: 600; letter-spacing: -.02em; }
+  .intro { color: var(--muted); max-width: 680px; margin: 0 0 40px; }
+  .intro b { color: var(--text); font-weight: 500; }
+
+  .glance {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 64px;
+  }
+  .glance-item {
+    all: unset;
+    cursor: pointer;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .glance-item:hover, .glance-item.active { border-color: var(--accent); }
+  .glance-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .glance-item > img { width: 56px; }
+  .glance-icons { display: flex; align-items: center; gap: 10px; }
+  .glance-name { font-size: 12px; color: var(--text); }
+  .num { color: var(--muted); font-size: 12px; }
+
+  .sub { font-size: 20px; font-weight: 600; margin: 0 0 6px; }
+  .small-intro { margin-bottom: 20px; font-size: 15px; }
+  .pixels {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 12px;
+    margin-bottom: 72px;
+  }
+  .pix { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .pix-row { display: flex; gap: 8px; align-items: flex-start; flex-wrap: wrap; }
+  .pix canvas { width: 64px; height: 64px; image-rendering: pixelated; border-radius: 4px; }
+  .pix canvas[data-px="16"] { width: 48px; height: 48px; }
+  .pix canvas[data-px="32"] { width: 96px; height: 96px; }
+  .pix canvas.on-dark { background: #000; }
+  .pix canvas.on-light { background: var(--paper); }
+  .concept { border-top: 1px solid var(--line); padding: 48px 0 24px; }
+  .concept-head { display: flex; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+  .concept-head .num { padding-top: 10px; }
+  .concept-head > div { flex: 1; }
+  h2 { font-size: 30px; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+  .line { margin: 2px 0 0; color: var(--muted); }
+  .try {
+    font: 500 13px "Space Grotesk", sans-serif;
+    color: var(--text); background: transparent;
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 8px 14px; cursor: pointer; white-space: nowrap;
+  }
+  .try:hover { border-color: var(--accent); }
+
+  .why { display: grid; grid-template-columns: 2fr 1fr 1.3fr; gap: 24px; margin: 0 0 24px; }
+  .why div { margin: 0; }
+  dt { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--accent); margin-bottom: 4px; }
+  dd { margin: 0; font-size: 15px; color: #c5d6d6; }
+
+  .panel {
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+    min-width: 0;
+  }
+  .panel img { max-width: 100%; width: auto; object-fit: contain; }
+  .panel.dark { background: var(--surface); border: 1px solid var(--line); }
+  .panel.light { background: var(--paper); border: 1px solid var(--paper-line); color: #11242c; }
+  .hero { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .panel.big { height: 280px; }
+  .lockups { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .lockups .panel { height: 150px; padding: 24px; }
+  .tag {
+    position: absolute; top: 10px; left: 12px;
+    font-size: 10px; letter-spacing: .08em; text-transform: uppercase; opacity: .55;
+  }
+  .small { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .sizes { justify-content: flex-start; gap: 18px; padding: 18px 20px 12px; align-items: flex-end; flex-wrap: wrap; }
+  .sizes figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  figcaption { font-size: 10px; opacity: .55; }
+  .sep { width: 1px; align-self: stretch; background: currentColor; opacity: .15; }
+  .panel.dark .sep { background: var(--text); }
+
+  .tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .tab {
+    display: flex; align-items: center; gap: 8px;
+    height: 36px; padding: 0 12px; border-radius: 10px 10px 0 0;
+    font: 13px system-ui, sans-serif; max-width: 240px;
+  }
+  .tab span { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tab i { font-style: normal; opacity: .5; }
+  .tab-light { background: #ffffff; color: #1f1f1f; box-shadow: 0 0 0 1px #dadce0; }
+  .tab-dark { background: #35363a; color: #e8eaed; }
+  .files { font-size: 11px; color: var(--muted); margin: 4px 0 0; line-height: 1.9; }
+  .files a { color: var(--muted); margin-right: 10px; }
+  .files a:hover { color: var(--accent); }
+
+  @media (max-width: 760px) {
+    .wrap { padding: 32px 16px 64px; }
+    .glance { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .why { grid-template-columns: 1fr; gap: 12px; }
+    .hero, .lockups, .small, .tabs { grid-template-columns: 1fr; }
+    .panel.big { height: 220px; }
+    .concept-head { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <p class="eyebrow">ecco brand · round 1</p>
+  <h1>Logo concepts</h1>
+  <p class="intro">Seven directions for <b>ecco</b>, the community platform that listens to forests. Each concept has a mark, a lockup, one-color versions and a simplified favicon. All lettering is drawn as geometry, so no font is needed in the files. <b>Click any concept</b> to try its favicon in this browser tab.</p>
+
+  <div class="glance">
+      <button class="glance-item" data-fav="echo/favicon.svg" title="Use as this tab’s favicon">
+        <img src="echo/mark-dark.svg" style="height:56px" alt="Echo mark">
+        <span class="glance-icons">
+          <img src="echo/favicon.svg" style="height:32px" alt="Echo favicon 32 px">
+          <img src="echo/favicon.svg" style="height:16px" alt="Echo favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">01</span> Echo</span>
+      </button>
+      <button class="glance-item" data-fav="ridge/favicon.svg" title="Use as this tab’s favicon">
+        <img src="ridge/mark-dark.svg" style="height:56px" alt="Voxel Ridge mark">
+        <span class="glance-icons">
+          <img src="ridge/favicon.svg" style="height:32px" alt="Voxel Ridge favicon 32 px">
+          <img src="ridge/favicon.svg" style="height:16px" alt="Voxel Ridge favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">02</span> Voxel Ridge</span>
+      </button>
+      <button class="glance-item" data-fav="leaf/favicon.svg" title="Use as this tab’s favicon">
+        <img src="leaf/mark-dark.svg" style="height:56px" alt="Waveleaf mark">
+        <span class="glance-icons">
+          <img src="leaf/favicon.svg" style="height:32px" alt="Waveleaf favicon 32 px">
+          <img src="leaf/favicon.svg" style="height:16px" alt="Waveleaf favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">03</span> Waveleaf</span>
+      </button>
+      <button class="glance-item" data-fav="fern/favicon.svg" title="Use as this tab’s favicon">
+        <img src="fern/mark-dark.svg" style="height:56px" alt="Fiddlehead mark">
+        <span class="glance-icons">
+          <img src="fern/favicon.svg" style="height:32px" alt="Fiddlehead favicon 32 px">
+          <img src="fern/favicon.svg" style="height:16px" alt="Fiddlehead favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">04</span> Fiddlehead</span>
+      </button>
+      <button class="glance-item" data-fav="decay/favicon.svg" title="Use as this tab’s favicon">
+        <img src="decay/mark-dark.svg" style="height:56px" alt="Decay mark">
+        <span class="glance-icons">
+          <img src="decay/favicon.svg" style="height:32px" alt="Decay favicon 32 px">
+          <img src="decay/favicon.svg" style="height:16px" alt="Decay favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">05</span> Decay</span>
+      </button>
+      <button class="glance-item" data-fav="mirror/favicon.svg" title="Use as this tab’s favicon">
+        <img src="mirror/mark-dark.svg" style="height:56px" alt="Still Water mark">
+        <span class="glance-icons">
+          <img src="mirror/favicon.svg" style="height:32px" alt="Still Water favicon 32 px">
+          <img src="mirror/favicon.svg" style="height:16px" alt="Still Water favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">06</span> Still Water</span>
+      </button>
+      <button class="glance-item" data-fav="grid/favicon.svg" title="Use as this tab’s favicon">
+        <img src="grid/mark-dark.svg" style="height:56px" alt="Hue Grid mark">
+        <span class="glance-icons">
+          <img src="grid/favicon.svg" style="height:32px" alt="Hue Grid favicon 32 px">
+          <img src="grid/favicon.svg" style="height:16px" alt="Hue Grid favicon 16 px">
+        </span>
+        <span class="glance-name"><span class="num">07</span> Hue Grid</span>
+      </button>
+  </div>
+
+  <h3 class="sub">Pixel check</h3>
+  <p class="intro small-intro">Each favicon and mark rendered at a true 16 px and 32 px, like on a 1x screen, then enlarged 4 times. This is what a browser tab really shows.</p>
+  <div class="pixels">
+      <div class="pix">
+        <span class="glance-name">Echo</span>
+        <span class="pix-row">
+          <canvas data-src="echo/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="echo/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="echo/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="echo/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="echo/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Voxel Ridge</span>
+        <span class="pix-row">
+          <canvas data-src="ridge/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="ridge/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="ridge/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="ridge/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="ridge/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Waveleaf</span>
+        <span class="pix-row">
+          <canvas data-src="leaf/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="leaf/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="leaf/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="leaf/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="leaf/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Fiddlehead</span>
+        <span class="pix-row">
+          <canvas data-src="fern/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="fern/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="fern/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="fern/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="fern/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Decay</span>
+        <span class="pix-row">
+          <canvas data-src="decay/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="decay/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="decay/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="decay/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="decay/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Still Water</span>
+        <span class="pix-row">
+          <canvas data-src="mirror/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="mirror/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="mirror/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="mirror/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="mirror/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+      <div class="pix">
+        <span class="glance-name">Hue Grid</span>
+        <span class="pix-row">
+          <canvas data-src="grid/favicon.svg" data-px="16"></canvas>
+          <canvas data-src="grid/mark-dark.svg" data-px="16" class="on-dark"></canvas>
+          <canvas data-src="grid/mark-light.svg" data-px="16" class="on-light"></canvas>
+        </span>
+        <span class="pix-row">
+          <canvas data-src="grid/favicon.svg" data-px="32"></canvas>
+          <canvas data-src="grid/mark-mono.svg" data-px="32" class="on-light"></canvas>
+        </span>
+      </div>
+  </div>
+
+  <section class="concept" id="echo">
+    <header class="concept-head">
+      <span class="num">01</span>
+      <div>
+        <h2>Echo</h2>
+        <p class="line">The two c’s become a call and the echo that comes back.</p>
+      </div>
+      <button class="try" data-fav="echo/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>Two nested arcs read as the “cc” in ecco and as rings of sound returning to a source. The dot is the animal call. Each ring is one hue step further, like a sorted color puzzle.</dd></div>
+      <div><dt>Mood</dt><dd>Calm, precise, quietly technical.</dd></div>
+      <div><dt>Works best</dt><dd>App icon, favicon, the in-app Echo tool. Strong at every size.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="echo/mark-dark.svg" style="height:168px" alt="Echo mark on dark"></div>
+      <div class="panel light big"><img src="echo/mark-light.svg" style="height:168px" alt="Echo mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="echo/lockup-dark.svg" style="height:72px" alt="Echo lockup on dark"></div>
+      <div class="panel light"><img src="echo/lockup-light.svg" style="height:72px" alt="Echo lockup on light"></div>
+      <div class="panel light"><img src="echo/lockup-mono.svg" style="height:48px" alt="Echo one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="echo/lockup-mono-white.svg" style="height:48px" alt="Echo one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="echo/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="echo/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="echo/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="echo/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="echo/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="echo/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="echo/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="echo/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="echo/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="echo/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="echo/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="echo/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="echo/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="echo/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="echo/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="echo/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="echo/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="echo/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="echo/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="echo/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="echo/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="echo/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="echo/mark-dark.svg">mark-dark.svg</a> <a href="echo/lockup-dark.svg">lockup-dark.svg</a> <a href="echo/mark-light.svg">mark-light.svg</a> <a href="echo/lockup-light.svg">lockup-light.svg</a> <a href="echo/mark-mono.svg">mark-mono.svg</a> <a href="echo/lockup-mono.svg">lockup-mono.svg</a> <a href="echo/mark-mono-white.svg">mark-mono-white.svg</a> <a href="echo/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="echo/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="ridge">
+    <header class="concept-head">
+      <span class="num">02</span>
+      <div>
+        <h2>Voxel Ridge</h2>
+        <p class="line">A spectrogram that has grown into a mountain.</p>
+      </div>
+      <button class="try" data-fav="ridge/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>Voxel columns from the 3D view stack into a ridge. Rows step from cool (quiet) to warm (loud) like a spectrogram color map. One voxel floats above: the unknown sound that waits for a label.</dd></div>
+      <div><dt>Mood</dt><dd>Playful, game-like, a little retro.</dd></div>
+      <div><dt>Works best</dt><dd>Onboarding, game screens, stickers and merch. Most “fun” of the set.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="ridge/mark-dark.svg" style="height:168px" alt="Voxel Ridge mark on dark"></div>
+      <div class="panel light big"><img src="ridge/mark-light.svg" style="height:168px" alt="Voxel Ridge mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="ridge/lockup-dark.svg" style="height:72px" alt="Voxel Ridge lockup on dark"></div>
+      <div class="panel light"><img src="ridge/lockup-light.svg" style="height:72px" alt="Voxel Ridge lockup on light"></div>
+      <div class="panel light"><img src="ridge/lockup-mono.svg" style="height:48px" alt="Voxel Ridge one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="ridge/lockup-mono-white.svg" style="height:48px" alt="Voxel Ridge one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="ridge/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="ridge/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="ridge/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="ridge/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="ridge/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="ridge/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="ridge/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="ridge/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="ridge/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="ridge/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="ridge/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="ridge/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="ridge/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="ridge/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="ridge/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="ridge/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="ridge/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="ridge/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="ridge/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="ridge/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="ridge/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="ridge/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="ridge/mark-dark.svg">mark-dark.svg</a> <a href="ridge/lockup-dark.svg">lockup-dark.svg</a> <a href="ridge/mark-light.svg">mark-light.svg</a> <a href="ridge/lockup-light.svg">lockup-light.svg</a> <a href="ridge/mark-mono.svg">mark-mono.svg</a> <a href="ridge/lockup-mono.svg">lockup-mono.svg</a> <a href="ridge/mark-mono-white.svg">mark-mono-white.svg</a> <a href="ridge/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="ridge/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="leaf">
+    <header class="concept-head">
+      <span class="num">03</span>
+      <div>
+        <h2>Waveleaf</h2>
+        <p class="line">A leaf whose vein is a sound wave.</p>
+      </div>
+      <button class="try" data-fav="leaf/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>The midrib of the leaf is replaced by a bird call: a wave that swells and fades. From afar it is simply a leaf, up close it is sound. Nature carries the data.</dd></div>
+      <div><dt>Mood</dt><dd>Organic, gentle, optimistic.</dd></div>
+      <div><dt>Works best</dt><dd>Nature and park partners, posters, field hardware labels.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="leaf/mark-dark.svg" style="height:168px" alt="Waveleaf mark on dark"></div>
+      <div class="panel light big"><img src="leaf/mark-light.svg" style="height:168px" alt="Waveleaf mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="leaf/lockup-dark.svg" style="height:72px" alt="Waveleaf lockup on dark"></div>
+      <div class="panel light"><img src="leaf/lockup-light.svg" style="height:72px" alt="Waveleaf lockup on light"></div>
+      <div class="panel light"><img src="leaf/lockup-mono.svg" style="height:48px" alt="Waveleaf one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="leaf/lockup-mono-white.svg" style="height:48px" alt="Waveleaf one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="leaf/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="leaf/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="leaf/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="leaf/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="leaf/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="leaf/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="leaf/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="leaf/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="leaf/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="leaf/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="leaf/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="leaf/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="leaf/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="leaf/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="leaf/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="leaf/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="leaf/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="leaf/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="leaf/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="leaf/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="leaf/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="leaf/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="leaf/mark-dark.svg">mark-dark.svg</a> <a href="leaf/lockup-dark.svg">lockup-dark.svg</a> <a href="leaf/mark-light.svg">mark-light.svg</a> <a href="leaf/lockup-light.svg">lockup-light.svg</a> <a href="leaf/mark-mono.svg">mark-mono.svg</a> <a href="leaf/lockup-mono.svg">lockup-mono.svg</a> <a href="leaf/mark-mono-white.svg">mark-mono-white.svg</a> <a href="leaf/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="leaf/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="fern">
+    <header class="concept-head">
+      <span class="num">04</span>
+      <div>
+        <h2>Fiddlehead</h2>
+        <p class="line">A fern sprout that is also an ear and a spiral.</p>
+      </div>
+      <button class="try" data-fav="fern/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>A young fern curls like the inside of an ear, the part that listens. The curl is also the spiral view of ecco, where sound winds around a time axis. Its outline also hints at a map pin, the spot where a post listens.</dd></div>
+      <div><dt>Mood</dt><dd>Warm, alive, hopeful.</dd></div>
+      <div><dt>Works best</dt><dd>Main brand mark. Works for the community side, the posts and the web app.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="fern/mark-dark.svg" style="height:168px" alt="Fiddlehead mark on dark"></div>
+      <div class="panel light big"><img src="fern/mark-light.svg" style="height:168px" alt="Fiddlehead mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="fern/lockup-dark.svg" style="height:72px" alt="Fiddlehead lockup on dark"></div>
+      <div class="panel light"><img src="fern/lockup-light.svg" style="height:72px" alt="Fiddlehead lockup on light"></div>
+      <div class="panel light"><img src="fern/lockup-mono.svg" style="height:48px" alt="Fiddlehead one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="fern/lockup-mono-white.svg" style="height:48px" alt="Fiddlehead one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="fern/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="fern/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="fern/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="fern/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="fern/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="fern/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="fern/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="fern/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="fern/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="fern/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="fern/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="fern/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="fern/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="fern/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="fern/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="fern/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="fern/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="fern/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="fern/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="fern/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="fern/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="fern/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="fern/mark-dark.svg">mark-dark.svg</a> <a href="fern/lockup-dark.svg">lockup-dark.svg</a> <a href="fern/mark-light.svg">mark-light.svg</a> <a href="fern/lockup-light.svg">lockup-light.svg</a> <a href="fern/mark-mono.svg">mark-mono.svg</a> <a href="fern/lockup-mono.svg">lockup-mono.svg</a> <a href="fern/mark-mono-white.svg">mark-mono-white.svg</a> <a href="fern/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="fern/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="decay">
+    <header class="concept-head">
+      <span class="num">05</span>
+      <div>
+        <h2>Decay</h2>
+        <p class="line">The word itself echoes and fades out.</p>
+      </div>
+      <button class="try" data-fav="decay/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>A wordmark-first concept. The letters of ecco step down in strength like an echo, and two trailing beats fade after the o. The mark is the e with that same fading rhythm.</dd></div>
+      <div><dt>Mood</dt><dd>Editorial, rhythmic, understated.</dd></div>
+      <div><dt>Works best</dt><dd>Wordmark in headers, presentations, print. The mark is weaker alone.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="decay/mark-dark.svg" style="height:168px" alt="Decay mark on dark"></div>
+      <div class="panel light big"><img src="decay/mark-light.svg" style="height:168px" alt="Decay mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="decay/lockup-dark.svg" style="height:72px" alt="Decay lockup on dark"></div>
+      <div class="panel light"><img src="decay/lockup-light.svg" style="height:72px" alt="Decay lockup on light"></div>
+      <div class="panel light"><img src="decay/lockup-mono.svg" style="height:48px" alt="Decay one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="decay/lockup-mono-white.svg" style="height:48px" alt="Decay one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="decay/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="decay/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="decay/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="decay/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="decay/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="decay/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="decay/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="decay/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="decay/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="decay/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="decay/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="decay/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="decay/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="decay/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="decay/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="decay/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="decay/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="decay/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="decay/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="decay/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="decay/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="decay/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="decay/mark-dark.svg">mark-dark.svg</a> <a href="decay/lockup-dark.svg">lockup-dark.svg</a> <a href="decay/mark-light.svg">mark-light.svg</a> <a href="decay/lockup-light.svg">lockup-light.svg</a> <a href="decay/mark-mono.svg">mark-mono.svg</a> <a href="decay/lockup-mono.svg">lockup-mono.svg</a> <a href="decay/mark-mono-white.svg">mark-mono-white.svg</a> <a href="decay/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="decay/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="mirror">
+    <header class="concept-head">
+      <span class="num">06</span>
+      <div>
+        <h2>Still Water</h2>
+        <p class="line">A spruce and its reflection, the mirrored surface view.</p>
+      </div>
+      <button class="try" data-fav="mirror/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>Above the water line stands the forest. Below it the reflection breaks into ripples that read as sound lines. It mirrors the app’s mirrored-surface view and the idea that the forest speaks back.</dd></div>
+      <div><dt>Mood</dt><dd>Quiet, serene, Nordic.</dd></div>
+      <div><dt>Works best</dt><dd>National park partners, signage, the listening posts themselves.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="mirror/mark-dark.svg" style="height:168px" alt="Still Water mark on dark"></div>
+      <div class="panel light big"><img src="mirror/mark-light.svg" style="height:168px" alt="Still Water mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="mirror/lockup-dark.svg" style="height:72px" alt="Still Water lockup on dark"></div>
+      <div class="panel light"><img src="mirror/lockup-light.svg" style="height:72px" alt="Still Water lockup on light"></div>
+      <div class="panel light"><img src="mirror/lockup-mono.svg" style="height:48px" alt="Still Water one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="mirror/lockup-mono-white.svg" style="height:48px" alt="Still Water one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="mirror/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="mirror/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="mirror/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="mirror/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="mirror/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="mirror/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="mirror/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="mirror/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="mirror/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="mirror/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="mirror/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="mirror/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="mirror/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="mirror/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="mirror/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="mirror/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="mirror/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="mirror/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="mirror/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="mirror/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="mirror/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="mirror/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="mirror/mark-dark.svg">mark-dark.svg</a> <a href="mirror/lockup-dark.svg">lockup-dark.svg</a> <a href="mirror/mark-light.svg">mark-light.svg</a> <a href="mirror/lockup-light.svg">lockup-light.svg</a> <a href="mirror/mark-mono.svg">mark-mono.svg</a> <a href="mirror/lockup-mono.svg">lockup-mono.svg</a> <a href="mirror/mark-mono-white.svg">mark-mono-white.svg</a> <a href="mirror/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="mirror/favicon.svg">favicon.svg</a></p>
+  </section>
+
+  <section class="concept" id="grid">
+    <header class="concept-head">
+      <span class="num">07</span>
+      <div>
+        <h2>Hue Grid</h2>
+        <p class="line">A color puzzle with one tile left for you.</p>
+      </div>
+      <button class="try" data-fav="grid/favicon.svg">Try as tab icon</button>
+    </header>
+
+    <dl class="why">
+      <div><dt>Idea</dt><dd>Nine tiles in a smooth color field, like a sorted hue puzzle or a tiny spectrogram. One tile is open: the sound the post was unsure about. Your label completes the picture.</dd></div>
+      <div><dt>Mood</dt><dd>Bright, social, game-first.</dd></div>
+      <div><dt>Works best</dt><dd>Community features, badges, social posts, the labeling game.</dd></div>
+    </dl>
+
+    <div class="hero">
+      <div class="panel dark big"><img src="grid/mark-dark.svg" style="height:168px" alt="Hue Grid mark on dark"></div>
+      <div class="panel light big"><img src="grid/mark-light.svg" style="height:168px" alt="Hue Grid mark on light"></div>
+    </div>
+
+    <div class="lockups">
+      <div class="panel dark"><img src="grid/lockup-dark.svg" style="height:72px" alt="Hue Grid lockup on dark"></div>
+      <div class="panel light"><img src="grid/lockup-light.svg" style="height:72px" alt="Hue Grid lockup on light"></div>
+      <div class="panel light"><img src="grid/lockup-mono.svg" style="height:48px" alt="Hue Grid one color, dark ink"><span class="tag">one color</span></div>
+      <div class="panel dark"><img src="grid/lockup-mono-white.svg" style="height:48px" alt="Hue Grid one color, white"><span class="tag">one color</span></div>
+    </div>
+
+    <div class="small">
+      <div class="panel dark sizes"><figure><img src="grid/mark-dark.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="grid/mark-dark.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="grid/mark-dark.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="grid/mark-dark.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="grid/mark-dark.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="grid/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="grid/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes"><figure><img src="grid/mark-light.svg" style="height:64px" alt="64 px"><figcaption>64</figcaption></figure><figure><img src="grid/mark-light.svg" style="height:48px" alt="48 px"><figcaption>48</figcaption></figure><figure><img src="grid/mark-light.svg" style="height:32px" alt="32 px"><figcaption>32</figcaption></figure><figure><img src="grid/mark-light.svg" style="height:24px" alt="24 px"><figcaption>24</figcaption></figure><figure><img src="grid/mark-light.svg" style="height:16px" alt="16 px"><figcaption>16</figcaption></figure><span class="sep"></span><figure><img src="grid/favicon.svg" style="height:32px" alt="favicon 32 px"><figcaption>fav 32</figcaption></figure><figure><img src="grid/favicon.svg" style="height:16px" alt="favicon 16 px"><figcaption>fav 16</figcaption></figure></div>
+      <div class="panel light sizes mono">
+        <figure><img src="grid/mark-mono.svg" style="height:48px" alt="one color 48 px"><figcaption>48</figcaption></figure><figure><img src="grid/mark-mono.svg" style="height:32px" alt="one color 32 px"><figcaption>32</figcaption></figure><figure><img src="grid/mark-mono.svg" style="height:16px" alt="one color 16 px"><figcaption>16</figcaption></figure>
+      </div>
+      <div class="panel dark sizes mono">
+        <figure><img src="grid/mark-mono-white.svg" style="height:48px" alt="one color white 48 px"><figcaption>48</figcaption></figure><figure><img src="grid/mark-mono-white.svg" style="height:32px" alt="one color white 32 px"><figcaption>32</figcaption></figure><figure><img src="grid/mark-mono-white.svg" style="height:16px" alt="one color white 16 px"><figcaption>16</figcaption></figure>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <div class="tab tab-light"><img src="grid/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+      <div class="tab tab-dark"><img src="grid/favicon.svg" style="height:16px" alt="favicon"><span>ecco · label a sound</span><i>×</i></div>
+    </div>
+
+    <p class="files">Files: <a href="grid/mark-dark.svg">mark-dark.svg</a> <a href="grid/lockup-dark.svg">lockup-dark.svg</a> <a href="grid/mark-light.svg">mark-light.svg</a> <a href="grid/lockup-light.svg">lockup-light.svg</a> <a href="grid/mark-mono.svg">mark-mono.svg</a> <a href="grid/lockup-mono.svg">lockup-mono.svg</a> <a href="grid/mark-mono-white.svg">mark-mono-white.svg</a> <a href="grid/lockup-mono-white.svg">lockup-mono-white.svg</a> <a href="grid/favicon.svg">favicon.svg</a></p>
+  </section>
+</main>
+<script>
+  // Draw each SVG at its true pixel size (no retina scaling), CSS enlarges it.
+  document.querySelectorAll('canvas[data-src]').forEach((cv) => {
+    const px = +cv.dataset.px;
+    cv.width = px; cv.height = px;
+    const im = new Image();
+    im.onload = () => {
+      const ctx = cv.getContext('2d');
+      if (cv.classList.contains('on-light')) { ctx.fillStyle = '#f4f6f1'; ctx.fillRect(0, 0, px, px); }
+      if (cv.classList.contains('on-dark')) { ctx.fillStyle = '#0b1820'; ctx.fillRect(0, 0, px, px); }
+      ctx.drawImage(im, 0, 0, px, px);
+    };
+    im.src = cv.dataset.src;
+  });
+  const link = document.getElementById('favicon');
+  const items = document.querySelectorAll('[data-fav]');
+  items.forEach((el) => el.addEventListener('click', () => {
+    link.href = el.dataset.fav;
+    document.querySelectorAll('.glance-item').forEach((g) => g.classList.toggle('active', g.dataset.fav === el.dataset.fav));
+  }));
+</script>
+</body>
+</html>

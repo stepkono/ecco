@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Fiddlehead favicon</title>
+<defs>
+<linearGradient id="fern-fav-g" gradientUnits="userSpaceOnUse" x1="22" y1="60" x2="40" y2="8"><stop offset="0" stop-color="#b6f06a"/><stop offset="0.5" stop-color="#5fe0a8"/><stop offset="1" stop-color="#4cc9f0"/></linearGradient>
+</defs>
+<rect width="64" height="64" rx="15" fill="#0b1820"/>
+<g transform="translate(7 7) scale(0.78125)">
+<path d="M36 60C36 48 13 45 13 27A19 19 0 0 1 51 27A12 12 0 0 1 27 27" fill="none" stroke="url(#fern-fav-g)" stroke-width="9" stroke-linecap="round"/>
+</g>
+</svg>

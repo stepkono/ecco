@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Decay mark (light)</title>
+<defs>
+<linearGradient id="decay-mark-light-g" gradientUnits="userSpaceOnUse" x1="0" y1="12" x2="44" y2="52"><stop offset="0" stop-color="#8648db"/><stop offset="1" stop-color="#d6448e"/></linearGradient>
+</defs>
+<path d="M5.25 32H36.75A15.75 15.75 0 1 0 31.94 43.33" fill="none" stroke="url(#decay-mark-light-g)" stroke-width="8.5" stroke-linecap="round"/>
+<circle cx="49.5" cy="32" r="4.3" fill="#d6448e" opacity="0.7"/>
+<circle cx="59" cy="32" r="2.7" fill="#d6448e" opacity="0.4"/>
+</svg>

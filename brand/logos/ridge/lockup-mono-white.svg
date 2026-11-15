@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 218.6 64" width="218.6" height="64" role="img" aria-label="ecco">
+<title>ecco, Voxel Ridge lockup (mono-white)</title>
+<rect x="2" y="52" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="2" y="39.5" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="14.5" y="52" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="14.5" y="39.5" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="14.5" y="27" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="14.5" y="14.5" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="27" y="52" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="27" y="39.5" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="27" y="27" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="27" y="14.5" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="27" y="2" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="39.5" y="52" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="39.5" y="39.5" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="39.5" y="27" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="52" y="52" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<rect x="52" y="2" width="10" height="10" rx="2.5" fill="#ffffff"/>
+<g fill="none" stroke-width="6.45" stroke-linecap="round">
+  <path d="M84.22 32H107.78A11.78 11.78 0 1 0 105.28 39.25" stroke="#ffffff"/>
+  <path d="M140.78 23.53A11.78 11.78 0 1 0 140.78 40.47" stroke="#ffffff"/>
+  <path d="M175.28 23.53A11.78 11.78 0 1 0 175.28 40.47" stroke="#ffffff"/>
+  <circle cx="201.6" cy="32" r="11.78" stroke="#ffffff"/>
+  </g>
+</svg>

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 218.6 64" width="218.6" height="64" role="img" aria-label="ecco">
+<title>ecco, Still Water lockup (mono-white)</title>
+<path d="M32 5L43 20H38.5L50 35H14L25.5 20H21Z" fill="#ffffff" stroke="#ffffff" stroke-width="3.5" stroke-linejoin="round"/>
+<g stroke-width="4.5" stroke-linecap="round" fill="none">
+  <path d="M8 42.5H56" stroke="#ffffff"/>
+  <path d="M18 50.5H31M36.5 50.5H44" stroke="#ffffff"/>
+  <path d="M26 58.5H37" stroke="#ffffff"/>
+</g>
+<g fill="none" stroke-width="3.9" stroke-linecap="round">
+  <path d="M82.95 32H109.05A13.05 13.05 0 1 0 106.28 40.03" stroke="#ffffff"/>
+  <path d="M141.67 22.61A13.05 13.05 0 1 0 141.67 41.39" stroke="#ffffff"/>
+  <path d="M176.17 22.61A13.05 13.05 0 1 0 176.17 41.39" stroke="#ffffff"/>
+  <circle cx="201.6" cy="32" r="13.05" stroke="#ffffff"/>
+  </g>
+</svg>

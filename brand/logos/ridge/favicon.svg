@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="ecco">
+<title>ecco, Voxel Ridge favicon</title>
+<rect width="64" height="64" rx="15" fill="#0b1820"/>
+<g transform="translate(7 7) scale(0.78125)">
+<rect x="1.5" y="49.5" width="13" height="13" rx="3" fill="#4cc9f0"/>
+<rect x="1.5" y="33.5" width="13" height="13" rx="3" fill="#5fe0a8"/>
+<rect x="17.5" y="49.5" width="13" height="13" rx="3" fill="#4cc9f0"/>
+<rect x="17.5" y="33.5" width="13" height="13" rx="3" fill="#5fe0a8"/>
+<rect x="17.5" y="17.5" width="13" height="13" rx="3" fill="#b6f06a"/>
+<rect x="17.5" y="1.5" width="13" height="13" rx="3" fill="#ffc15e"/>
+<rect x="33.5" y="49.5" width="13" height="13" rx="3" fill="#4cc9f0"/>
+<rect x="33.5" y="33.5" width="13" height="13" rx="3" fill="#5fe0a8"/>
+<rect x="33.5" y="17.5" width="13" height="13" rx="3" fill="#b6f06a"/>
+<rect x="49.5" y="49.5" width="13" height="13" rx="3" fill="#4cc9f0"/>
+<rect x="49.5" y="1.5" width="13" height="13" rx="3" fill="#ff8fc7"/>
+</g>
+</svg>
